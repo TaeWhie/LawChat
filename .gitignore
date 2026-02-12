@@ -1,0 +1,27 @@
+# 환경
+.env
+.env.local
+*.env
+
+# 벡터 스토어 (클라우드에서는 매 실행 시 재구축)
+vector_store/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 기타
+.DS_Store
+*.log
