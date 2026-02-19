@@ -14,7 +14,22 @@ from rag.pipeline import (
     step2_checklist,
     step3_conclusion,
     filter_articles_by_issue_relevance,
+    _rag_context,
 )
+from rag.prompts import system_off_topic_detection, user_off_topic_detection
+from rag.llm import chat_json, chat
+from rag.question_classifier import (
+    classify_question_type,
+    system_knowledge_qa,
+    user_knowledge_qa,
+    system_calculation_qa,
+    user_calculation_qa,
+    system_exception_qa,
+    user_exception_qa,
+    calculate_severance_pay,
+    calculate_overtime_pay,
+)
+from rag.pipeline import _rag_context
 from config import (
     ALL_LABOR_LAW_SOURCES,
     RAG_MAIN_TOP_K,
@@ -79,11 +94,250 @@ def process_turn(state: ChatbotState) -> dict:
 
     # 새 상황 입력
     if phase == "input" or (not situation and user_text):
+        # 노동법과 무관한 질문인지 먼저 확인
+        try:
+            off_topic_result = chat_json(
+                system_off_topic_detection(),
+                user_off_topic_detection(user_text),
+                max_tokens=50
+            )
+            is_labor_law_related = True
+            if isinstance(off_topic_result, dict):
+                is_labor_law_related = off_topic_result.get("is_labor_law_related", True)
+            
+            if not is_labor_law_related:
+                # 노동법과 무관한 질문 → 상담으로 유도
+                guidance_msg = """안녕하세요! 저는 **노동법 전문 상담 챗봇**입니다. 
+
+현재 질문은 노동법과 관련이 없는 것으로 보입니다. 저는 다음과 같은 **직장 관련 법적 문제**에 대해 도움을 드릴 수 있습니다:
+
+💼 **상담 가능한 분야**
+• 임금·퇴직금 문제 (월급 체불, 퇴직금 미지급 등)
+• 해고·징계 문제 (부당해고, 해고 예고 등)
+• 근로시간·휴가 문제 (야근, 연차휴가 등)
+• 직장 내 괴롭힘·차별
+• 산업재해·안전 문제
+• 노동조합 관련 문제
+• 최저임금·고용보험 등
+
+직장에서 겪고 계신 법적 문제가 있으시면 자세히 말씀해 주세요. 예를 들어:
+• "월급을 두 달째 못 받았어요"
+• "회사에서 해고 통보를 받았어요"
+• "연차휴가를 사용하지 못했어요"
+
+어떤 도움이 필요하신가요?"""
+                return {
+                    "messages": [AIMessage(content=guidance_msg)],
+                    "situation": "",
+                    "issues": [],
+                    "phase": "input",
+                }
+        except Exception:
+            # 오류 발생 시 기존 로직 계속 진행 (안전장치)
+            pass
+        
+        # 질문 유형 분류 (지식/개념, 계산, 예외, 상황)
+        question_type = classify_question_type(user_text)
+        
+        # 1. 지식 기반 질문 (용어 정의, 개념 설명, 적용 범위 등)
+        if question_type == "knowledge":
+            try:
+                # 관련 조문 검색
+                search_results = search(
+                    col, user_text, top_k=5,
+                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                    exclude_sections=["벌칙", "부칙"],
+                )
+                if search_results:
+                    rag_context = _rag_context(search_results, max_length=2000)
+                    answer = chat(
+                        system_knowledge_qa(),
+                        user_knowledge_qa(user_text, rag_context),
+                        max_tokens=1000
+                    )
+                    return {
+                        "messages": [AIMessage(content=answer)],
+                        "situation": "",
+                        "issues": [],
+                        "phase": "input",
+                    }
+            except Exception:
+                # 지식 질문인데 오류 발생 → 체크리스트 없이 바로 답변만 반환
+                return {
+                    "messages": [AIMessage(content="질문 처리 중 오류가 발생했습니다. 다시 질문해 주세요.")],
+                    "situation": "",
+                    "issues": [],
+                    "phase": "input",
+                }
+        
+        # 2. 계산 질문 (퇴직금, 연장근로 수당 등)
+        elif question_type == "calculation":
+            try:
+                import re
+                from datetime import datetime
+                
+                # 퇴직금 계산 패턴 (더 유연하게 - 한글 처리)
+                severance_patterns = [
+                    # "2022년 1월 1일 입사 ... 2024년 2월 28일 퇴사 ... 300만 원"
+                    r"(\d{4})[년.\-/]?\s*(\d{1,2})[월.\-/]?\s*(\d{1,2})[일]?\s*입사.*?(\d{4})[년.\-/]?\s*(\d{1,2})[월.\-/]?\s*(\d{1,2})[일]?\s*퇴사.*?(\d+)[만천백]?\s*원",
+                    # "입사 ... 퇴사 ... 월급 ... 만원"
+                    r"입사.*?(\d{4})[년.\-/]?\s*(\d{1,2})[월.\-/]?\s*(\d{1,2})[일].*?퇴사.*?(\d{4})[년.\-/]?\s*(\d{1,2})[월.\-/]?\s*(\d{1,2})[일].*?월급.*?(\d+)[만천백]?\s*원",
+                    # "2022-01-01 입사 ... 2024-02-28 퇴사 ... 300만원"
+                    r"(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2}).*?입사.*?(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2}).*?퇴사.*?(\d+)[만천백]?\s*원",
+                ]
+                severance_match = None
+                for pattern in severance_patterns:
+                    severance_match = re.search(pattern, user_text, re.IGNORECASE | re.DOTALL)
+                    if severance_match:
+                        break
+                
+                # 연장근로 수당 계산 패턴 (더 유연하게)
+                # "8시간 근무하고 2시간 더" 또는 "8시간 2시간 만원" 등 다양한 패턴
+                overtime_patterns = [
+                    r"(\d+)시간.*?(\d+)시간.*?(\d+)[만천백]?\s*원",  # "8시간 2시간 만원"
+                    r"(\d+)시간.*?근무.*?(\d+)시간.*?(\d+)[만천백]?\s*원",  # "8시간 근무 2시간 만원"
+                    r"(\d+)시간.*?(\d+)시간.*?시급.*?(\d+)[만천백]?\s*원",  # "8시간 2시간 시급 만원"
+                ]
+                overtime_match = None
+                for pattern in overtime_patterns:
+                    overtime_match = re.search(pattern, user_text, re.IGNORECASE)
+                    if overtime_match:
+                        break
+                
+                if severance_match:
+                    start_date = f"{severance_match.group(1)}-{severance_match.group(2).zfill(2)}-{severance_match.group(3).zfill(2)}"
+                    end_date = f"{severance_match.group(4)}-{severance_match.group(5).zfill(2)}-{severance_match.group(6).zfill(2)}"
+                    monthly_salary = float(severance_match.group(7)) * 10000  # 만원 단위 변환
+                    calc_result = calculate_severance_pay(start_date, end_date, monthly_salary)
+                    if calc_result.get("success"):
+                        answer = f"""**퇴직금 계산 결과** (근로기준법 제34조 기준)
+
+📅 근무 기간: {calc_result['work_days']}일 ({calc_result['work_years']}년)
+💰 월 평균임금: {calc_result['monthly_salary']:,.0f}원
+📊 계산식: {calc_result['formula']}
+
+**예상 퇴직금: 약 {calc_result['estimated_severance']:,}원**
+
+⚠️ {calc_result['note']}
+정확한 계산을 위해서는 최근 3개월간의 임금 총액과 각종 수당을 포함한 평균임금이 필요합니다."""
+                        return {
+                            "messages": [AIMessage(content=answer)],
+                            "situation": "",
+                            "issues": [],
+                            "phase": "input",
+                        }
+                
+                elif overtime_match:
+                    base_hours = int(overtime_match.group(1))
+                    overtime_hours = int(overtime_match.group(2))
+                    hourly_wage = int(overtime_match.group(3)) * 10000  # 만원 단위 변환
+                    calc_result = calculate_overtime_pay(base_hours, overtime_hours, hourly_wage)
+                    if calc_result.get("success"):
+                        answer = f"""**연장근로 수당 계산 결과** (근로기준법 제56조 기준)
+
+⏰ 기본 근무: {calc_result['base_hours']}시간 → {calc_result['base_pay']:,}원
+🌙 연장 근무: {calc_result['overtime_hours']}시간 → {calc_result['overtime_pay']:,}원 (시급의 150%)
+
+**총 수당: {calc_result['total_pay']:,}원**
+
+📋 계산식: {calc_result['formula']}
+
+💡 {calc_result['note']}"""
+                        return {
+                            "messages": [AIMessage(content=answer)],
+                            "situation": "",
+                            "issues": [],
+                            "phase": "input",
+                        }
+                else:
+                    # 계산 질문이지만 패턴 매칭 실패 → RAG로 답변
+                    search_results = search(
+                        col, user_text, top_k=5,
+                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                    )
+                    if search_results:
+                        rag_context = _rag_context(search_results, max_length=2000)
+                        answer = chat(
+                            system_calculation_qa(),
+                            user_calculation_qa(user_text, rag_context),
+                            max_tokens=1000
+                        )
+                        return {
+                            "messages": [AIMessage(content=answer)],
+                            "situation": "",
+                            "issues": [],
+                            "phase": "input",
+                        }
+            except Exception as e:
+                # 계산 질문인데 오류 발생 → 체크리스트 없이 바로 답변만 반환
+                return {
+                    "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
+                    "situation": "",
+                    "issues": [],
+                    "phase": "input",
+                }
+        
+        # 3. 예외 상황 질문 (모호한 신분, 유도 질문, 최신성 확인)
+        elif question_type == "exception":
+            try:
+                search_results = search(
+                    col, user_text, top_k=5,
+                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                )
+                rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
+                
+                # 유도 질문 감지
+                if any(kw in user_text for kw in ["몰래", "기밀", "빼돌려"]):
+                    answer = """⚠️ **법적·윤리적 가이드라인**
+
+회사 기밀을 유출하거나 불법적인 행위를 하는 것은 법적으로 금지되어 있으며, 형사처벌을 받을 수 있습니다.
+
+**법적 문제:**
+- 업무상 배임죄 (형법 제356조)
+- 영업비밀 침해 (부정경쟁방지법)
+- 계약 위반으로 인한 손해배상
+
+**퇴직금과의 관계:**
+불법 행위로 인한 해고는 정당한 해고 사유가 될 수 있으며, 퇴직금 지급에도 영향을 줄 수 있습니다.
+
+**올바른 방법:**
+- 정당한 절차를 통해 퇴사
+- 노동위원회나 법률 상담을 통한 권리 구제
+- 필요시 변호사 상담
+
+법적 문제가 있으시면 변호사와 상담하시기 바랍니다."""
+                else:
+                    answer = chat(
+                        system_exception_qa(),
+                        user_exception_qa(user_text, rag_context),
+                        max_tokens=1000
+                    )
+                    # 최신성 확인 질문인 경우 데이터 연도 추가
+                    if any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
+                        answer += "\n\n📅 **데이터 참고사항:** 제공된 법령 데이터는 동기화 시점의 법령을 기준으로 합니다. 법령은 개정될 수 있으므로, 최신 법령 확인이 필요하시면 국가법령정보센터(www.law.go.kr)를 참고하시기 바랍니다."
+                
+                return {
+                    "messages": [AIMessage(content=answer)],
+                    "situation": "",
+                    "issues": [],
+                    "phase": "input",
+                }
+            except Exception as e:
+                # 예외 질문인데 오류 발생 → 에러 메시지 (체크리스트 없이)
+                return {
+                    "messages": [AIMessage(content="질문 처리 중 오류가 발생했습니다. 다시 질문해 주세요.")],
+                    "situation": "",
+                    "issues": [],
+                    "phase": "input",
+                }
+        
+        # 4. 상황 기반 상담만 체크리스트 생성 (question_type == "situation"일 때만)
+        # 지식/계산/예외 질문은 위에서 모두 return했으므로 여기 도달하지 않음
         situation = user_text
         issues, step1_articles, _ = step1_issue_classification(situation, collection=col)
         if not issues:
             return {
-                "messages": [AIMessage(content="제공된 법령 데이터에서 해당 상황에 맞는 이슈를 찾지 못했습니다.")],
+                "messages": [AIMessage(content="제공된 법령 데이터에서 해당 상황에 맞는 이슈를 찾지 못했습니다.\n\n직장에서 겪고 계신 구체적인 문제를 말씀해 주시면 더 정확한 상담을 도와드릴 수 있습니다. 예: '월급을 못 받았어요', '해고당했어요', '연차휴가를 사용하지 못했어요'")],
                 "situation": situation,
                 "issues": [],
                 "phase": "input",

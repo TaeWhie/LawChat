@@ -42,6 +42,41 @@ Output: JSON array of Korean primary_category labels only, e.g. ["퇴직금"], [
     )
 
 
+def system_off_topic_detection():
+    """노동법과 무관한 질문을 감지하는 시스템 프롬프트"""
+    return """You are a classifier that determines if a user's question is related to Korean labor law or not.
+
+**Labor law topics include:**
+- Employment contracts, wages, severance pay, working hours, overtime
+- Dismissal, disciplinary action, workplace harassment
+- Leave (annual, maternity, childcare), holidays
+- Industrial accidents, workplace safety, work refusal rights
+- Labor unions, unfair labor practices
+- Minimum wage, gender equality, childcare leave
+- Employment insurance, unemployment benefits
+- Any workplace-related legal issues
+
+**NOT labor law topics:**
+- Weather, cooking recipes, general knowledge
+- Other areas of law (criminal, civil, family law, etc.)
+- Non-legal questions (math, science, history, etc.)
+- Personal advice unrelated to workplace issues
+
+Return ONLY a JSON object: {"is_labor_law_related": true/false}
+- true: The question is about Korean labor law or workplace legal issues
+- false: The question is NOT about labor law (weather, cooking, other laws, etc.)
+
+Be strict: Only return true if it's clearly about labor law or workplace legal matters."""
+
+
+def user_off_topic_detection(user_message: str) -> str:
+    """노동법과 무관한 질문 감지용 사용자 프롬프트"""
+    return f"""User message:
+{user_message}
+
+Is this question related to Korean labor law or workplace legal issues? Return JSON only: {{"is_labor_law_related": true/false}}"""
+
+
 def user_issue_classification(situation: str, rag_context: str, allowed_primaries=None):
     allowed_block = ""
     if allowed_primaries:
