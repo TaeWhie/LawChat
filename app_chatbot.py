@@ -279,16 +279,30 @@ def main():
     # 채팅 히스토리 표시 (체크리스트는 마지막 assistant 말풍선 안에 함께 표시)
     cb_checklist = st.session_state.get("cb_checklist") or []
     cb_answers = st.session_state.get("cb_checklist_answers") or {}
-    messages = st.session_state.messages
+    messages = st.session_state.get("messages", [])
+    
+    # 메시지가 없으면 빈 리스트로 초기화
+    if not isinstance(messages, list):
+        st.session_state.messages = []
+        messages = []
+    
     for i, msg in enumerate(messages):
-        role = "user" if isinstance(msg, HumanMessage) else "assistant"
-        # 처리 중 메시지일 때는 체크리스트를 붙이지 않음 (처리 중 문구만 표시)
-        is_last_and_checklist = (
-            i == len(messages) - 1 and isinstance(msg, AIMessage) and cb_checklist
-            and (msg.content or "").strip() != CHECKLIST_PROCESSING_MSG
-        )
-        with st.chat_message(role):
-            st.markdown(msg.content)
+        if msg is None:
+            continue
+        try:
+            role = "user" if isinstance(msg, HumanMessage) else "assistant"
+            # 처리 중 메시지일 때는 체크리스트를 붙이지 않음 (처리 중 문구만 표시)
+            is_last_and_checklist = (
+                i == len(messages) - 1 and isinstance(msg, AIMessage) and cb_checklist
+                and (msg.content or "").strip() != CHECKLIST_PROCESSING_MSG
+            )
+            with st.chat_message(role):
+                content = msg.content if hasattr(msg, 'content') else str(msg)
+                if content:
+                    st.markdown(str(content))
+        except Exception as e:
+            # 메시지 렌더링 오류 시 건너뛰기
+            continue
             
             # 결론 메시지인 경우 조항 링크 버튼 추가
             if isinstance(msg, AIMessage) and "**결론**" in (msg.content or ""):
@@ -499,22 +513,45 @@ def main():
         "직장 관련 법적 문제를 알려주세요...",
         "무엇이 궁금하신가요?",
     ]
-    placeholder = random.choice(input_placeholders)
-    prompt = st.chat_input(placeholder)
-    if prompt:
-        st.session_state.messages.append(HumanMessage(content=prompt))
-        st.session_state.related_questions = []  # 새 질문 입력 시 관련 질문 제거
-        st.rerun()
-
     # 그래프 로드 실패 시 입력/히스토리는 보이되, 응답 생성은 건너뜀
     if graph is None:
         if st.session_state.get("graph_load_error"):
             st.warning(st.session_state.graph_load_error)
         st.caption("※ 모든 답변은 근로기준법 등 제공된 법령 데이터에 기반합니다.")
+        # 그래프가 없어도 입력은 받을 수 있도록
+        placeholder = random.choice(input_placeholders)
+        prompt = st.chat_input(placeholder)
+        if prompt:
+            st.session_state.messages.append(HumanMessage(content=prompt))
+            st.rerun()
         return
 
+    # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 중)
+    is_ai_processing = (
+        st.session_state.messages and 
+        isinstance(st.session_state.messages[-1], HumanMessage)
+    )
+    
+    # 사용자 입력 처리 (그래프가 있을 때만, AI 처리 중이 아닐 때만)
+    if not is_ai_processing:
+        placeholder = random.choice(input_placeholders)
+        prompt = st.chat_input(placeholder)
+        if prompt:
+            # 사용자 메시지 추가
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+            st.session_state.messages.append(HumanMessage(content=prompt))
+            st.session_state.related_questions = []  # 새 질문 입력 시 관련 질문 제거
+            # st.chat_input()은 자동으로 rerun을 트리거하므로 수동 rerun 불필요
+            # 하지만 명시적으로 rerun 호출하여 즉시 반영
+            st.rerun()
+    else:
+        # AI 처리 중일 때는 입력 필드를 비활성화 (시각적 표시만)
+        placeholder = random.choice(input_placeholders)
+        st.chat_input(placeholder, disabled=True)
+
     # 마지막 메시지가 사용자 메시지면 AI 응답 생성
-    if st.session_state.messages and isinstance(st.session_state.messages[-1], HumanMessage):
+    if is_ai_processing:
         last_human = st.session_state.messages[-1]
         with st.chat_message("assistant"):
             with st.spinner("검토 중..."):
