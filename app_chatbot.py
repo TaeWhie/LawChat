@@ -109,14 +109,15 @@ def main():
         with st.chat_message(role):
             st.markdown(msg.content)
 
-    # 체크리스트: 말풍선에 이미 질문이 있으므로 여기서는 번호 + 버튼만 (질문 문장 중복 제거)
+    # 체크리스트: 아래에만 질문 전문 표시 + 네/아니요/모르겠음 버튼
     cb_checklist = st.session_state.get("cb_checklist") or []
     cb_answers = st.session_state.get("cb_checklist_answers") or {}
     if cb_checklist and st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage):
-        st.markdown("**체크리스트 답변** (위 질문에 대해 각각 버튼을 눌러 주세요)")
+        st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
         for i, item in enumerate(cb_checklist):
+            q = item.get("question") or item.get("item") or str(item)
             current = cb_answers.get(i, "").strip()
-            st.caption(f"질문 {i+1}")
+            st.write(f"**{i+1}.** {q}")
             c1, c2, c3, _ = st.columns([1, 1, 1, 2])
             with c1:
                 if st.button("네", key=f"cb_btn_{i}_0", type="primary" if current == "네" else "secondary"):
@@ -184,8 +185,7 @@ def main():
                 new_checklist = step2_res.get("checklist", []) or []
 
                 if should_continue and new_checklist and cb_round < CHECKLIST_MAX_ROUNDS:
-                    lines = [f"**{i+1}.** {(c.get('question') or c.get('item') or str(c))}" for i, c in enumerate(new_checklist)]
-                    msg = f"추가로 확인할 사항 ({cb_round + 1}차)\n\n💡 {continuation_reason or '추가 확인이 필요합니다.'}\n\n" + "\n\n".join(lines) + "\n\n각 질문에 대해 네/아니요/모르겠음 버튼을 눌러 주세요."
+                    msg = f"추가로 확인할 사항 ({cb_round + 1}차)\n\n💡 {continuation_reason or '추가 확인이 필요합니다.'}\n\n아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
                     st.session_state.messages.append(AIMessage(content=msg))
                     st.session_state.cb_checklist = new_checklist
                     st.session_state.cb_checklist_answers = {}

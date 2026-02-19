@@ -125,9 +125,8 @@ def process_turn(state: ChatbotState) -> dict:
         )
         checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
         if checklist:
-            # app.py와 동일: 체크리스트 전체를 한 번에 표시 (버튼으로 답하므로 한 번에 보여줌)
-            lines = [f"**{i+1}.** {(c.get('question') or c.get('item') or str(c))}" for i, c in enumerate(checklist)]
-            resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트: {selected_issue}\n\n" + "\n\n".join(lines) + "\n\n각 질문에 대해 네/아니요/모르겠음 버튼을 눌러 주세요."
+            # 말풍선에는 안내만. 질문 전문은 앱 아래 '체크리스트 답변' 영역에만 표시
+            resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트가 생성되었습니다. 아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
             return {
                 "messages": [AIMessage(content=resp)],
                 "situation": situation, "issues": issues, "selected_issue": selected_issue,
