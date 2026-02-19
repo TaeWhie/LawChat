@@ -593,13 +593,19 @@ def main():
         return
 
     # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 중)
+    # 또는 처리 중 메시지가 있으면 이미 처리 중
     is_ai_processing = (
-        st.session_state.messages and 
+        st.session_state.messages and
         isinstance(st.session_state.messages[-1], HumanMessage)
+    )
+    is_processing_msg = (
+        st.session_state.messages and
+        isinstance(st.session_state.messages[-1], AIMessage) and
+        st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG
     )
     
     # 사용자 입력 처리 (그래프가 있을 때만, AI 처리 중이 아닐 때만)
-    if not is_ai_processing:
+    if not is_ai_processing and not is_processing_msg:
         placeholder = random.choice(input_placeholders)
         prompt = st.chat_input(placeholder)
         if prompt:
@@ -620,20 +626,29 @@ def main():
             # AI 처리 중에는 입력 무시
             pass
 
-    # 마지막 메시지가 사용자 메시지면 AI 응답 생성
-    if is_ai_processing:
-        last_human = st.session_state.messages[-1]
-        # 처리 중 메시지가 아직 추가되지 않았다면 추가하고 rerun
-        if not (len(st.session_state.messages) > 1 and isinstance(st.session_state.messages[-1], AIMessage) and 
-                st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG):
-            st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+    # 마지막 메시지가 사용자 메시지면 처리 중 메시지 추가 (아직 없을 경우)
+    if is_ai_processing and not is_processing_msg:
+        st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+        st.rerun()
+        return
+    
+    # 처리 중 메시지가 있으면 실제 응답 생성
+    if is_processing_msg:
+        # 마지막 HumanMessage 찾기
+        last_human = None
+        for msg in reversed(st.session_state.messages):
+            if isinstance(msg, HumanMessage):
+                last_human = msg
+                break
+        
+        if not last_human:
+            # HumanMessage가 없으면 처리 중 메시지 제거하고 종료
+            st.session_state.messages.pop()
             st.rerun()
             return
         
         # 처리 중 메시지 제거하고 실제 응답 생성
-        if st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage) and \
-           st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG:
-            st.session_state.messages.pop()
+        st.session_state.messages.pop()
         
         with st.chat_message("assistant"):
             config = {"configurable": {"thread_id": thread_id}}
