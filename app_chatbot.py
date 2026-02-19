@@ -592,103 +592,67 @@ def main():
             )
         return
 
-    # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 중)
-    # 또는 처리 중 메시지가 있으면 이미 처리 중
+    # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 필요)
     is_ai_processing = (
         st.session_state.messages and
         isinstance(st.session_state.messages[-1], HumanMessage)
     )
-    is_processing_msg = (
-        st.session_state.messages and
-        isinstance(st.session_state.messages[-1], AIMessage) and
-        st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG
-    )
-    
-    # 사용자 입력 처리 (그래프가 있을 때만, AI 처리 중이 아닐 때만)
-    if not is_ai_processing and not is_processing_msg:
+
+    # 사용자 입력 처리 (AI 처리 중이 아닐 때만)
+    if not is_ai_processing:
         placeholder = random.choice(input_placeholders)
         prompt = st.chat_input(placeholder)
         if prompt:
-            # 사용자 메시지 추가
             if "messages" not in st.session_state:
                 st.session_state.messages = []
             st.session_state.messages.append(HumanMessage(content=prompt))
-            st.session_state.related_questions = []  # 새 질문 입력 시 관련 질문 제거
-            # st.chat_input()은 자동으로 rerun을 트리거하므로 명시적 rerun 불필요
-            # 하지만 메시지가 즉시 표시되도록 명시적으로 rerun 호출
+            st.session_state.related_questions = []
             st.rerun()
     else:
-        # AI 처리 중일 때는 입력 필드를 비활성화 (시각적 표시만)
         placeholder = random.choice(input_placeholders)
-        # disabled 파라미터가 지원되지 않을 수 있으므로, 입력을 받더라도 무시
         prompt = st.chat_input(placeholder)
         if prompt:
-            # AI 처리 중에는 입력 무시
-            pass
+            pass  # AI 처리 중에는 입력 무시
 
-    # 마지막 메시지가 사용자 메시지면 처리 중 메시지 추가 (아직 없을 경우)
-    if is_ai_processing and not is_processing_msg:
-        st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
-        st.rerun()
-        return
-    
-    # 처리 중 메시지가 있으면 실제 응답 생성
-    if is_processing_msg:
-        # 마지막 HumanMessage 찾기
-        last_human = None
-        for msg in reversed(st.session_state.messages):
-            if isinstance(msg, HumanMessage):
-                last_human = msg
-                break
-        
-        if not last_human:
-            # HumanMessage가 없으면 처리 중 메시지 제거하고 종료
-            st.session_state.messages.pop()
-            st.rerun()
-            return
-        
-        # 처리 중 메시지 제거하고 실제 응답 생성
-        st.session_state.messages.pop()
-        
+    # 마지막 메시지가 사용자 메시지면 같은 run에서 바로 AI 응답 생성 (스피너만 사용, rerun 없이)
+    if is_ai_processing:
+        last_human = st.session_state.messages[-1]
         with st.chat_message("assistant"):
-            config = {"configurable": {"thread_id": thread_id}}
-            try:
-                result = graph.invoke(
-                    {"messages": [last_human]},
-                    config=config,
-                )
-                new_msgs = result.get("messages", [])
-                ai_content = ""
-                for m in reversed(new_msgs):
-                    if isinstance(m, AIMessage):
-                        ai_content = m.content
-                        break
-                if ai_content:
-                    st.markdown(ai_content)
-                    st.session_state.messages.append(AIMessage(content=ai_content))
-                    # 체크리스트면 app.py와 동일하게 버튼으로 답하도록 상태 저장
-                    if result.get("phase") == "checklist" and result.get("checklist"):
-                        st.session_state.cb_checklist = result.get("checklist", [])
-                        st.session_state.cb_checklist_answers = {}
-                        st.session_state.cb_checklist_submitted = False
-                        st.session_state.cb_issue = result.get("selected_issue", "")
-                        st.session_state.cb_situation = result.get("situation", "")
-                        st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
-                        st.session_state.cb_round = 1
-                        st.session_state.cb_all_qa = []
-                        st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
-                        st.session_state.pending_buttons = []
-                    else:
-                        st.session_state.pending_buttons = []
-                        if result.get("phase") == "conclusion":
-                                # 결론 메시지에서 결론 내용 추출
+            with st.spinner("처리 중입니다. 잠시만 기다려 주세요."):
+                config = {"configurable": {"thread_id": thread_id}}
+                try:
+                    result = graph.invoke(
+                        {"messages": [last_human]},
+                        config=config,
+                    )
+                    new_msgs = result.get("messages", [])
+                    ai_content = ""
+                    for m in reversed(new_msgs):
+                        if isinstance(m, AIMessage):
+                            ai_content = m.content
+                            break
+                    if ai_content:
+                        st.markdown(ai_content)
+                        st.session_state.messages.append(AIMessage(content=ai_content))
+                        if result.get("phase") == "checklist" and result.get("checklist"):
+                            st.session_state.cb_checklist = result.get("checklist", [])
+                            st.session_state.cb_checklist_answers = {}
+                            st.session_state.cb_checklist_submitted = False
+                            st.session_state.cb_issue = result.get("selected_issue", "")
+                            st.session_state.cb_situation = result.get("situation", "")
+                            st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
+                            st.session_state.cb_round = 1
+                            st.session_state.cb_all_qa = []
+                            st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
+                            st.session_state.pending_buttons = []
+                        else:
+                            st.session_state.pending_buttons = []
+                            if result.get("phase") == "conclusion":
                                 conclusion_content = ""
                                 for msg in reversed(new_msgs):
                                     if isinstance(msg, AIMessage) and "결론" in (msg.content or ""):
                                         conclusion_content = msg.content
                                         break
-                                
-                                # 결론 생성 후 관련 질문 생성
                                 try:
                                     from rag.prompts import system_related_questions, user_related_questions
                                     from rag.llm import chat_json
@@ -700,23 +664,22 @@ def main():
                                             max_tokens=300
                                         )
                                         if isinstance(questions_result, list) and len(questions_result) > 0:
-                                            st.session_state.related_questions = questions_result[:5]  # 최대 5개
+                                            st.session_state.related_questions = questions_result[:5]
                                         else:
                                             st.session_state.related_questions = []
                                     else:
                                         st.session_state.related_questions = []
                                 except Exception:
                                     st.session_state.related_questions = []
-                                
                                 st.session_state.cb_checklist = []
                                 st.session_state.cb_checklist_answers = {}
                                 st.session_state.cb_checklist_submitted = False
-                else:
-                    st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
+                    else:
+                        st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
+                        st.session_state.pending_buttons = []
+                except Exception:
+                    st.error(USER_FACING_ERROR)
                     st.session_state.pending_buttons = []
-            except Exception:
-                st.error(USER_FACING_ERROR)
-                st.session_state.pending_buttons = []
         st.rerun()
 
     # 페이지 하단 출처 표시 및 면책 공고 (채팅창이 비어있을 때만 표시)
