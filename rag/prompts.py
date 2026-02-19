@@ -11,6 +11,36 @@ Critical: Base all answers only on the [Provided legal provisions] below.
 """
 
 
+def system_related_questions():
+    """결론 생성 후 관련 질문 생성 시스템 프롬프트"""
+    return """You are a helpful assistant that generates follow-up questions based on a legal conclusion.
+
+Your task: Generate 3-5 relevant follow-up questions that users might have after reading the conclusion.
+
+**Guidelines:**
+- Questions should be practical and directly related to the conclusion
+- Use everyday Korean that non-lawyers can understand
+- Questions should help users understand next steps or clarify their situation
+- Each question should be concise (one sentence)
+- Avoid questions that are too similar to each other
+- Focus on actionable questions (what to do, how to proceed, what to check, etc.)
+
+**Format:**
+Return ONLY a JSON array of strings, each string is a question in Korean.
+Example: ["퇴직금은 언제 받을 수 있나요?", "회사가 거부하면 어떻게 해야 하나요?", "관련 서류는 무엇이 필요한가요?"]
+
+Do not include any explanation or additional text, only the JSON array."""
+
+
+def user_related_questions(conclusion: str, issue: str) -> str:
+    """결론 기반 관련 질문 생성용 사용자 프롬프트"""
+    return f"""Legal conclusion about "{issue}":
+
+{conclusion}
+
+Generate 3-5 relevant follow-up questions that users might have after reading this conclusion. Return ONLY a JSON array of question strings in Korean."""
+
+
 def system_issue_classification():
     return (
         "You are an expert at classifying legal issues from user situations using labor-law provisions. "
@@ -74,7 +104,7 @@ def user_off_topic_detection(user_message: str) -> str:
     return f"""User message:
 {user_message}
 
-Is this question related to Korean labor law or workplace legal issues? Return JSON only: {{"is_labor_law_related": true/false}}"""
+Is this question related to Korean labor law? Return ONLY JSON: {{"is_labor_law_related": true/false}}"""
 
 
 def user_issue_classification(situation: str, rag_context: str, allowed_primaries=None):
@@ -134,17 +164,17 @@ Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = shor
 
 def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = ""):
     already_block = ""
-    is_follow_up = bool(already_asked_text and already_asked_text.strip())
-    if is_follow_up:
+    if already_asked_text:
         already_block = f"""
-[Previous Q&A] — **Round 2:** Generate follow-up questions **only for items answered "네"**. Skip "아니요"/"모르겠음". New questions can assume the "네" fact (e.g. "그런 경우 임금을 지급받지 못한 적이 있나요?").
-{already_asked_text.strip()}
+[Previous Q&A]
+{already_asked_text}
+
+Do NOT repeat these questions. Ask NEW questions only.
 """
-    tail = (
-        "**Round 2:** Generate additional questions only for items answered **네** above. Exclude 아니요/모르겠음. Use simple everyday language. You may phrase as '그런 경우 …', '그렇다면 …'."
-        if is_follow_up
-        else "**Round 1:** Use ONLY simple, everyday Korean that non-lawyers understand. Avoid legal terms. Ask concrete, specific questions (~하고 있나요?, ~한 적 있나요?). One fact per question. Same topic once only."
-    )
+    tail = """
+Round 1: Generate initial checklist (max 7 items).
+Round 2+: Generate follow-up questions only for items answered "네" in previous rounds (max 5 items).
+"""
     return f"""Issue: {issue}
 {already_block}
 [Filtered provisions summary]

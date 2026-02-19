@@ -359,3 +359,61 @@ def get_articles_by_chapter_from_api(chapter_number: str, law_id: Optional[str] 
             "paragraphs": paragraphs,
         })
     return result
+
+
+def get_article_by_number_from_api(article_number: str, law_id: Optional[str] = None, source: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """조항 번호로 조항 정보를 가져옵니다."""
+    path = _find_law_body_path(law_id, source) if law_id else _find_geunro_body_path()
+    if not path and not law_id:
+        flat = get_laws_flat_from_api()
+        if flat:
+            path = _find_law_body_path(flat[0]["id"], flat[0].get("source"))
+    if not path:
+        return None
+    
+    data = _load_law_body(path)
+    if not data:
+        return None
+    
+    units = _parse_jo_mun_unit(data)
+    if not units:
+        return None
+    
+    # 조항 번호 정규화 (예: "제36조" -> "36")
+    article_num_match = re.match(r"제(\d+)(?:의(\d+))?조", article_number)
+    if not article_num_match:
+        return None
+    
+    jo_no = article_num_match.group(1)
+    jo_gaji = article_num_match.group(2) or ""
+    
+    # 해당 조항 찾기
+    jo_units = [u for u in units if isinstance(u, dict) and (u.get("조문여부") or "").strip() == "조문"]
+    for u in jo_units:
+        if not isinstance(u, dict):
+            continue
+        u_jo_no = u.get("조문번호") or u.get("joNo") or ""
+        u_jo_gaji = u.get("조문가지번호") or u.get("joGajiNo") or ""
+        
+        if u_jo_no == jo_no and (u_jo_gaji or "") == jo_gaji:
+            # 조항 정보 반환
+            title = (u.get("조문제목") or u.get("joTitle") or "").strip()
+            display_num = f"제{jo_no}조"
+            if jo_gaji:
+                display_num += f"의{jo_gaji}"
+            
+            # 같은 조항의 모든 단위 수집
+            same_article_units = [u2 for u2 in jo_units 
+                                 if isinstance(u2, dict) 
+                                 and (u2.get("조문번호") or u2.get("joNo") or "") == jo_no
+                                 and (u2.get("조문가지번호") or u2.get("joGajiNo") or "") == jo_gaji]
+            
+            paragraphs = _extract_paragraphs_from_units(same_article_units)
+            
+            return {
+                "article_number": article_number,
+                "title": title or display_num,
+                "paragraphs": paragraphs,
+            }
+    
+    return None

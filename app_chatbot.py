@@ -7,7 +7,7 @@ import re
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
-from rag.law_json import SCENARIO_QUICK, get_laws, get_chapters, get_articles_by_chapter
+from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from rag.store import build_vector_store, search_by_article_numbers
 from config import SOURCE_LAW
 
@@ -73,6 +73,9 @@ def init_session():
         st.session_state.cb_checklist_rag_results = []
     if "cb_checklist_submitted" not in st.session_state:
         st.session_state.cb_checklist_submitted = False
+    # 결론 후 관련 질문
+    if "related_questions" not in st.session_state:
+        st.session_state.related_questions = []
     # 법률 둘러보기
     if "browse_view" not in st.session_state:
         st.session_state.browse_view = None
@@ -117,6 +120,7 @@ def main():
         if st.session_state.get("graph_load_error"):
             st.error(st.session_state.graph_load_error)
         if st.button("🔄 새 대화 시작"):
+            st.session_state.related_questions = []
             st.session_state.messages = []
             st.session_state.pending_buttons = []
             st.session_state.graph_load_error = None
@@ -272,15 +276,6 @@ def main():
     st.title("⚖️ 노동법 RAG 챗봇")
     st.caption("근로기준법 기반 상담. 직장에서 겪은 문제나 궁금한 점을 자유롭게 말씀해 주세요.")
 
-    # 시나리오 버튼
-    st.caption("시나리오:")
-    cols = st.columns(4)
-    for i, s in enumerate(SCENARIO_QUICK[:4]):
-        with cols[i]:
-            if st.button(s["label"], key=f"btn_{s['label']}"):
-                st.session_state.messages.append(HumanMessage(content=s.get("situation", s["label"])))
-                st.rerun()
-
     # 채팅 히스토리 표시 (체크리스트는 마지막 assistant 말풍선 안에 함께 표시)
     cb_checklist = st.session_state.get("cb_checklist") or []
     cb_answers = st.session_state.get("cb_checklist_answers") or {}
@@ -294,6 +289,53 @@ def main():
         )
         with st.chat_message(role):
             st.markdown(msg.content)
+            
+            # 결론 메시지인 경우 조항 링크 버튼 추가
+            if isinstance(msg, AIMessage) and "**결론**" in (msg.content or ""):
+                try:
+                    from rag.article_linker import extract_article_citations, find_article_info
+                    try:
+                        col = build_vector_store()[0]
+                    except Exception:
+                        col = None
+                    
+                    if col:
+                        citations = extract_article_citations(msg.content or "")
+                        if citations:
+                            st.markdown("**📜 관련 조항:**")
+                            cols = st.columns(min(len(citations), 4))
+                            for idx, (law_name, article_number) in enumerate(citations[:4]):
+                                with cols[idx % 4]:
+                                    article_info = find_article_info(law_name, article_number, col)
+                                    if article_info:
+                                        btn_label = f"{law_name}\n{article_number}"
+                                        if st.button(btn_label, key=f"article_btn_{i}_{idx}", use_container_width=True):
+                                            # 조항 상세 페이지로 이동
+                                            st.session_state.browse_view = "article_detail"
+                                            st.session_state.browse_law_id = article_info.get("law_id", "")
+                                            st.session_state.browse_law_name = law_name
+                                            st.session_state.browse_law_source = article_info.get("source", "")
+                                            st.session_state.browse_article_number = article_number
+                                            st.session_state.browse_chapter_title = article_info.get("chapter", "")
+                                            
+                                            # 조항 상세 정보 가져오기 (API에서)
+                                            try:
+                                                from rag.api_chapters import get_article_by_number_from_api
+                                                law_id = article_info.get("law_id", "")
+                                                source = article_info.get("source", "")
+                                                article_detail = get_article_by_number_from_api(article_number, law_id, source)
+                                                if article_detail:
+                                                    st.session_state.browse_article_paragraphs = article_detail.get("paragraphs", [])
+                                                    st.session_state.browse_article_title = article_detail.get("title", article_number)
+                                                else:
+                                                    st.session_state.browse_article_paragraphs = []
+                                                    st.session_state.browse_article_title = article_number
+                                            except Exception:
+                                                st.session_state.browse_article_paragraphs = []
+                                                st.session_state.browse_article_title = article_number
+                                            st.rerun()
+                except Exception:
+                    pass
             if is_last_and_checklist:
                 cb_submitted = st.session_state.get("cb_checklist_submitted", False)
                 st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
@@ -387,6 +429,23 @@ def main():
                 rel = res.get("related_articles", []) if isinstance(res, dict) else []
                 tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
                 st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
+                
+                # 결론 생성 후 관련 질문 생성
+                try:
+                    from rag.prompts import system_related_questions, user_related_questions
+                    from rag.llm import chat_json
+                    questions_result = chat_json(
+                        system_related_questions(),
+                        user_related_questions(conc, cb_issue),
+                        max_tokens=300
+                    )
+                    if isinstance(questions_result, list) and len(questions_result) > 0:
+                        st.session_state.related_questions = questions_result[:5]  # 최대 5개
+                    else:
+                        st.session_state.related_questions = []
+                except Exception:
+                    st.session_state.related_questions = []
+                
                 st.session_state.cb_checklist = []
                 st.session_state.cb_checklist_answers = {}
                 st.session_state.cb_checklist_submitted = False
@@ -414,6 +473,20 @@ def main():
             st.session_state.pending_buttons = []
             st.rerun()
 
+    # 관련 질문 버튼 표시 (결론 생성 후)
+    related_questions = st.session_state.get("related_questions", [])
+    if related_questions:
+        st.markdown("**💡 관련 질문:**")
+        cols = st.columns(min(len(related_questions), 3))
+        for i, question in enumerate(related_questions[:3]):  # 최대 3개만 표시
+            with cols[i % 3]:
+                if st.button(question, key=f"related_q_{i}", use_container_width=True):
+                    st.session_state.messages.append(HumanMessage(content=question))
+                    st.session_state.related_questions = []  # 질문 선택 후 제거
+                    st.rerun()
+        if len(related_questions) > 3:
+            st.caption(f"그 외 {len(related_questions) - 3}개의 관련 질문이 있습니다. 입력창에 직접 질문해 주세요.")
+    
     # 사용자 입력 (채팅창)
     # 다양한 친근한 입력 안내 문구 (랜덤 선택)
     import random
@@ -430,6 +503,7 @@ def main():
     prompt = st.chat_input(placeholder)
     if prompt:
         st.session_state.messages.append(HumanMessage(content=prompt))
+        st.session_state.related_questions = []  # 새 질문 입력 시 관련 질문 제거
         st.rerun()
 
     # 그래프 로드 실패 시 입력/히스토리는 보이되, 응답 생성은 건너뜀
@@ -439,7 +513,7 @@ def main():
         st.caption("※ 모든 답변은 근로기준법 등 제공된 법령 데이터에 기반합니다.")
         return
 
-    # 마지막 메시지가 사용자 메시지면 AI 응답 생성 (채팅 입력 또는 시나리오 버튼)
+    # 마지막 메시지가 사용자 메시지면 AI 응답 생성
     if st.session_state.messages and isinstance(st.session_state.messages[-1], HumanMessage):
         last_human = st.session_state.messages[-1]
         with st.chat_message("assistant"):
@@ -474,6 +548,33 @@ def main():
                         else:
                             st.session_state.pending_buttons = []
                             if result.get("phase") == "conclusion":
+                                # 결론 메시지에서 결론 내용 추출
+                                conclusion_content = ""
+                                for msg in reversed(new_msgs):
+                                    if isinstance(msg, AIMessage) and "결론" in (msg.content or ""):
+                                        conclusion_content = msg.content
+                                        break
+                                
+                                # 결론 생성 후 관련 질문 생성
+                                try:
+                                    from rag.prompts import system_related_questions, user_related_questions
+                                    from rag.llm import chat_json
+                                    issue = result.get("selected_issue", "")
+                                    if conclusion_content and issue:
+                                        questions_result = chat_json(
+                                            system_related_questions(),
+                                            user_related_questions(conclusion_content, issue),
+                                            max_tokens=300
+                                        )
+                                        if isinstance(questions_result, list) and len(questions_result) > 0:
+                                            st.session_state.related_questions = questions_result[:5]  # 최대 5개
+                                        else:
+                                            st.session_state.related_questions = []
+                                    else:
+                                        st.session_state.related_questions = []
+                                except Exception:
+                                    st.session_state.related_questions = []
+                                
                                 st.session_state.cb_checklist = []
                                 st.session_state.cb_checklist_answers = {}
                                 st.session_state.cb_checklist_submitted = False
@@ -485,7 +586,22 @@ def main():
                     st.session_state.pending_buttons = []
         st.rerun()
 
-    st.caption("※ 모든 답변은 근로기준법 등 제공된 법령 데이터에 기반합니다.")
+    # 페이지 하단 출처 표시 및 면책 공고
+    st.divider()
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
+            <p><strong>📚 데이터 출처</strong></p>
+            <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
+            <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
+            <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
+            <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
+            <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 if __name__ == "__main__":
