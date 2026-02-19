@@ -43,6 +43,8 @@ def init_session():
         st.session_state.cb_all_qa = []
     if "cb_checklist_rag_results" not in st.session_state:
         st.session_state.cb_checklist_rag_results = []
+    if "cb_checklist_submitted" not in st.session_state:
+        st.session_state.cb_checklist_submitted = False
     # 법률 둘러보기
     if "browse_view" not in st.session_state:
         st.session_state.browse_view = None
@@ -96,8 +98,8 @@ def main():
             st.session_state.cb_situation = ""
             st.session_state.cb_articles_by_issue = {}
             st.session_state.cb_round = 1
-            st.session_state.cb_all_qa = []
             st.session_state.cb_checklist_rag_results = []
+            st.session_state.cb_checklist_submitted = False
             st.session_state.browse_view = None
             st.session_state.browse_law_id = ""
             st.session_state.browse_law_name = ""
@@ -269,6 +271,7 @@ def main():
         with st.chat_message(role):
             st.markdown(msg.content)
             if is_last_and_checklist:
+                cb_submitted = st.session_state.get("cb_checklist_submitted", False)
                 st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
                 for j, item in enumerate(cb_checklist):
                     q = item.get("question") or item.get("item") or str(item)
@@ -276,25 +279,33 @@ def main():
                     st.write(f"**{j+1}.** {q}")
                     c1, c2, c3, _ = st.columns([1, 1, 1, 2])
                     with c1:
-                        if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary"):
+                        if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted):
                             cb_answers[j] = "네"
                             st.session_state.cb_checklist_answers = dict(cb_answers)
                             st.rerun()
                     with c2:
-                        if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary"):
+                        if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary", disabled=cb_submitted):
                             cb_answers[j] = "아니요"
                             st.session_state.cb_checklist_answers = dict(cb_answers)
                             st.rerun()
                     with c3:
-                        if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary"):
+                        if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted):
                             cb_answers[j] = "모르겠음"
                             st.session_state.cb_checklist_answers = dict(cb_answers)
                             st.rerun()
                     if cur:
                         st.caption(f"선택: **{cur}**")
+                # 다음 버튼: 모든 답변이 완료되었고 아직 제출되지 않았을 때만 표시
+                all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
+                if all_answered and not cb_submitted:
+                    st.divider()
+                    if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True):
+                        st.session_state.cb_checklist_submitted = True
+                        st.rerun()
 
-    # 모든 질문에 답했으면 app.py와 동일하게 should_continue 판단 → 2차 체크리스트 또는 결론
-    if cb_checklist and messages and isinstance(messages[-1], AIMessage) and len(cb_answers) == len(cb_checklist):
+    # 체크리스트 제출 버튼을 눌렀으면 should_continue 판단 → 2차 체크리스트 또는 결론
+    cb_submitted = st.session_state.get("cb_checklist_submitted", False)
+    if cb_checklist and messages and isinstance(messages[-1], AIMessage) and cb_submitted and len(cb_answers) == len(cb_checklist):
         full_qa = [
             {"question": (cb_checklist[i].get("question") or cb_checklist[i].get("item") or ""), "answer": cb_answers.get(i, "")}
             for i in range(len(cb_checklist))
@@ -343,6 +354,7 @@ def main():
                 st.session_state.messages.append(AIMessage(content=msg))
                 st.session_state.cb_checklist = new_checklist
                 st.session_state.cb_checklist_answers = {}
+                st.session_state.cb_checklist_submitted = False
                 st.session_state.cb_all_qa = all_qa
                 st.session_state.cb_round = cb_round + 1
                 st.session_state.cb_checklist_rag_results = step2_res.get("rag_results") or []
@@ -354,6 +366,7 @@ def main():
                 st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
                 st.session_state.cb_checklist = []
                 st.session_state.cb_checklist_answers = {}
+                st.session_state.cb_checklist_submitted = False
                 st.session_state.cb_all_qa = []
                 st.session_state.cb_round = 1
                 st.session_state.cb_checklist_rag_results = []
@@ -415,6 +428,7 @@ def main():
                         if result.get("phase") == "checklist" and result.get("checklist"):
                             st.session_state.cb_checklist = result.get("checklist", [])
                             st.session_state.cb_checklist_answers = {}
+                            st.session_state.cb_checklist_submitted = False
                             st.session_state.cb_issue = result.get("selected_issue", "")
                             st.session_state.cb_situation = result.get("situation", "")
                             st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
@@ -427,6 +441,7 @@ def main():
                             if result.get("phase") == "conclusion":
                                 st.session_state.cb_checklist = []
                                 st.session_state.cb_checklist_answers = {}
+                                st.session_state.cb_checklist_submitted = False
                     else:
                         st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
                         st.session_state.pending_buttons = []
