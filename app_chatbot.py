@@ -541,7 +541,7 @@ def main():
         
         # 그래프가 없어도 입력은 받을 수 있도록
         placeholder = random.choice(input_placeholders)
-        prompt = st.chat_input(placeholder)
+        prompt = st.chat_input(placeholder, key="chat_input_no_graph")
         if prompt:
             if "messages" not in st.session_state:
                 st.session_state.messages = []
@@ -601,18 +601,18 @@ def main():
     # 사용자 입력 처리 (AI 처리 중이 아닐 때만)
     if not is_ai_processing:
         placeholder = random.choice(input_placeholders)
-        prompt = st.chat_input(placeholder)
+        prompt = st.chat_input(placeholder, key="main_chat_input")
         if prompt:
             if "messages" not in st.session_state:
                 st.session_state.messages = []
             st.session_state.messages.append(HumanMessage(content=prompt))
             st.session_state.related_questions = []
             st.rerun()
+            return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
     else:
         placeholder = random.choice(input_placeholders)
-        prompt = st.chat_input(placeholder)
-        if prompt:
-            pass  # AI 처리 중에는 입력 무시
+        st.chat_input(placeholder, key="main_chat_input")
+        # AI 처리 중에는 입력 무시 (prompt 확인 안 함)
 
     # 마지막 메시지가 사용자 메시지면 같은 run에서 바로 AI 응답 생성 (스피너만 사용, rerun 없이)
     if is_ai_processing:
