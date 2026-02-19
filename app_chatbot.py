@@ -16,6 +16,7 @@ CHECKLIST_MAX_ROUNDS = 3  # app.py와 동일
 # 사용자에게 보여줄 고정 메시지 (기술적 오류 내용 노출 방지)
 USER_FACING_ERROR = "일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
 LOAD_ERROR_MESSAGE = "서비스를 불러오는 중 문제가 발생했습니다. 새로고침 후 다시 시도해 주세요."
+CHECKLIST_PROCESSING_MSG = "⏳ **처리 중입니다.** 잠시만 기다려 주세요."
 
 
 @st.cache_data(ttl=3600)  # 1시간 캐싱
@@ -317,6 +318,8 @@ def main():
                     st.divider()
                     if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True, disabled=not all_answered):
                         st.session_state.cb_checklist_submitted = True
+                        st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+                        st.rerun()
 
     # 체크리스트 제출 버튼을 눌렀으면 should_continue 판단 → 2차 체크리스트 또는 결론
     cb_submitted = st.session_state.get("cb_checklist_submitted", False)
@@ -364,6 +367,9 @@ def main():
             continuation_reason = step2_res.get("continuation_reason", "")
             new_checklist = step2_res.get("checklist", []) or []
 
+            # "처리 중" 메시지가 마지막이면 제거 후 결과만 추가
+            if st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage) and st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG:
+                st.session_state.messages.pop()
             if should_continue and new_checklist and cb_round < CHECKLIST_MAX_ROUNDS:
                 msg = f"추가로 확인할 사항 ({cb_round + 1}차)\n\n💡 {continuation_reason or '추가 확인이 필요합니다.'}\n\n아래에서 각 질문에 대해 네/아니요/모르겠음 버튼을 눌러 주세요."
                 st.session_state.messages.append(AIMessage(content=msg))
