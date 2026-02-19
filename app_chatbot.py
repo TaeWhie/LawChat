@@ -18,6 +18,33 @@ USER_FACING_ERROR = "일시적인 오류가 발생했습니다. 잠시 후 다�
 LOAD_ERROR_MESSAGE = "서비스를 불러오는 중 문제가 발생했습니다. 새로고침 후 다시 시도해 주세요."
 
 
+@st.cache_data(ttl=3600)  # 1시간 캐싱
+def _cached_get_laws():
+    """법률 목록 캐싱"""
+    try:
+        return get_laws()
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)  # 1시간 캐싱
+def _cached_get_chapters(law_id: str, source: str = None):
+    """장 목록 캐싱"""
+    try:
+        return get_chapters(law_id, source)
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=3600)  # 1시간 캐싱
+def _cached_get_articles_by_chapter(chapter_number: str, law_id: str, source: str = None):
+    """조문 목록 캐싱"""
+    try:
+        return get_articles_by_chapter(chapter_number, law_id, source) or []
+    except Exception:
+        return []
+
+
 def init_session():
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -113,10 +140,7 @@ def main():
             st.rerun()
         st.divider()
         st.subheader("📚 법률 둘러보기")
-        try:
-            laws = get_laws()  # [{"group_name": "근로기준법", "items": [{"id","name","source"}, ...]}, ...]
-        except Exception:
-            laws = []
+        laws = _cached_get_laws()  # 캐싱된 법률 목록
         for group in laws:
             group_name = group.get("group_name", "") or "법령"
             items = group.get("items") or []
@@ -126,13 +150,10 @@ def main():
                     law_name = item.get("name", "")
                     source = item.get("source")
                     with st.expander(law_name or law_id, expanded=False):
-                        try:
-                            chapters = get_chapters(law_id, source)
-                        except Exception:
-                            chapters = []
+                        chapters = _cached_get_chapters(law_id, source)  # 캐싱된 장 목록
                         for ch in chapters:
                             with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
-                                articles = get_articles_by_chapter(ch["number"], law_id, source) or []
+                                articles = _cached_get_articles_by_chapter(ch["number"], law_id, source)  # 캐싱된 조문 목록
                                 for i, a in enumerate(articles):
                                     art_num = a.get("article_number", "")
                                     title = a.get("title", "")
