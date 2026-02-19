@@ -13,12 +13,13 @@
 #   - step1_issue_classification: 이슈 분류
 #   - step2_checklist: 체크리스트 생성
 #   - step3_conclusion: 결론 생성
+import os
 import re
 import sys
 from typing import List, Dict, Any, Optional, Tuple
 
-# 디버깅 모드 (환경변수로 제어 가능)
-DEBUG = True  # False로 설정하면 디버그 출력 비활성화
+# 디버깅 모드. 환경변수 LAW_DEBUG=1 일 때만 stderr 출력
+DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
 
 from rag.store import build_vector_store, search, search_by_article_numbers
 from rag.prompts import (

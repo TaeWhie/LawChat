@@ -3,8 +3,8 @@
 .env.local
 *.env
 
-# 벡터 스토어 (클라우드에서는 매 실행 시 재구축)
-vector_store/
+# 벡터 스토어 (로컬에서만 무시. Streamlit Cloud 배포 시에는 커밋하여 사용)
+# vector_store/
 
 # Python
 __pycache__/
@@ -21,6 +21,9 @@ env/
 .vscode/
 *.swp
 *.swo
+
+# API 캐시 (배포 제외)
+api_data/cache/
 
 # 기타
 .DS_Store

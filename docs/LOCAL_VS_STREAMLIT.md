@@ -1,11 +1,19 @@
-# 로컬(main.py) vs Streamlit(app.py) 실행 비교
+# 로컬(main.py) vs Streamlit 실행 비교
 
-## Streamlit Cloud 배포 시 (로컬과 UI가 다르게 보일 때)
+## 진입점 역할
 
-- **Main file path**를 반드시 **`app.py`**로 설정하세요.  
-  - 이 저장소에는 **`app_chatbot.py`**(채팅형 UI)도 있어, Cloud에서 Main file을 잘못 지정하면 **사이드바·추천 키워드(시나리오 버튼)가 없는 다른 화면**이 뜹니다.
-- **로컬과 같은 4단계 UI**(상황 입력 → 이슈 분류 → 체크리스트 → 결론)를 쓰려면 **`app.py`**만 사용해야 합니다.
-- 벡터 스토어 로드에 실패해도 이제 **사이드바와 추천 키워드는 항상 표시**되고, 로드 실패 시 사이드바에 안내 메시지가 뜹니다. Secrets에 `OPENAI_API_KEY` 설정과 저장소에 `vector_store/` 포함 여부를 확인하세요.
+- **`app_chatbot.py`**: **실제 서비스용**. 대화형 채팅 UI. Streamlit Cloud 등 **외부 사용자 서비스 배포 시 Main file path = `app_chatbot.py`** 로 설정하세요.
+- **`app.py`**: **개발·기획자용**. 4단계(상황→이슈→체크리스트→결론) 상세 플로우, 장별 둘러보기, 벡터 스토어 재구축 등 내부 검증용.
+
+## 출력 동일성
+
+- **두 앱의 아웃풋(감지된 이슈, 체크리스트 질문, 결론·관련 조문)은 동일**합니다. 같은 step1/step2/step3·같은 데이터(ALL_LABOR_LAW_SOURCES, filter_preview 400자, narrow_answers 규칙)를 사용합니다.
+- **차이점**: app.py는 단계마다 사용자가 버튼(이슈 분류하기, 다음: 체크리스트, 네/아니요/모르겠음, 결론 생성하기)을 눌러 수동 진행합니다. app_chatbot.py는 같은 단계가 **자동으로 진행**되고, 그 내용이 **봇 말풍선(채팅 메시지)**에 순서대로 표시됩니다.
+
+## Streamlit Cloud 배포 시
+
+- **서비스를 제공할 때**: Main file path = **`app_chatbot.py`**.
+- **4단계 상세 UI(개발/기획용)** 를 볼 때: Main file path = **`app.py`**. 이때 벡터 스토어 로드 실패 시 사이드바에 안내가 뜹니다. Secrets에 `OPENAI_API_KEY`, 저장소에 `vector_store/` 포함 여부를 확인하세요.
 
 ---
 

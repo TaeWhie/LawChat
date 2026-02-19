@@ -44,6 +44,7 @@ def _save_cached(path: Path, data: Dict[str, Any]) -> None:
 def get_aiSearch_cached(query: str) -> Dict[str, Any]:
     """
     지능형 검색(aiSearch) 결과. 캐시에 있으면 반환, 없으면 API 호출 후 저장하고 반환.
+    LAW_API_OC가 없거나 API 실패 시 빈 결과를 반환해 호출 측이 크래시하지 않도록 함.
     """
     key = _cache_key(query)
     cache_dir = _cache_dir() / "aiSearch"
@@ -51,16 +52,21 @@ def get_aiSearch_cached(query: str) -> Dict[str, Any]:
     data = _load_cached(path)
     if data is not None and data.get("success") is not False:
         return data
-    from rag.law_api_client import search_list
-    r = search_list("aiSearch", query=query, display=20, page=1)
-    if r.get("success") and r.get("data"):
-        _save_cached(path, r)
-    return r
+    try:
+        from rag.law_api_client import search_list
+        r = search_list("aiSearch", query=query, display=20, page=1)
+        if r.get("success") and r.get("data"):
+            _save_cached(path, r)
+        return r
+    except (ValueError, Exception):
+        # LAW_API_OC 미설정 또는 네트워크/API 오류 시 빈 결과 반환
+        return {"success": False, "data": None}
 
 
 def get_aiRltLs_cached(article_key: str) -> Dict[str, Any]:
     """
     연관법령(aiRltLs) 결과. 조문 키(예: 근로기준법 제34조) 기준 캐시.
+    LAW_API_OC가 없거나 API 실패 시 빈 결과를 반환해 호출 측이 크래시하지 않도록 함.
     """
     key = _cache_key(article_key)
     cache_dir = _cache_dir() / "aiRltLs"
@@ -68,8 +74,12 @@ def get_aiRltLs_cached(article_key: str) -> Dict[str, Any]:
     data = _load_cached(path)
     if data is not None and data.get("success") is not False:
         return data
-    from rag.law_api_client import search_list
-    r = search_list("aiRltLs", query=article_key, display=20, page=1)
-    if r.get("success") and r.get("data"):
-        _save_cached(path, r)
-    return r
+    try:
+        from rag.law_api_client import search_list
+        r = search_list("aiRltLs", query=article_key, display=20, page=1)
+        if r.get("success") and r.get("data"):
+            _save_cached(path, r)
+        return r
+    except (ValueError, Exception):
+        # LAW_API_OC 미설정 또는 네트워크/API 오류 시 빈 결과 반환
+        return {"success": False, "data": None}

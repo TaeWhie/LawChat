@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
-"""LangGraph 기반 노동법 RAG 챗봇 그래프"""
-from concurrent.futures import ThreadPoolExecutor, as_completed
+"""LangGraph 기반 노동법 RAG 챗봇 그래프. app.py와 동일한 step1/step2/step3·출력으로 자동 진행 후 말풍선에 표시."""
 from typing import TypedDict, Annotated, Literal
-from operator import add
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -17,12 +15,9 @@ from rag.pipeline import (
     step3_conclusion,
     filter_articles_by_issue_relevance,
 )
-from rag.law_json import get_related_terms_and_definition_terms, rerank_definition_results
 from config import (
-    SOURCE_LAW,
+    ALL_LABOR_LAW_SOURCES,
     RAG_MAIN_TOP_K,
-    RAG_AUX_TOP_K,
-    RAG_DEF_TOP_K,
     RAG_FILTER_TOP_K,
 )
 
@@ -93,63 +88,36 @@ def process_turn(state: ChatbotState) -> dict:
                 "phase": "input",
             }
         selected_issue = issues[0]
-        # step1에서 반환한 이슈별 조문 사용, 없으면 이슈별 검색
+        # step1에서 반환한 이슈별 조문 사용. 비어 있으면 app.py와 동일하게 ALL_LABOR_LAW_SOURCES로 보충
         articles_by_issue = dict(step1_articles) if step1_articles else {}
-        for iss in issues[:3]:
-            if iss in articles_by_issue and articles_by_issue[iss]:
+        for issue_item in issues:
+            if issue_item in articles_by_issue and articles_by_issue[issue_item]:
                 continue
             seen = set()
-            arts = []
-            terms_tuple, def_tuple = get_related_terms_and_definition_terms(iss)
-            terms_set = set(terms_tuple)
-            def_terms = set(def_tuple)
-            expand = " ".join(terms_set)
-            queries_main = [q for q in [iss, situation, expand] if (q or "").strip()]
-
-            def _main_search():
-                out = []
-                for q in queries_main:
-                    out.extend(search(
-                        col, q, top_k=RAG_MAIN_TOP_K, filter_sources=[SOURCE_LAW],
-                        exclude_sections=["벌칙", "부칙"], exclude_chapters=["제1장 총칙"],
-                    ))
-                return out
-
-            def _aux_search():
-                q_extra = f"{iss} {expand}".strip() or iss
-                return search(
-                    col, q_extra, top_k=RAG_AUX_TOP_K, filter_sources=[SOURCE_LAW],
-                    exclude_sections=["벌칙", "부칙"],
-                )
-
-            def _def_search():
-                if not def_terms:
-                    return []
-                q_def = " ".join(def_terms)
+            issue_articles = []
+            for q in [issue_item, situation]:
+                if not (q or str(q).strip()):
+                    continue
                 res = search(
-                    col, q_def, top_k=RAG_DEF_TOP_K, filter_sources=[SOURCE_LAW],
+                    col, q, top_k=RAG_MAIN_TOP_K,
+                    filter_sources=ALL_LABOR_LAW_SOURCES,
                     exclude_sections=["벌칙", "부칙"],
+                    exclude_chapters=["제1장 총칙"],
                 )
-                return rerank_definition_results(res, def_terms, top_terms=["정의", "평균임금"])
-
-            with ThreadPoolExecutor(max_workers=3) as ex:
-                fut_main = ex.submit(_main_search)
-                fut_aux = ex.submit(_aux_search)
-                fut_def = ex.submit(_def_search)
-                for fut in as_completed([fut_main, fut_aux, fut_def]):
-                    for r in fut.result():
-                        a = r.get("article", "")
-                        if a and a not in seen:
-                            arts.append(r)
-                            seen.add(a)
-            arts = filter_articles_by_issue_relevance(iss, arts, top_k=RAG_FILTER_TOP_K)
-            articles_by_issue[iss] = arts
+                for r in res:
+                    art = r.get("article", "")
+                    if art and art not in seen:
+                        issue_articles.append(r)
+                        seen.add(art)
+            articles_by_issue[issue_item] = filter_articles_by_issue_relevance(
+                issue_item, issue_articles, top_k=RAG_FILTER_TOP_K
+            )
         qa_list = []
-        # 이슈 선택 후 바로 체크리스트
+        # 이슈 선택 후 바로 체크리스트 (app.py와 동일: filter_preview 400자, remaining_articles)
         remaining = articles_by_issue.get(selected_issue) or []
-        filter_text = (situation + " " + selected_issue)[:500]
+        filter_preview = (selected_issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in qa_list))[:400]
         step2_res = step2_checklist(
-            selected_issue, filter_text, collection=col,
+            selected_issue, filter_preview, collection=col,
             narrow_answers=None,
             qa_list=qa_list,
             remaining_articles=remaining,
@@ -157,7 +125,8 @@ def process_turn(state: ChatbotState) -> dict:
         checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
         if checklist:
             q0 = (checklist[0].get("question") or checklist[0].get("item") or str(checklist[0]))
-            resp = f"**감지된 이슈:** {', '.join(issues)}\n\n체크리스트 질문:\n**1.** {q0}\n\n(답변을 입력해 주세요)"
+            # app.py와 동일 문구: 감지된 이슈, 체크리스트: {issue}, **1.** {q}
+            resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트: {selected_issue}\n\n**1.** {q0}\n\n(답변을 입력해 주세요)"
             return {
                 "messages": [AIMessage(content=resp)],
                 "situation": situation, "issues": issues, "selected_issue": selected_issue,
@@ -165,24 +134,25 @@ def process_turn(state: ChatbotState) -> dict:
                 "checklist": checklist, "checklist_index": 0,
                 "phase": "checklist", "pending_question": q0,
             }
-        res = step3_conclusion(selected_issue, qa_list, collection=col)
+        narrow_answers = [x.get("answer", "").strip() for x in qa_list if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
+        res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
         conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
         rel = res.get("related_articles", []) if isinstance(res, dict) else []
         tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
         return {
-            "messages": [AIMessage(content=f"**감지된 이슈:** {', '.join(issues)}\n\n**결론**\n\n{conc}{tail}")],
+            "messages": [AIMessage(content=f"감지된 이슈: {', '.join(issues)}\n\n**결론**\n\n{conc}{tail}")],
             "situation": situation, "issues": issues, "selected_issue": selected_issue,
             "qa_list": qa_list, "phase": "conclusion", "pending_question": "",
         }
 
-    # checklist 답변
+    # checklist 답변 (app.py와 동일: narrow_answers에서 네/아니요/모르겠음 제외 후 step3에 전달)
     if phase == "checklist" and checklist:
         pending_q = state.get("pending_question", "")
         qa_list = list(qa_list) + [{"question": pending_q, "answer": user_text}]
         idx = checklist_index + 1
         if idx >= len(checklist):
-            res = step3_conclusion(selected_issue, qa_list, collection=col,
-                                  narrow_answers=[x.get("answer", "").strip() for x in qa_list])
+            narrow_answers = [x.get("answer", "").strip() for x in qa_list if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
+            res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
             conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
             rel = res.get("related_articles", []) if isinstance(res, dict) else []
             tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
@@ -192,6 +162,7 @@ def process_turn(state: ChatbotState) -> dict:
                 "phase": "conclusion", "pending_question": "",
             }
         next_q = (checklist[idx].get("question") or checklist[idx].get("item") or str(checklist[idx]))
+        # app.py와 동일: **N.** 질문
         resp = f"**{idx+1}.** {next_q}\n\n(답변을 입력해 주세요)"
         return {
             "messages": [AIMessage(content=resp)],
