@@ -109,15 +109,14 @@ def main():
         with st.chat_message(role):
             st.markdown(msg.content)
 
-    # 체크리스트: app.py와 동일하게 한 번에 전체 표시 + 질문별 네/아니요/모르겠음 버튼
+    # 체크리스트: 말풍선에 이미 질문이 있으므로 여기서는 번호 + 버튼만 (질문 문장 중복 제거)
     cb_checklist = st.session_state.get("cb_checklist") or []
     cb_answers = st.session_state.get("cb_checklist_answers") or {}
     if cb_checklist and st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage):
-        st.markdown("**체크리스트 답변** (각 질문에 대해 버튼을 눌러 주세요)")
+        st.markdown("**체크리스트 답변** (위 질문에 대해 각각 버튼을 눌러 주세요)")
         for i, item in enumerate(cb_checklist):
-            q = item.get("question") or item.get("item") or str(item)
             current = cb_answers.get(i, "").strip()
-            st.write(f"**{i+1}.** {q}")
+            st.caption(f"질문 {i+1}")
             c1, c2, c3, _ = st.columns([1, 1, 1, 2])
             with c1:
                 if st.button("네", key=f"cb_btn_{i}_0", type="primary" if current == "네" else "secondary"):
