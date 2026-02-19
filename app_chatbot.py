@@ -280,28 +280,21 @@ def main():
                     c1, c2, c3, _ = st.columns([1, 1, 1, 2])
                     with c1:
                         if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted):
-                            cb_answers[j] = "네"
-                            st.session_state.cb_checklist_answers = dict(cb_answers)
-                            st.rerun()
+                            st.session_state.cb_checklist_answers[j] = "네"
                     with c2:
                         if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary", disabled=cb_submitted):
-                            cb_answers[j] = "아니요"
-                            st.session_state.cb_checklist_answers = dict(cb_answers)
-                            st.rerun()
+                            st.session_state.cb_checklist_answers[j] = "아니요"
                     with c3:
                         if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted):
-                            cb_answers[j] = "모르겠음"
-                            st.session_state.cb_checklist_answers = dict(cb_answers)
-                            st.rerun()
+                            st.session_state.cb_checklist_answers[j] = "모르겠음"
                     if cur:
                         st.caption(f"선택: **{cur}**")
-                # 다음 버튼: 모든 답변이 완료되었고 아직 제출되지 않았을 때만 표시
+                # 다음 버튼: 모든 답변이 완료되었을 때만 활성화
                 all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
-                if all_answered and not cb_submitted:
+                if not cb_submitted:
                     st.divider()
-                    if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True):
+                    if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True, disabled=not all_answered):
                         st.session_state.cb_checklist_submitted = True
-                        st.rerun()
 
     # 체크리스트 제출 버튼을 눌렀으면 should_continue 판단 → 2차 체크리스트 또는 결론
     cb_submitted = st.session_state.get("cb_checklist_submitted", False)
