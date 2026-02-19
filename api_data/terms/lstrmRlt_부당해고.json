@@ -1,0 +1,30 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "부당해고",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=63091",
+          "id": "1",
+          "일상용어명": "보복해고",
+          "용어관계": "동의어",
+          "용어관계코드": "140301",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=보복해고"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=63089",
+          "id": "2",
+          "일상용어명": "부당해직",
+          "용어관계": "동의어",
+          "용어관계코드": "140301",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=부당해직"
+        }
+      ],
+      "법령용어명": "부당해고",
+      "비고": ""
+    }
+  }
+}

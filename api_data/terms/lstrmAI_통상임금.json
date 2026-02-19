@@ -1,0 +1,28 @@
+{
+  "lstrmAISearch": {
+    "검색결과개수": "2",
+    "키워드": "통상임금",
+    "page": "1",
+    "target": "lstrmAI",
+    "법령용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1280403",
+        "id": "1",
+        "법령용어명": "통상임금액",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1280403"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1280461",
+        "id": "2",
+        "법령용어명": "통상임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1280461"
+      }
+    ],
+    "section": "lsTrm",
+    "numOfRows": "2"
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "lstrmAISearch": {
+    "검색결과개수": "54",
+    "키워드": "산재",
+    "page": "1",
+    "target": "lstrmAI",
+    "법령용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=134215",
+        "id": "1",
+        "법령용어명": "산재보험",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=134215"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=196421",
+        "id": "2",
+        "법령용어명": "세출예산재배정계획서",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=196421"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=607179",
+        "id": "3",
+        "법령용어명": "소급통산재직기간",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=607179"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=851519",
+        "id": "4",
+        "법령용어명": "주변산재부지",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=851519"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1136015",
+        "id": "5",
+        "법령용어명": "법인파산재단",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1136015"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1452471",
+        "id": "6",
+        "법령용어명": "국외문화유산재단",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1452471"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1468623",
+        "id": "7",
+        "법령용어명": "산재보험근로자고용정보확인서",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1468623"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=623955",
+        "id": "8",
+        "법령용어명": "국산재",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=623955"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1440569",
+        "id": "9",
+        "법령용어명": "예산재배정",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1440569"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1452465",
+        "id": "10",
+        "법령용어명": "국외소재문화유산재단",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1452465"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1073323",
+        "id": "11",
+        "법령용어명": "자산재평가적립금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1073323"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1330307",
+        "id": "12",
+        "법령용어명": "산재예방활동",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1330307"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=14497",
+        "id": "13",
+        "법령용어명": "산재",
+        "비고": "여기저기 흩어져 있음",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=14497"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1414187",
+        "id": "14",
+        "법령용어명": "합산재무제표",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1414187"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1457625",
+        "id": "15",
+        "법령용어명": "산재보험입직신고서",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1457625"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1455377",
+        "id": "16",
+        "법령용어명": "산재보험급여지급증명서류",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1455377"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=134217",
+        "id": "17",
+        "법령용어명": "산재보험료",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=134217"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1330081",
+        "id": "18",
+        "법령용어명": "산재보험관리기구지원금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1330081"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1330373",
+        "id": "19",
+        "법령용어명": "산재예방계획",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1330373"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1355967",
+        "id": "20",
+        "법령용어명": "화산재해원인조사단",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1355967"
+      }
+    ],
+    "section": "lsTrm",
+    "numOfRows": "20"
+  }
+}

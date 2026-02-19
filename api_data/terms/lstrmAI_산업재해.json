@@ -1,0 +1,172 @@
+{
+  "lstrmAISearch": {
+    "검색결과개수": "25",
+    "키워드": "산업재해",
+    "page": "1",
+    "target": "lstrmAI",
+    "법령용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1042885",
+        "id": "1",
+        "법령용어명": "중대산업재해발생사실",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1042885"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1474821",
+        "id": "2",
+        "법령용어명": "산업재해예방교육",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1474821"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=40749",
+        "id": "3",
+        "법령용어명": "산업재해예방",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=40749"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=532285",
+        "id": "4",
+        "법령용어명": "중대산업재해",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=532285"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=615421",
+        "id": "5",
+        "법령용어명": "산업재해보상보험",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=615421"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1341063",
+        "id": "6",
+        "법령용어명": "산업재해보상보험재심사위원회사무국",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1341063"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1386755",
+        "id": "7",
+        "법령용어명": "산업재해발생",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1386755"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1286125",
+        "id": "8",
+        "법령용어명": "산업재해보상보험및예방기금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1286125"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1286525",
+        "id": "9",
+        "법령용어명": "산업재해보상보험재심사위원회",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1286525"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1286523",
+        "id": "10",
+        "법령용어명": "산업재해보상보험심사위원회",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1286523"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1401377",
+        "id": "11",
+        "법령용어명": "고용산업재해보상보험가입증명원",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1401377"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1474813",
+        "id": "12",
+        "법령용어명": "산업재해근로자의날",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1474813"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1374845",
+        "id": "13",
+        "법령용어명": "산업재해예방업무",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1374845"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1484779",
+        "id": "14",
+        "법령용어명": "산업재해보상보험사업",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1484779"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1474819",
+        "id": "15",
+        "법령용어명": "산업재해근로자",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1474819"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=102799",
+        "id": "16",
+        "법령용어명": "산업재해보상보험법",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=102799"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1373815",
+        "id": "17",
+        "법령용어명": "산업재해발생률",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1373815"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1280249",
+        "id": "18",
+        "법령용어명": "산업재해보상보험및예방심의위원회",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1280249"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1121085",
+        "id": "19",
+        "법령용어명": "산업재해",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1121085"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1327213",
+        "id": "20",
+        "법령용어명": "산업재해율",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1327213"
+      }
+    ],
+    "section": "lsTrm",
+    "numOfRows": "20"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "3",
+    "키워드": "직장 내 괴롭힘",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=407179",
+        "id": "1",
+        "일상용어명": "직장내 괴롭힘",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=394549",
+        "id": "2",
+        "일상용어명": "직장 내 괴롭힘의 금지",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=415899",
+        "id": "3",
+        "일상용어명": "직장내괴롭힘근거법령",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "3"
+  }
+}

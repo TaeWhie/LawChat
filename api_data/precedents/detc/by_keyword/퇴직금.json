@@ -1,0 +1,20 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "퇴직금",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": {
+      "id": "1",
+      "사건번호": "99헌마178",
+      "종국일자": "0",
+      "헌재결정례일련번호": "146464",
+      "사건명": "퇴직금지급거부처분취소 등",
+      "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=146464&type=HTML&mobileYn="
+    },
+    "totalCnt": "1",
+    "section": "evtNm",
+    "numOfRows": "1"
+  }
+}

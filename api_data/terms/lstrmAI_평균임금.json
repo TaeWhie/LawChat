@@ -1,0 +1,68 @@
+{
+  "lstrmAISearch": {
+    "검색결과개수": "7",
+    "키워드": "평균임금",
+    "page": "1",
+    "target": "lstrmAI",
+    "법령용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=647041",
+        "id": "1",
+        "법령용어명": "월평균임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=647041"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1288755",
+        "id": "2",
+        "법령용어명": "승선평균임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1288755"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=11677",
+        "id": "3",
+        "법령용어명": "평균임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=11677"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=995213",
+        "id": "4",
+        "법령용어명": "평균임금증가분",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=995213"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=277839",
+        "id": "5",
+        "법령용어명": "평균임금월액",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=277839"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1352991",
+        "id": "6",
+        "법령용어명": "전산업평균임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1352991"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1509049",
+        "id": "7",
+        "법령용어명": "평균임금증가율",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1509049"
+      }
+    ],
+    "section": "lsTrm",
+    "numOfRows": "7"
+  }
+}

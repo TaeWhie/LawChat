@@ -1,0 +1,46 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "평균임금",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2000헌마707",
+        "종국일자": "2002.07.18",
+        "헌재결정례일련번호": "58263",
+        "사건명": "평균임금결정고시부작위  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=58263&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "2012헌마1024",
+        "종국일자": "2013.01.29",
+        "헌재결정례일련번호": "22455",
+        "사건명": "평균임금 고시부작위 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=22455&type=HTML&mobileYn="
+      },
+      {
+        "id": "3",
+        "사건번호": "93헌마73",
+        "종국일자": "0",
+        "헌재결정례일련번호": "57094",
+        "사건명": "평균임금산정  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=57094&type=HTML&mobileYn="
+      },
+      {
+        "id": "4",
+        "사건번호": "2016헌마33",
+        "종국일자": "2016.04.28",
+        "헌재결정례일련번호": "50078",
+        "사건명": "평균임금정정불승인처분 취소 등",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=50078&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "4",
+    "section": "evtNm",
+    "numOfRows": "4"
+  }
+}

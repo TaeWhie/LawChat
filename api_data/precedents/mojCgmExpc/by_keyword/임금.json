@@ -1,0 +1,25 @@
+{
+  "CgmExpc": {
+    "resultMsg": "success",
+    "키워드": "임금",
+    "page": "1",
+    "resultCode": "00",
+    "target": "mojCgmExpc",
+    "totalCnt": "1",
+    "cgmExpc": {
+      "id": "1",
+      "안건명": "E1(연구원)비자 소지외국인을 무임금 비상근 객원연구원으로 임용 시 관련 법령 저촉 여부",
+      "해석기관코드": "1270000",
+      "법령해석상세링크": "/DRF/lawService.do?OC=xognl427&target=mojCgmExpc&ID=385198&type=HTML&mobileYn=",
+      "안건번호": "",
+      "법령해석일련번호": "385198",
+      "질의기관명": "",
+      "해석기관명": "법무부",
+      "해석일자": "2025.03.24",
+      "질의기관코드": "",
+      "데이터기준일시": "2025.09.18"
+    },
+    "section": "itmNm",
+    "numOfRows": "1"
+  }
+}

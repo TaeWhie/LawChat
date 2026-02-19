@@ -1,0 +1,59 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "근로계약",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "근로계약",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=14293",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "고용계약",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=14293"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1506515",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "고용계약관계",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1506515"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1490835",
+          "id": "3",
+          "용어관계": "하위어",
+          "법령용어명": "기간의정함이없는근로계약",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1490835"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1288753",
+          "id": "4",
+          "용어관계": "하위어",
+          "법령용어명": "선원근로계약",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1288753"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1086489",
+          "id": "5",
+          "용어관계": "연관어",
+          "법령용어명": "취업계약",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1086489"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

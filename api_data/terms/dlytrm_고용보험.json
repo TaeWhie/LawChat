@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "26",
+    "키워드": "고용보험",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=313215",
+        "id": "1",
+        "일상용어명": "고용보험료상당금액공제",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=386029",
+        "id": "2",
+        "일상용어명": "산업재해보상보험근로자고용정보확인서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=322115",
+        "id": "3",
+        "일상용어명": "고용보험가입증명서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=370971",
+        "id": "4",
+        "일상용어명": "자영업자고용보험가입신청서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=56951",
+        "id": "5",
+        "일상용어명": "고용보험부금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166219",
+        "id": "6",
+        "일상용어명": "고용보험가입자수",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=188237",
+        "id": "7",
+        "일상용어명": "고용보험요율",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=322117",
+        "id": "8",
+        "일상용어명": "고용보험가입증명",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=297415",
+        "id": "9",
+        "일상용어명": "고용보험시스템",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=426381",
+        "id": "10",
+        "일상용어명": "고용보험사업",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=56683",
+        "id": "11",
+        "일상용어명": "고용보험제도",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=392735",
+        "id": "12",
+        "일상용어명": "고용보험네트워크",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=319005",
+        "id": "13",
+        "일상용어명": "고용보험피보험자격이력명세서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=71625",
+        "id": "14",
+        "일상용어명": "고용보험료율",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166603",
+        "id": "15",
+        "일상용어명": "고용보험피보험기간",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=300127",
+        "id": "16",
+        "일상용어명": "고용보험료납부서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=297417",
+        "id": "17",
+        "일상용어명": "고용산재보험토탈서비스",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=306463",
+        "id": "18",
+        "일상용어명": "고용산재보험가입증명원",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166169",
+        "id": "19",
+        "일상용어명": "고용보험수급자격증",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166065",
+        "id": "20",
+        "일상용어명": "고용보험기금",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}

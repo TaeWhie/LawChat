@@ -1,0 +1,149 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "산업재해",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "산업재해",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=611953",
+          "id": "1",
+          "용어관계": "반의어",
+          "법령용어명": "산업안전",
+          "용어관계코드": "140302",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=611953"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=842977",
+          "id": "2",
+          "용어관계": "하위어",
+          "법령용어명": "산업재해보상보험료",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=842977"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1286125",
+          "id": "3",
+          "용어관계": "연관어",
+          "법령용어명": "산업재해보상보험및예방기금",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1286125"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=134215",
+          "id": "4",
+          "용어관계": "연관어",
+          "법령용어명": "산재보험",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=134215"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1286465",
+          "id": "5",
+          "용어관계": "연관어",
+          "법령용어명": "업무상재해",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1286465"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=183499",
+          "id": "6",
+          "용어관계": "하위어",
+          "법령용어명": "요양비",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=183499"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=76359",
+          "id": "7",
+          "용어관계": "상위어",
+          "법령용어명": "재해",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=76359"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=532285",
+          "id": "8",
+          "용어관계": "하위어",
+          "법령용어명": "중대산업재해",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=532285"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1042885",
+          "id": "9",
+          "용어관계": "연관어",
+          "법령용어명": "중대산업재해발생사실",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1042885"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=532317",
+          "id": "10",
+          "용어관계": "연관어",
+          "법령용어명": "중대시민재해",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=532317"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1042755",
+          "id": "11",
+          "용어관계": "연관어",
+          "법령용어명": "중대재해",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1042755"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1286365",
+          "id": "12",
+          "용어관계": "상위어",
+          "법령용어명": "직업병",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1286365"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1363821",
+          "id": "13",
+          "용어관계": "하위어",
+          "법령용어명": "직업성질병자",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1363821"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=40757",
+          "id": "14",
+          "용어관계": "연관어",
+          "법령용어명": "한국산업안전보건공단",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=40757"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1367429",
+          "id": "15",
+          "용어관계": "연관어",
+          "법령용어명": "항만안전사고",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1367429"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

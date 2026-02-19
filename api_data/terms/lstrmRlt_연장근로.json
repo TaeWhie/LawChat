@@ -1,0 +1,54 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "연장근로",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=52463",
+          "id": "1",
+          "일상용어명": "노동시간",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=노동시간"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=32243",
+          "id": "2",
+          "일상용어명": "야근",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=야근"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=9101",
+          "id": "3",
+          "일상용어명": "업무시간",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=업무시간"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=141099",
+          "id": "4",
+          "일상용어명": "잔업",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=잔업"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=45057",
+          "id": "5",
+          "일상용어명": "초과근무",
+          "용어관계": "동의어",
+          "용어관계코드": "140301",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=초과근무"
+        }
+      ],
+      "법령용어명": "연장근로",
+      "비고": ""
+    }
+  }
+}

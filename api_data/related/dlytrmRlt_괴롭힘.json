@@ -1,0 +1,86 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "괴롭힘",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "괴롭힘",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=12065",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "가혹행위",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=12065"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=279175",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "구타",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=279175"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1290057",
+          "id": "3",
+          "용어관계": "상위어",
+          "법령용어명": "여성폭력",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1290057"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1491721",
+          "id": "4",
+          "용어관계": "연관어",
+          "법령용어명": "정서적학대행위",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1491721"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1293869",
+          "id": "5",
+          "용어관계": "하위어",
+          "법령용어명": "집단따돌림",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1293869"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1142783",
+          "id": "6",
+          "용어관계": "연관어",
+          "법령용어명": "청소년학대",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1142783"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=280749",
+          "id": "7",
+          "용어관계": "연관어",
+          "법령용어명": "학대",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=280749"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=318559",
+          "id": "8",
+          "용어관계": "동의어",
+          "법령용어명": "학대행위",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=318559"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

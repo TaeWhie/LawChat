@@ -1,0 +1,54 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "최저임금",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=56667",
+          "id": "1",
+          "일상용어명": "시급",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=시급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=6781",
+          "id": "2",
+          "일상용어명": "임금",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=임금"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=153593",
+          "id": "3",
+          "일상용어명": "최저시급",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=최저시급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=61955",
+          "id": "4",
+          "일상용어명": "최저월급액",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=최저월급액"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=71669",
+          "id": "5",
+          "일상용어명": "최저임금액",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=최저임금액"
+        }
+      ],
+      "법령용어명": "최저임금",
+      "비고": ""
+    }
+  }
+}

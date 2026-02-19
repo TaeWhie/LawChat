@@ -1,0 +1,54 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "임금",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2019헌마712",
+        "종국일자": "0",
+        "헌재결정례일련번호": "151752",
+        "사건명": "국방의무 수행 중 최저임금 미지급 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=151752&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "2012헌마1007",
+        "종국일자": "2013.01.15",
+        "헌재결정례일련번호": "22333",
+        "사건명": "임금인상 및 장려금적용 대상자 협약 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=22333&type=HTML&mobileYn="
+      },
+      {
+        "id": "3",
+        "사건번호": "2019헌마604",
+        "종국일자": "0",
+        "헌재결정례일련번호": "151532",
+        "사건명": "임금채권보장법  제26조  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=151532&type=HTML&mobileYn="
+      },
+      {
+        "id": "4",
+        "사건번호": "2018헌마1147",
+        "종국일자": "0",
+        "헌재결정례일련번호": "149572",
+        "사건명": "임금채권보장법  제8조  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=149572&type=HTML&mobileYn="
+      },
+      {
+        "id": "5",
+        "사건번호": "2019헌아75",
+        "종국일자": "0",
+        "헌재결정례일련번호": "150326",
+        "사건명": "임금채권보장법 제8조 위헌확인(재심)",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=150326&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "27",
+    "section": "evtNm",
+    "numOfRows": "5"
+  }
+}

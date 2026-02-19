@@ -1,0 +1,68 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "산재",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "산재",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1331671",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "난립",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1331671"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=8561",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "분포",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=8561"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=611953",
+          "id": "3",
+          "용어관계": "반의어",
+          "법령용어명": "산업안전",
+          "용어관계코드": "140302",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=611953"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1121085",
+          "id": "4",
+          "용어관계": "동의어",
+          "법령용어명": "산업재해",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1121085"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1286465",
+          "id": "5",
+          "용어관계": "연관어",
+          "법령용어명": "업무상재해",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1286465"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=40757",
+          "id": "6",
+          "용어관계": "연관어",
+          "법령용어명": "한국산업안전보건공단",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=40757"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

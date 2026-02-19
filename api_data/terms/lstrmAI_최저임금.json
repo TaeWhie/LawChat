@@ -1,0 +1,100 @@
+{
+  "lstrmAISearch": {
+    "검색결과개수": "11",
+    "키워드": "최저임금",
+    "page": "1",
+    "target": "lstrmAI",
+    "법령용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1295807",
+        "id": "1",
+        "법령용어명": "최저임금안",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1295807"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1359031",
+        "id": "2",
+        "법령용어명": "일급최저임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1359031"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=374517",
+        "id": "3",
+        "법령용어명": "최저임금제",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=374517"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=631101",
+        "id": "4",
+        "법령용어명": "최저임금액",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=631101"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1342389",
+        "id": "5",
+        "법령용어명": "최저임금위원회위원장",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1342389"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1341061",
+        "id": "6",
+        "법령용어명": "최저임금위원회사무국",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1341061"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=614959",
+        "id": "7",
+        "법령용어명": "최저임금",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=614959"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1295797",
+        "id": "8",
+        "법령용어명": "최저임금위원회",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1295797"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1295813",
+        "id": "9",
+        "법령용어명": "최저임금제도",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1295813"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1320307",
+        "id": "10",
+        "법령용어명": "월최저임금액",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1320307"
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRlt&type=XML&MST=1467079",
+        "id": "11",
+        "법령용어명": "최저임금상승률",
+        "비고": "",
+        "동음이의어존재여부": "N",
+        "조문간관계링크": "/DRF/lawService.do?OC=xognl427&target=lstrmRltJo&type=XML&MST=1467079"
+      }
+    ],
+    "section": "lsTrm",
+    "numOfRows": "11"
+  }
+}

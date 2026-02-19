@@ -1,0 +1,203 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "임금",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "임금",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1312815",
+          "id": "1",
+          "용어관계": "상위어",
+          "법령용어명": "근로대가",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1312815"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=462501",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "급료",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=462501"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=21713",
+          "id": "3",
+          "용어관계": "연관어",
+          "법령용어명": "급여",
+          "용어관계코드": "140305",
+          "비고": "돈이나 물품 따위를 줌. 또는 그 돈이나 물품.",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=21713"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1330469",
+          "id": "4",
+          "용어관계": "하위어",
+          "법령용어명": "기본급",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1330469"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1289821",
+          "id": "5",
+          "용어관계": "연관어",
+          "법령용어명": "기준임금",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1289821"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1317491",
+          "id": "6",
+          "용어관계": "연관어",
+          "법령용어명": "노무제공대가",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1317491"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=722767",
+          "id": "7",
+          "용어관계": "동의어",
+          "법령용어명": "노임",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=722767"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=18409",
+          "id": "8",
+          "용어관계": "상위어",
+          "법령용어명": "보수",
+          "용어관계코드": "140303",
+          "비고": "일한 대가로 주는 돈이나 물품/고맙게 해 준 데 대한 보답",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=18409"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=119301",
+          "id": "9",
+          "용어관계": "연관어",
+          "법령용어명": "보수등",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=119301"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=34061",
+          "id": "10",
+          "용어관계": "하위어",
+          "법령용어명": "봉급",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=34061"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1320961",
+          "id": "11",
+          "용어관계": "연관어",
+          "법령용어명": "연봉",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1320961"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1320967",
+          "id": "12",
+          "용어관계": "연관어",
+          "법령용어명": "연봉",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1320967"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1283385",
+          "id": "13",
+          "용어관계": "상위어",
+          "법령용어명": "임금등",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1283385"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1278809",
+          "id": "14",
+          "용어관계": "동의어",
+          "법령용어명": "임금비용",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1278809"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1473059",
+          "id": "15",
+          "용어관계": "연관어",
+          "법령용어명": "임금제도",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1473059"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1135257",
+          "id": "16",
+          "용어관계": "연관어",
+          "법령용어명": "임금채권자",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1135257"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=152937",
+          "id": "17",
+          "용어관계": "연관어",
+          "법령용어명": "임금총액",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=152937"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=614959",
+          "id": "18",
+          "용어관계": "하위어",
+          "법령용어명": "최저임금",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=614959"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1280461",
+          "id": "19",
+          "용어관계": "하위어",
+          "법령용어명": "통상임금",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1280461"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=21719",
+          "id": "20",
+          "용어관계": "하위어",
+          "법령용어명": "퇴직금",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=21719"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=11677",
+          "id": "21",
+          "용어관계": "하위어",
+          "법령용어명": "평균임금",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=11677"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

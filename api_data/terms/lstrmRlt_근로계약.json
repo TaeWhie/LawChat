@@ -1,0 +1,38 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "근로계약",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=6729",
+          "id": "1",
+          "일상용어명": "고용계약",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=고용계약"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=63697",
+          "id": "2",
+          "일상용어명": "근로계약서",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=근로계약서"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=75497",
+          "id": "3",
+          "일상용어명": "노동계약",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=노동계약"
+        }
+      ],
+      "법령용어명": "근로계약",
+      "비고": ""
+    }
+  }
+}

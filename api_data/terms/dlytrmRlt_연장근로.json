@@ -1,0 +1,32 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "연장근로",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "연장근로",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1340061",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "시간외근무",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1340061"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1445057",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "연장근로시간",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1445057"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "13",
+    "키워드": "근로계약",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63697",
+        "id": "1",
+        "일상용어명": "근로계약서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=317479",
+        "id": "2",
+        "일상용어명": "근로자공급계약서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=38083",
+        "id": "3",
+        "일상용어명": "근로계약해제",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63699",
+        "id": "4",
+        "일상용어명": "선원근로계약",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=317409",
+        "id": "5",
+        "일상용어명": "근로자파견계약",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=317535",
+        "id": "6",
+        "일상용어명": "근로공급계약기간",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=415905",
+        "id": "7",
+        "일상용어명": "근로계약일",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=30231",
+        "id": "8",
+        "일상용어명": "근로계약",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=56603",
+        "id": "9",
+        "일상용어명": "근로계약기간",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=62371",
+        "id": "10",
+        "일상용어명": "근로계약관계",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=27157",
+        "id": "11",
+        "일상용어명": "계약직근로자",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=317533",
+        "id": "12",
+        "일상용어명": "근로자공급계약기간",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=117761",
+        "id": "13",
+        "일상용어명": "근로계약시간",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "13"
+  }
+}

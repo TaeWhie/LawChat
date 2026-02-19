@@ -1,0 +1,20 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "남녀고용평등",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": {
+        "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=88899",
+        "id": "1",
+        "일상용어명": "양성고용평등",
+        "용어관계": "동의어",
+        "용어관계코드": "140301",
+        "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=양성고용평등"
+      },
+      "법령용어명": "남녀고용평등",
+      "비고": ""
+    }
+  }
+}

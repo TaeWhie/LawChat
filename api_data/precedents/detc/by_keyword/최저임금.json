@@ -1,0 +1,54 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "최저임금",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2019헌마712",
+        "종국일자": "0",
+        "헌재결정례일련번호": "151752",
+        "사건명": "국방의무 수행 중 최저임금 미지급 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=151752&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "2023헌마581",
+        "종국일자": "2023.05.03",
+        "헌재결정례일련번호": "182497",
+        "사건명": "최저임금법  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=182497&type=HTML&mobileYn="
+      },
+      {
+        "id": "3",
+        "사건번호": "2018헌마811",
+        "종국일자": "2018.08.28",
+        "헌재결정례일련번호": "148786",
+        "사건명": "최저임금법 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=148786&type=HTML&mobileYn="
+      },
+      {
+        "id": "4",
+        "사건번호": "2025헌마500",
+        "종국일자": "2025.05.27",
+        "헌재결정례일련번호": "198349",
+        "사건명": "최저임금법  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=198349&type=HTML&mobileYn="
+      },
+      {
+        "id": "5",
+        "사건번호": "2023헌마766",
+        "종국일자": "2023.06.13",
+        "헌재결정례일련번호": "183451",
+        "사건명": "최저임금법  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=183451&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "17",
+    "section": "evtNm",
+    "numOfRows": "5"
+  }
+}

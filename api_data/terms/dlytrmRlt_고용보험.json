@@ -1,0 +1,86 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "고용보험",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "고용보험",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=310467",
+          "id": "1",
+          "용어관계": "동의어",
+          "법령용어명": "고용보험",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=310467"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1280223",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "고용보험계약",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1280223"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=728943",
+          "id": "3",
+          "용어관계": "연관어",
+          "법령용어명": "고용보험료",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=728943"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1455379",
+          "id": "4",
+          "용어관계": "연관어",
+          "법령용어명": "고용보험일용근로내역서",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1455379"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1354079",
+          "id": "5",
+          "용어관계": "하위어",
+          "법령용어명": "고용보험자료",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1354079"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1388245",
+          "id": "6",
+          "용어관계": "연관어",
+          "법령용어명": "고용안정장려금",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1388245"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1350585",
+          "id": "7",
+          "용어관계": "상위어",
+          "법령용어명": "법정경비",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1350585"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=40893",
+          "id": "8",
+          "용어관계": "연관어",
+          "법령용어명": "사회보험",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=40893"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

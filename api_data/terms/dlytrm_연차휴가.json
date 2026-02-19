@@ -1,0 +1,36 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "4",
+    "키워드": "연차휴가",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=97533",
+        "id": "1",
+        "일상용어명": "연차유급휴가",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63195",
+        "id": "2",
+        "일상용어명": "연차휴가",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=356683",
+        "id": "3",
+        "일상용어명": "연차휴가미사용수당",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=356687",
+        "id": "4",
+        "일상용어명": "연차유급휴가미사용수당",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "4"
+  }
+}

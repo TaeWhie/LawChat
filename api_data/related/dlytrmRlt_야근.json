@@ -1,0 +1,41 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "야근",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "야근",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=255881",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "과로",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=255881"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1282307",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "야간근로",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1282307"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1282305",
+          "id": "3",
+          "용어관계": "연관어",
+          "법령용어명": "연장근로",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1282305"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

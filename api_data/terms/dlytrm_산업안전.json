@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "35",
+    "키워드": "산업안전",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=45763",
+        "id": "1",
+        "일상용어명": "산업안전감독관",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=426333",
+        "id": "2",
+        "일상용어명": "산업안전보건본부",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=423573",
+        "id": "3",
+        "일상용어명": "재난안전산업관련",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=52869",
+        "id": "4",
+        "일상용어명": "산업안전보건",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=90449",
+        "id": "5",
+        "일상용어명": "산업안전",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=392775",
+        "id": "6",
+        "일상용어명": "한국산업안전보건공단",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=423575",
+        "id": "7",
+        "일상용어명": "재난안전산업계통",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=398021",
+        "id": "8",
+        "일상용어명": "산업인력안전증",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=418299",
+        "id": "9",
+        "일상용어명": "산업안전교육",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=208097",
+        "id": "10",
+        "일상용어명": "산업안전보건정부방침",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=239387",
+        "id": "11",
+        "일상용어명": "광산업안전교육",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=382195",
+        "id": "12",
+        "일상용어명": "지진안전산업진흥시설",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=52603",
+        "id": "13",
+        "일상용어명": "산업안전지도사",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=45793",
+        "id": "14",
+        "일상용어명": "산업안전보건위",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=110905",
+        "id": "15",
+        "일상용어명": "산업안전보건협회",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=208099",
+        "id": "16",
+        "일상용어명": "산업안전보건전략",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=52871",
+        "id": "17",
+        "일상용어명": "산업안전보건계획",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=110673",
+        "id": "18",
+        "일상용어명": "산업안전유지기술",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=94581",
+        "id": "19",
+        "일상용어명": "엘리베이터안전산업",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=423607",
+        "id": "20",
+        "일상용어명": "재난안전산업발전",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}

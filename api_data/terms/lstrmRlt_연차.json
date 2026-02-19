@@ -1,0 +1,110 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "3",
+    "키워드": "연차",
+    "target": "lstrmRlt",
+    "법령용어": [
+      {
+        "id": "1",
+        "연계용어": [
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=165807",
+            "id": "1",
+            "일상용어명": "연가",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연가"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=63195",
+            "id": "2",
+            "일상용어명": "연차휴가",
+            "용어관계": "동의어",
+            "용어관계코드": "140301",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연차휴가"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=39449",
+            "id": "3",
+            "일상용어명": "유급휴일",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=유급휴일"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=45859",
+            "id": "4",
+            "일상용어명": "휴가",
+            "용어관계": "상위어",
+            "용어관계코드": "140303",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=휴가"
+          }
+        ],
+        "법령용어명": "연차",
+        "비고": "연차휴가의 줄임말"
+      },
+      {
+        "id": "2",
+        "연계용어": [
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=27897",
+            "id": "1",
+            "일상용어명": "매년",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=매년"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=36093",
+            "id": "2",
+            "일상용어명": "연간",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연간"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=150375",
+            "id": "3",
+            "일상용어명": "연례",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연례"
+          }
+        ],
+        "법령용어명": "연차",
+        "비고": "연차 보고서"
+      },
+      {
+        "id": "3",
+        "연계용어": [
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=3539",
+            "id": "1",
+            "일상용어명": "연수",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연수"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=29597",
+            "id": "2",
+            "일상용어명": "연한",
+            "용어관계": "연관어",
+            "용어관계코드": "140305",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=연한"
+          },
+          {
+            "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=9481",
+            "id": "3",
+            "일상용어명": "차례",
+            "용어관계": "상위어",
+            "용어관계코드": "140303",
+            "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=차례"
+          }
+        ],
+        "법령용어명": "연차",
+        "비고": "햇수의 차례"
+      }
+    ]
+  }
+}

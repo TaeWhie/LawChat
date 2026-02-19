@@ -1,0 +1,60 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "8",
+    "키워드": "평균임금",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=52985",
+        "id": "1",
+        "일상용어명": "평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166255",
+        "id": "2",
+        "일상용어명": "하루평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=377791",
+        "id": "3",
+        "일상용어명": "평균임금산정사유발생일",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=379679",
+        "id": "4",
+        "일상용어명": "월평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=383511",
+        "id": "5",
+        "일상용어명": "피해자평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=377797",
+        "id": "6",
+        "일상용어명": "평균임금산정기간",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=187265",
+        "id": "7",
+        "일상용어명": "월평균임금액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=437959",
+        "id": "8",
+        "일상용어명": "평균임금상승률",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "8"
+  }
+}

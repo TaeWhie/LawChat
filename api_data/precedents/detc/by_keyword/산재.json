@@ -1,0 +1,38 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "산재",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2013헌마98",
+        "종국일자": "2013.03.12",
+        "헌재결정례일련번호": "45633",
+        "사건명": "2012년도 사업종류별 산재보험료율 고시 Ⅰ조 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=45633&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "97헌마181",
+        "종국일자": "0",
+        "헌재결정례일련번호": "145989",
+        "사건명": "산재보험적용불인정  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=145989&type=HTML&mobileYn="
+      },
+      {
+        "id": "3",
+        "사건번호": "92헌마137",
+        "종국일자": "1996.08.29",
+        "헌재결정례일련번호": "135089",
+        "사건명": "자산재평가법시행령 제3조 등 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=135089&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "3",
+    "section": "evtNm",
+    "numOfRows": "3"
+  }
+}

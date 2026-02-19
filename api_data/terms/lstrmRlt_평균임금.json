@@ -1,0 +1,46 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "평균임금",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=6781",
+          "id": "1",
+          "일상용어명": "임금",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=임금"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=43127",
+          "id": "2",
+          "일상용어명": "평균급여",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=평균급여"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=48891",
+          "id": "3",
+          "일상용어명": "평균월급",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=평균월급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=10151",
+          "id": "4",
+          "일상용어명": "표준임금",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=표준임금"
+        }
+      ],
+      "법령용어명": "평균임금",
+      "비고": ""
+    }
+  }
+}

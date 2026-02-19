@@ -1,0 +1,86 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "통상임금",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=24953",
+          "id": "1",
+          "일상용어명": "도급금액",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=도급금액"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=24939",
+          "id": "2",
+          "일상용어명": "시간급금액",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=시간급금액"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=10163",
+          "id": "3",
+          "일상용어명": "월급",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=월급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=24949",
+          "id": "4",
+          "일상용어명": "월급금액",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=월급금액"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=24943",
+          "id": "5",
+          "일상용어명": "일급금액",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=일급금액"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=117833",
+          "id": "6",
+          "일상용어명": "일률적지급",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=일률적지급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=6781",
+          "id": "7",
+          "일상용어명": "임금",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=임금"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=117827",
+          "id": "8",
+          "일상용어명": "정기적지급",
+          "용어관계": "하위어",
+          "용어관계코드": "140304",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=정기적지급"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=60401",
+          "id": "9",
+          "일상용어명": "통상급여",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=통상급여"
+        }
+      ],
+      "법령용어명": "통상임금",
+      "비고": ""
+    }
+  }
+}

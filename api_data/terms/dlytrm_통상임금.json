@@ -1,0 +1,16 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "1",
+    "키워드": "통상임금",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": {
+      "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=71661",
+      "id": "1",
+      "일상용어명": "통상임금",
+      "출처": ""
+    },
+    "section": "dlyTrm",
+    "numOfRows": "1"
+  }
+}

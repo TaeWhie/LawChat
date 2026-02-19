@@ -1,0 +1,38 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "산업안전",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=52869",
+          "id": "1",
+          "일상용어명": "산업안전보건",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=산업안전보건"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=5761",
+          "id": "2",
+          "일상용어명": "산업재해",
+          "용어관계": "반의어",
+          "용어관계코드": "140302",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=산업재해"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=21283",
+          "id": "3",
+          "일상용어명": "산재",
+          "용어관계": "반의어",
+          "용어관계코드": "140302",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=산재"
+        }
+      ],
+      "법령용어명": "산업안전",
+      "비고": ""
+    }
+  }
+}

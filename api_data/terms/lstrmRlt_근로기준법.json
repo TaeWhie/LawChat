@@ -1,0 +1,38 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "근로기준법",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=160699",
+          "id": "1",
+          "일상용어명": "근기법",
+          "용어관계": "동의어",
+          "용어관계코드": "140301",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=근기법"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=1449",
+          "id": "2",
+          "일상용어명": "법률",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=법률"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=415899",
+          "id": "3",
+          "일상용어명": "직장내괴롭힘근거법령",
+          "용어관계": "연관어",
+          "용어관계코드": "140305",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=직장내괴롭힘근거법령"
+        }
+      ],
+      "법령용어명": "근로기준법",
+      "비고": ""
+    }
+  }
+}

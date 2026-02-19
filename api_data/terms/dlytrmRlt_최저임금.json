@@ -1,0 +1,59 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "최저임금",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "최저임금",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1359031",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "일급최저임금",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1359031"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=50047",
+          "id": "2",
+          "용어관계": "상위어",
+          "법령용어명": "임금",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=50047"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1442745",
+          "id": "3",
+          "용어관계": "하위어",
+          "법령용어명": "장려가급",
+          "용어관계코드": "140304",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1442745"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=631101",
+          "id": "4",
+          "용어관계": "연관어",
+          "법령용어명": "최저임금액",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=631101"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=374517",
+          "id": "5",
+          "용어관계": "동의어",
+          "법령용어명": "최저임금제",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=374517"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

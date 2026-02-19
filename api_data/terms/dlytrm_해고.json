@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "28",
+    "키워드": "해고",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=180587",
+        "id": "1",
+        "일상용어명": "통상해고",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=305039",
+        "id": "2",
+        "일상용어명": "해고사실",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=350453",
+        "id": "3",
+        "일상용어명": "해고장",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=374141",
+        "id": "4",
+        "일상용어명": "부당해고",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=421185",
+        "id": "5",
+        "일상용어명": "동해고속도로",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=189863",
+        "id": "6",
+        "일상용어명": "해고기준",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=421169",
+        "id": "7",
+        "일상용어명": "동해고속도로일부지선",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63099",
+        "id": "8",
+        "일상용어명": "해고일자",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=140701",
+        "id": "9",
+        "일상용어명": "해고공무원",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=180589",
+        "id": "10",
+        "일상용어명": "징계해고",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=421199",
+        "id": "11",
+        "일상용어명": "남해고속도로제2지선",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=178673",
+        "id": "12",
+        "일상용어명": "정리해고",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=326085",
+        "id": "13",
+        "일상용어명": "해고사유",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=236867",
+        "id": "14",
+        "일상용어명": "해고자",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=248207",
+        "id": "15",
+        "일상용어명": "보건의료서비스이해고취",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63091",
+        "id": "16",
+        "일상용어명": "보복해고",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=151479",
+        "id": "17",
+        "일상용어명": "해고절차",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=283211",
+        "id": "18",
+        "일상용어명": "용해고열물",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=325801",
+        "id": "19",
+        "일상용어명": "해고결정",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=326089",
+        "id": "20",
+        "일상용어명": "해고대상",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}

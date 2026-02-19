@@ -1,0 +1,20 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "포괄임금제",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": {
+        "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=87913",
+        "id": "1",
+        "일상용어명": "임금제",
+        "용어관계": "연관어",
+        "용어관계코드": "140305",
+        "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=임금제"
+      },
+      "법령용어명": "포괄임금제",
+      "비고": ""
+    }
+  }
+}

@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "160",
+    "키워드": "임금",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=52985",
+        "id": "1",
+        "일상용어명": "평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=68581",
+        "id": "2",
+        "일상용어명": "임금체제",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=103447",
+        "id": "3",
+        "일상용어명": "임금채권보장기금심위",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=165829",
+        "id": "4",
+        "일상용어명": "임금인상률",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=169783",
+        "id": "5",
+        "일상용어명": "년최저임금액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=189159",
+        "id": "6",
+        "일상용어명": "임금보전",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=187271",
+        "id": "7",
+        "일상용어명": "일용근로자임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=208059",
+        "id": "8",
+        "일상용어명": "최저임금위사무국",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=321287",
+        "id": "9",
+        "일상용어명": "임금지급내역표",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=343103",
+        "id": "10",
+        "일상용어명": "공단책임금액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=351317",
+        "id": "11",
+        "일상용어명": "임금체불자공개심의",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=404569",
+        "id": "12",
+        "일상용어명": "임금격차",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=53277",
+        "id": "13",
+        "일상용어명": "노동임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=120175",
+        "id": "14",
+        "일상용어명": "최저임금심의위원회",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=166255",
+        "id": "15",
+        "일상용어명": "하루평균임금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=190519",
+        "id": "16",
+        "일상용어명": "임금지급날짜",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=190535",
+        "id": "17",
+        "일상용어명": "임금보전방책",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=219941",
+        "id": "18",
+        "일상용어명": "임금체불",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=219903",
+        "id": "19",
+        "일상용어명": "임금협상",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=313219",
+        "id": "20",
+        "일상용어명": "임금지급대장",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}

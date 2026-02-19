@@ -1,0 +1,30 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "남녀고용평등",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2013헌마774",
+        "종국일자": "2013.12.10",
+        "헌재결정례일련번호": "34065",
+        "사건명": "남녀고용평등과 일·가정 양립지원에 관한 법률 제19조 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=34065&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "2020헌마1529",
+        "종국일자": "2025.10.23",
+        "헌재결정례일련번호": "201399",
+        "사건명": "남녀고용평등과 일·가정 양립 지원에 관한 법률 제19조 제1항 등 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=201399&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "2",
+    "section": "evtNm",
+    "numOfRows": "2"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "2",
+    "키워드": "주휴일",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=9109",
+        "id": "1",
+        "일상용어명": "주휴일",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=9127",
+        "id": "2",
+        "일상용어명": "유급주휴일",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "2"
+  }
+}

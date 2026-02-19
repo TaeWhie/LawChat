@@ -1,0 +1,54 @@
+{
+  "DetcSearch": {
+    "resultMsg": "success",
+    "키워드": "근로기준법",
+    "page": "1",
+    "resultCode": "00",
+    "target": "detc",
+    "Detc": [
+      {
+        "id": "1",
+        "사건번호": "2021헌바101",
+        "종국일자": "2021.05.18",
+        "헌재결정례일련번호": "165679",
+        "사건명": "구 근로기준법 제109조 제1항 위헌소원",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=165679&type=HTML&mobileYn="
+      },
+      {
+        "id": "2",
+        "사건번호": "2022헌마721",
+        "종국일자": "2022.05.17",
+        "헌재결정례일련번호": "173751",
+        "사건명": "구 근로기준법 제35조 제3호 위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=173751&type=HTML&mobileYn="
+      },
+      {
+        "id": "3",
+        "사건번호": "2004헌바20",
+        "종국일자": "2006.07.27",
+        "헌재결정례일련번호": "137724",
+        "사건명": "근로기준법 부칙 제2조 위헌소원",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=137724&type=HTML&mobileYn="
+      },
+      {
+        "id": "4",
+        "사건번호": "2013헌가12",
+        "종국일자": "2014.04.24",
+        "헌재결정례일련번호": "36056",
+        "사건명": "근로기준법 제109조 제1항 위헌제청",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=36056&type=HTML&mobileYn="
+      },
+      {
+        "id": "5",
+        "사건번호": "2000헌마57",
+        "종국일자": "0",
+        "헌재결정례일련번호": "147902",
+        "사건명": "근로기준법 제10조  위헌확인",
+        "헌재결정례상세링크": "/DRF/lawService.do?OC=xognl427&target=detc&ID=147902&type=HTML&mobileYn="
+      }
+    ],
+    "totalCnt": "76",
+    "section": "evtNm",
+    "numOfRows": "5"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "정리해고",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "정리해고",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1325635",
+          "id": "1",
+          "용어관계": "동의어",
+          "법령용어명": "경영상이유에의한해고",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1325635"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=81095",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "구조조정",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=81095"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=9205",
+          "id": "3",
+          "용어관계": "상위어",
+          "법령용어명": "해고",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=9205"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

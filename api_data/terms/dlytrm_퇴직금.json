@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "25",
+    "키워드": "퇴직금",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314057",
+        "id": "1",
+        "일상용어명": "퇴직금추계액수",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63943",
+        "id": "2",
+        "일상용어명": "퇴직금제",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=232903",
+        "id": "3",
+        "일상용어명": "정기명예퇴직금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=319501",
+        "id": "4",
+        "일상용어명": "퇴직금추계",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=285377",
+        "id": "5",
+        "일상용어명": "퇴직금선급액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=107077",
+        "id": "6",
+        "일상용어명": "퇴직금지급",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=133695",
+        "id": "7",
+        "일상용어명": "퇴직금지급결정",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=15857",
+        "id": "8",
+        "일상용어명": "퇴직금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=319503",
+        "id": "9",
+        "일상용어명": "퇴직금충당",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314055",
+        "id": "10",
+        "일상용어명": "퇴직금추계금액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314063",
+        "id": "11",
+        "일상용어명": "퇴직금산정내용",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=370455",
+        "id": "12",
+        "일상용어명": "퇴직금추계액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=133747",
+        "id": "13",
+        "일상용어명": "퇴직금지급신청",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314059",
+        "id": "14",
+        "일상용어명": "퇴직금계산명세",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=85953",
+        "id": "15",
+        "일상용어명": "퇴직금적립연금제도",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=57689",
+        "id": "16",
+        "일상용어명": "퇴직금공제제도",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=63115",
+        "id": "17",
+        "일상용어명": "퇴직금제도",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314053",
+        "id": "18",
+        "일상용어명": "퇴직금추산액",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=314061",
+        "id": "19",
+        "일상용어명": "퇴직금산정내역",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=134003",
+        "id": "20",
+        "일상용어명": "퇴직금지급액",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}

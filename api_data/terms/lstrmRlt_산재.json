@@ -1,0 +1,30 @@
+{
+  "lstrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "산재",
+    "target": "lstrmRlt",
+    "법령용어": {
+      "id": "1",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=78667",
+          "id": "1",
+          "일상용어명": "분산",
+          "용어관계": "상위어",
+          "용어관계코드": "140303",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=분산"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=dlytrmRlt&type=XML&MST=9607",
+          "id": "2",
+          "일상용어명": "흩어짐",
+          "용어관계": "동의어",
+          "용어관계코드": "140301",
+          "일상용어조회링크": "/DRF/lawSearch.do?OC=test&target=dlytrm&type=XML&query=흩어짐"
+        }
+      ],
+      "법령용어명": "산재",
+      "비고": "여기저기 흩어져 있음"
+    }
+  }
+}

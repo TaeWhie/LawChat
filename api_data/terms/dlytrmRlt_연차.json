@@ -1,0 +1,41 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "연차",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "연차",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1449165",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "기산연차",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1449165"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1316209",
+          "id": "2",
+          "용어관계": "연관어",
+          "법령용어명": "연가",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1316209"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=213769",
+          "id": "3",
+          "용어관계": "상위어",
+          "법령용어명": "휴가",
+          "용어관계코드": "140303",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=213769"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

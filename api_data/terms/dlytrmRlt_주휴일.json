@@ -1,0 +1,41 @@
+{
+  "dlytrmRltService": {
+    "검색결과개수": "1",
+    "키워드": "주휴일",
+    "target": "dlytrmRlt",
+    "일상용어": {
+      "id": "1",
+      "일상용어명": "주휴일",
+      "연계용어": [
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=762287",
+          "id": "1",
+          "용어관계": "연관어",
+          "법령용어명": "법정휴일",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=762287"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=1277045",
+          "id": "2",
+          "용어관계": "동의어",
+          "법령용어명": "유급휴일",
+          "용어관계코드": "140301",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=1277045"
+        },
+        {
+          "용어간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRlt&type=XML&MST=230777",
+          "id": "3",
+          "용어관계": "연관어",
+          "법령용어명": "휴일",
+          "용어관계코드": "140305",
+          "비고": "",
+          "조문간관계링크": "/DRF/lawService.do?OC=test&target=lstrmRltJo&type=XML&MST=230777"
+        }
+      ],
+      "출처": ""
+    }
+  }
+}

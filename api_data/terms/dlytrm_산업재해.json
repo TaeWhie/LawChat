@@ -1,0 +1,132 @@
+{
+  "dlytrmSearch": {
+    "검색결과개수": "23",
+    "키워드": "산업재해",
+    "page": "1",
+    "target": "dlytrm",
+    "일상용어": [
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=65329",
+        "id": "1",
+        "일상용어명": "산업재해근로자",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=386029",
+        "id": "2",
+        "일상용어명": "산업재해보상보험근로자고용정보확인서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=419657",
+        "id": "3",
+        "일상용어명": "산업재해상이자",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=102665",
+        "id": "4",
+        "일상용어명": "산업재해보상보험사업",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=264853",
+        "id": "5",
+        "일상용어명": "산업재해조사보고서",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=110897",
+        "id": "6",
+        "일상용어명": "산업재해방지기술",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=65651",
+        "id": "7",
+        "일상용어명": "산업재해보상보험심사",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=309267",
+        "id": "8",
+        "일상용어명": "건설산업재해예방지도기관",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=437123",
+        "id": "9",
+        "일상용어명": "산업재해보상보험및예방기금",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=29417",
+        "id": "10",
+        "일상용어명": "산업재해예방",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=264855",
+        "id": "11",
+        "일상용어명": "산업재해예방작업",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=208061",
+        "id": "12",
+        "일상용어명": "산업재해보상보험재심사위사무국",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=263807",
+        "id": "13",
+        "일상용어명": "산업재해발생비율",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=21895",
+        "id": "14",
+        "일상용어명": "산업재해보상보험",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=32225",
+        "id": "15",
+        "일상용어명": "중대산업재해",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=65787",
+        "id": "16",
+        "일상용어명": "산업재해보상보험재심사위원회",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=65287",
+        "id": "17",
+        "일상용어명": "산업재해보험시설",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=150499",
+        "id": "18",
+        "일상용어명": "방사선산업재해",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=107501",
+        "id": "19",
+        "일상용어명": "산업재해보상보험료",
+        "출처": ""
+      },
+      {
+        "용어간관계링크": "/DRF/lawService.do?OC=xognl427&target=dlytrmRlt&type=XML&MST=21707",
+        "id": "20",
+        "일상용어명": "산업재해보험",
+        "출처": ""
+      }
+    ],
+    "section": "dlyTrm",
+    "numOfRows": "20"
+  }
+}
