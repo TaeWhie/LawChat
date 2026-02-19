@@ -103,110 +103,109 @@ def main():
                 st.session_state.messages.append(HumanMessage(content=s.get("situation", s["label"])))
                 st.rerun()
 
-    # 채팅 히스토리 표시
-    for msg in st.session_state.messages:
-        role = "user" if isinstance(msg, HumanMessage) else "assistant"
-        with st.chat_message(role):
-            st.markdown(msg.content)
-
-    # 체크리스트: 아래에만 질문 전문 표시 + 네/아니요/모르겠음 버튼
+    # 채팅 히스토리 표시 (체크리스트는 마지막 assistant 말풍선 안에 함께 표시)
     cb_checklist = st.session_state.get("cb_checklist") or []
     cb_answers = st.session_state.get("cb_checklist_answers") or {}
-    if cb_checklist and st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage):
-        st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
-        for i, item in enumerate(cb_checklist):
-            q = item.get("question") or item.get("item") or str(item)
-            current = cb_answers.get(i, "").strip()
-            st.write(f"**{i+1}.** {q}")
-            c1, c2, c3, _ = st.columns([1, 1, 1, 2])
-            with c1:
-                if st.button("네", key=f"cb_btn_{i}_0", type="primary" if current == "네" else "secondary"):
-                    cb_answers[i] = "네"
-                    st.session_state.cb_checklist_answers = dict(cb_answers)
-                    st.rerun()
-            with c2:
-                if st.button("아니요", key=f"cb_btn_{i}_1", type="primary" if current == "아니요" else "secondary"):
-                    cb_answers[i] = "아니요"
-                    st.session_state.cb_checklist_answers = dict(cb_answers)
-                    st.rerun()
-            with c3:
-                if st.button("모르겠음", key=f"cb_btn_{i}_2", type="primary" if current == "모르겠음" else "secondary"):
-                    cb_answers[i] = "모르겠음"
-                    st.session_state.cb_checklist_answers = dict(cb_answers)
-                    st.rerun()
-            if current:
-                st.caption(f"선택: **{current}**")
-        st.divider()
+    messages = st.session_state.messages
+    for i, msg in enumerate(messages):
+        role = "user" if isinstance(msg, HumanMessage) else "assistant"
+        is_last_and_checklist = (
+            i == len(messages) - 1 and isinstance(msg, AIMessage) and cb_checklist
+        )
+        with st.chat_message(role):
+            st.markdown(msg.content)
+            if is_last_and_checklist:
+                st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
+                for j, item in enumerate(cb_checklist):
+                    q = item.get("question") or item.get("item") or str(item)
+                    cur = cb_answers.get(j, "").strip()
+                    st.write(f"**{j+1}.** {q}")
+                    c1, c2, c3, _ = st.columns([1, 1, 1, 2])
+                    with c1:
+                        if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary"):
+                            cb_answers[j] = "네"
+                            st.session_state.cb_checklist_answers = dict(cb_answers)
+                            st.rerun()
+                    with c2:
+                        if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary"):
+                            cb_answers[j] = "아니요"
+                            st.session_state.cb_checklist_answers = dict(cb_answers)
+                            st.rerun()
+                    with c3:
+                        if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary"):
+                            cb_answers[j] = "모르겠음"
+                            st.session_state.cb_checklist_answers = dict(cb_answers)
+                            st.rerun()
+                    if cur:
+                        st.caption(f"선택: **{cur}**")
 
-        # 모든 질문에 답했으면 app.py와 동일하게 should_continue 판단 → 2차 체크리스트 또는 결론
-        if len(cb_answers) == len(cb_checklist):
-            full_qa = [
-                {"question": (cb_checklist[i].get("question") or cb_checklist[i].get("item") or ""), "answer": cb_answers.get(i, "")}
-                for i in range(len(cb_checklist))
-            ]
-            all_qa = list(st.session_state.get("cb_all_qa") or []) + full_qa
-            cb_issue = st.session_state.get("cb_issue", "")
-            cb_situation = st.session_state.get("cb_situation", "")
-            cb_articles = st.session_state.get("cb_articles_by_issue") or {}
-            cb_round = st.session_state.get("cb_round", 1)
-            prev_rag = st.session_state.get("cb_checklist_rag_results") or []
-            remaining = list(prev_rag) if prev_rag else list(cb_articles.get(cb_issue) or [])
+    # 모든 질문에 답했으면 app.py와 동일하게 should_continue 판단 → 2차 체크리스트 또는 결론
+    if cb_checklist and messages and isinstance(messages[-1], AIMessage) and len(cb_answers) == len(cb_checklist):
+        full_qa = [
+            {"question": (cb_checklist[i].get("question") or cb_checklist[i].get("item") or ""), "answer": cb_answers.get(i, "")}
+            for i in range(len(cb_checklist))
+        ]
+        all_qa = list(st.session_state.get("cb_all_qa") or []) + full_qa
+        cb_issue = st.session_state.get("cb_issue", "")
+        cb_situation = st.session_state.get("cb_situation", "")
+        cb_articles = st.session_state.get("cb_articles_by_issue") or {}
+        cb_round = st.session_state.get("cb_round", 1)
+        prev_rag = st.session_state.get("cb_checklist_rag_results") or []
+        remaining = list(prev_rag) if prev_rag else list(cb_articles.get(cb_issue) or [])
 
-            try:
-                from rag.store import build_vector_store, search
-                from rag.pipeline import step2_checklist, step3_conclusion
-                from config import ALL_LABOR_LAW_SOURCES
-                col = build_vector_store()[0]
-                narrow_answers = [x.get("answer", "").strip() for x in all_qa if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
-                filter_text = (cb_issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in all_qa))[:400]
-                # app.py와 동일: 2차 이상이면 이전 조문 + 새 검색 결과 병합 후 step2
-                query = (cb_issue + " " + " ".join(narrow_answers))[:500] if narrow_answers else cb_issue
-                new_results = search(
-                    col, query, top_k=12,
-                    filter_sources=ALL_LABOR_LAW_SOURCES,
-                    exclude_sections=["벌칙", "부칙"],
-                    exclude_chapters=["제1장 총칙"],
-                )
-                seen_art = {r.get("article", "") for r in remaining}
-                merged = list(remaining)
-                for r in new_results:
-                    a = r.get("article", "")
-                    if a and a not in seen_art:
-                        merged.append(r)
-                        seen_art.add(a)
-                step2_res = step2_checklist(
-                    cb_issue, filter_text, collection=col,
-                    narrow_answers=narrow_answers or None,
-                    qa_list=all_qa,
-                    remaining_articles=merged,
-                )
-                should_continue = step2_res.get("should_continue", False)
-                continuation_reason = step2_res.get("continuation_reason", "")
-                new_checklist = step2_res.get("checklist", []) or []
+        try:
+            from rag.store import build_vector_store, search
+            from rag.pipeline import step2_checklist, step3_conclusion
+            from config import ALL_LABOR_LAW_SOURCES
+            col = build_vector_store()[0]
+            narrow_answers = [x.get("answer", "").strip() for x in all_qa if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
+            filter_text = (cb_issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in all_qa))[:400]
+            query = (cb_issue + " " + " ".join(narrow_answers))[:500] if narrow_answers else cb_issue
+            new_results = search(
+                col, query, top_k=12,
+                filter_sources=ALL_LABOR_LAW_SOURCES,
+                exclude_sections=["벌칙", "부칙"],
+                exclude_chapters=["제1장 총칙"],
+            )
+            seen_art = {r.get("article", "") for r in remaining}
+            merged = list(remaining)
+            for r in new_results:
+                a = r.get("article", "")
+                if a and a not in seen_art:
+                    merged.append(r)
+                    seen_art.add(a)
+            step2_res = step2_checklist(
+                cb_issue, filter_text, collection=col,
+                narrow_answers=narrow_answers or None,
+                qa_list=all_qa,
+                remaining_articles=merged,
+            )
+            should_continue = step2_res.get("should_continue", False)
+            continuation_reason = step2_res.get("continuation_reason", "")
+            new_checklist = step2_res.get("checklist", []) or []
 
-                if should_continue and new_checklist and cb_round < CHECKLIST_MAX_ROUNDS:
-                    msg = f"추가로 확인할 사항 ({cb_round + 1}차)\n\n💡 {continuation_reason or '추가 확인이 필요합니다.'}\n\n아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
-                    st.session_state.messages.append(AIMessage(content=msg))
-                    st.session_state.cb_checklist = new_checklist
-                    st.session_state.cb_checklist_answers = {}
-                    st.session_state.cb_all_qa = all_qa
-                    st.session_state.cb_round = cb_round + 1
-                    st.session_state.cb_checklist_rag_results = step2_res.get("rag_results") or []
-                else:
-                    res = step3_conclusion(cb_issue, all_qa, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
-                    conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
-                    rel = res.get("related_articles", []) if isinstance(res, dict) else []
-                    tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
-                    st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
-                    st.session_state.cb_checklist = []
-                    st.session_state.cb_checklist_answers = {}
-                    st.session_state.cb_all_qa = []
-                    st.session_state.cb_round = 1
-                    st.session_state.cb_checklist_rag_results = []
-                st.rerun()
-            except Exception:
-                st.error(USER_FACING_ERROR)
-        st.divider()
+            if should_continue and new_checklist and cb_round < CHECKLIST_MAX_ROUNDS:
+                msg = f"추가로 확인할 사항 ({cb_round + 1}차)\n\n💡 {continuation_reason or '추가 확인이 필요합니다.'}\n\n아래에서 각 질문에 대해 네/아니요/모르겠음 버튼을 눌러 주세요."
+                st.session_state.messages.append(AIMessage(content=msg))
+                st.session_state.cb_checklist = new_checklist
+                st.session_state.cb_checklist_answers = {}
+                st.session_state.cb_all_qa = all_qa
+                st.session_state.cb_round = cb_round + 1
+                st.session_state.cb_checklist_rag_results = step2_res.get("rag_results") or []
+            else:
+                res = step3_conclusion(cb_issue, all_qa, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
+                conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
+                rel = res.get("related_articles", []) if isinstance(res, dict) else []
+                tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
+                st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
+                st.session_state.cb_checklist = []
+                st.session_state.cb_checklist_answers = {}
+                st.session_state.cb_all_qa = []
+                st.session_state.cb_round = 1
+                st.session_state.cb_checklist_rag_results = []
+            st.rerun()
+        except Exception:
+            st.error(USER_FACING_ERROR)
 
     # 타겟/그룹 선택 버튼 (채팅창 위)
     pending_buttons = st.session_state.get("pending_buttons", [])
@@ -224,7 +223,6 @@ def main():
             st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
             st.session_state.pending_buttons = []
             st.rerun()
-        st.divider()
 
     # 사용자 입력 (채팅창)
     prompt = st.chat_input("상황을 입력하세요...")
@@ -236,7 +234,6 @@ def main():
     if graph is None:
         if st.session_state.get("graph_load_error"):
             st.warning(st.session_state.graph_load_error)
-        st.divider()
         st.caption("※ 모든 답변은 근로기준법 등 제공된 법령 데이터에 기반합니다.")
         return
 
@@ -284,7 +281,6 @@ def main():
                     st.session_state.pending_buttons = []
         st.rerun()
 
-    st.divider()
     st.caption("※ 모든 답변은 근로기준법 등 제공된 법령 데이터에 기반합니다.")
 
 
