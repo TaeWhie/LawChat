@@ -106,3 +106,8 @@ GENERAL_CHAPTER_NUMBERS = frozenset({"제1장"})
 LAW_API_OC = os.getenv("LAW_API_OC", "")
 LAW_API_TIMEOUT = int(os.getenv("LAW_API_TIMEOUT", "30"))
 LAW_API_DELAY_SEC = float(os.getenv("LAW_API_DELAY_SEC", "2.0"))  # 요청 간 기본 딜레이(초) - 봇 차단 방지를 위해 2초로 증가
+
+# 법령 시행일 기준 연도 (설정 시 해당 연도 시행법령 사용. 미설정이면 현행법령(공포일) 기준)
+# 예: LAW_EFFECTIVE_YEAR=2024 → eflaw API + efYd=20240101~20241231
+_def = os.getenv("LAW_EFFECTIVE_YEAR", "").strip()
+LAW_EFFECTIVE_YEAR = int(_def) if _def.isdigit() else None

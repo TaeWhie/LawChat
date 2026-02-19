@@ -35,7 +35,8 @@ MAX_LIST = 100
 MAX_BODY_PER_TARGET = 25
 
 
-def sync_target(target: str, query: str, out_dir: Path, max_bodies: int) -> int:
+def sync_target(target: str, query: str, out_dir: Path, max_bodies: int, *, force: bool = False) -> int:
+    """동기화. force=True면 기존 본문 파일이 있어도 API에서 다시 받아 덮어씀(최신법령 반영)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     list_path = out_dir / "list.json"
     r = search_list(target, query=query, display=MAX_LIST, page=1)
@@ -45,7 +46,7 @@ def sync_target(target: str, query: str, out_dir: Path, max_bodies: int) -> int:
     data = r.get("data", {})
     save_json(list_path, data)
     items = extract_list_from_response(data, target)
-    print(f"  {target}: 목록 {len(items)}건 저장, 본문 최대 {max_bodies}건 수집")
+    print(f"  {target}: 목록 {len(items)}건 저장, 본문 최대 {max_bodies}건 수집" + (" (기존 파일도 재다운로드)" if force else ""))
     count = 0
     for item in items[:max_bodies]:
         # target=law: 반드시 법령일련번호(MST)가 있어야 함. 없으면 id(1,2,3…)는 응답 순번이라 재외국민등록법 등 엉뚱한 본문이 나옴.
@@ -57,7 +58,7 @@ def sync_target(target: str, query: str, out_dir: Path, max_bodies: int) -> int:
             continue
         save_id = mst if (target == "law" and mst) else lid
         body_path = out_dir / f"{save_id}.json"
-        if body_path.exists():
+        if body_path.exists() and not force:
             count += 1
             continue
         if target == "law" and mst:
@@ -71,7 +72,14 @@ def sync_target(target: str, query: str, out_dir: Path, max_bodies: int) -> int:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="노동 관련 법령·행정규칙 동기화 (api_data/laws/)")
+    parser.add_argument("--force", "-f", action="store_true", help="기존 본문 JSON이 있어도 API에서 다시 받아 덮어쓰기 (최신법령 반영)")
+    args = parser.parse_args()
+
     print("sync_laws: 노동 관련 법령·행정규칙 동기화")
+    if args.force:
+        print("모드: --force → 기존 파일도 재다운로드하여 최신 본문으로 갱신합니다.")
     print(f"동기화할 법률: {len(LABOR_LAW_QUERIES)}개")
     law_dir = LAWS_DATA_DIR / "law"
     adm_dir = LAWS_DATA_DIR / "admrul"
@@ -82,12 +90,12 @@ def main():
     # 각 법률에 대해 동기화
     for i, query in enumerate(LABOR_LAW_QUERIES, 1):
         print(f"\n[{i}/{len(LABOR_LAW_QUERIES)}] {query} 동기화 중...")
-        count_law = sync_target("law", query, law_dir, MAX_BODY_PER_TARGET)
-        count_admrul = sync_target("admrul", query, adm_dir, MAX_BODY_PER_TARGET)
+        count_law = sync_target("law", query, law_dir, MAX_BODY_PER_TARGET, force=args.force)
+        count_admrul = sync_target("admrul", query, adm_dir, MAX_BODY_PER_TARGET, force=args.force)
         total_law += count_law
         total_admrul += count_admrul
-    
-    print(f"\n완료: 법률 본문 {total_law}건, 행정규칙 본문 {total_admrul}건 저장 (기존 파일 제외)")
+
+    print(f"\n완료: 법률 본문 {total_law}건, 행정규칙 본문 {total_admrul}건 저장" + (" (기존 포함 갱신)" if args.force else " (기존 파일 제외)"))
 
 
 if __name__ == "__main__":

@@ -33,9 +33,9 @@ def extract_list_from_response(data: Dict[str, Any], target: str) -> list:
     if not isinstance(data, dict):
         return []
     candidates = (
-        (target,)  # target과 일치하는 키 우선 (law, admrul, prec 등)
+        (target,)  # target과 일치하는 키 우선 (law, eflaw, admrul, prec 등)
         + (
-            "law", "admrul", "prec", "expc", "detc", "decc",
+            "law", "eflaw", "admrul", "prec", "expc", "detc", "decc",
             "licbyl", "admbyl", "ppc", "eiac", "ftc", "nlrc", "iaciac",
             "moelCgmExpc", "molegCgmExpc", "mojCgmExpc",
             "lstrmAI", "dlytrm", "lsRlt", "lstrmRlt", "dlytrmRlt",

@@ -13,11 +13,12 @@ from typing import Any, Dict, Optional
 import requests
 
 try:
-    from config import LAW_API_OC, LAW_API_DELAY_SEC, LAW_API_TIMEOUT
+    from config import LAW_API_OC, LAW_API_DELAY_SEC, LAW_API_TIMEOUT, LAW_EFFECTIVE_YEAR
 except ImportError:
     LAW_API_OC = ""
     LAW_API_DELAY_SEC = 1.0
     LAW_API_TIMEOUT = 30
+    LAW_EFFECTIVE_YEAR = None
 
 # 목록/검색은 lawSearch.do, 본문·일부 연계 API는 lawService.do
 BASE_URL_SEARCH = "https://www.law.go.kr/DRF/lawSearch.do"
@@ -81,6 +82,7 @@ def search_list(
     display: int = 20,
     page: int = 1,
     jo: Optional[str] = None,
+    ef_yd: Optional[str] = None,
     oc: Optional[str] = None,
     output_type: str = "JSON",
     timeout: Optional[int] = None,
@@ -91,21 +93,30 @@ def search_list(
     - target: API 종류 (law, prec, lstrmAI, aiSearch, lstrmRlt 등)
     - query: 검색어 (목록 API 대부분)
     - jo: 조문번호 (joRltLstrm 전용)
+    - ef_yd: 시행일자 범위 (예: 20240101~20241231). target=law일 때 지정하면 target=eflaw로 요청
     - 연계 API(lstrmRlt, dlytrmRlt, lstrmRltJo, joRltLstrm)는 자동으로 lawService.do 사용
     """
     oc_key = _ensure_oc(oc)
     use_service = target in TARGETS_USE_SERVICE
     base_url = BASE_URL_SERVICE if use_service else BASE_URL_SEARCH
 
+    # 연도 설정(LAW_EFFECTIVE_YEAR) 또는 ef_yd가 있으면 법령은 시행일 기준(eflaw)으로 조회
+    use_eflaw = (target == "law" and (ef_yd or (LAW_EFFECTIVE_YEAR and not use_service)))
+    actual_target = "eflaw" if use_eflaw else target
+    if use_eflaw and not ef_yd and LAW_EFFECTIVE_YEAR:
+        ef_yd = f"{LAW_EFFECTIVE_YEAR}0101~{LAW_EFFECTIVE_YEAR}1231"
+
     params: Dict[str, Any] = {
         "OC": oc_key,
-        "target": target,
+        "target": actual_target,
         "type": output_type,
     }
     if target == TARGET_USES_JO and jo is not None:
         params["JO"] = jo
     elif query:
         params["query"] = query
+    if ef_yd:
+        params["efYd"] = ef_yd
 
     if not use_service:
         params["display"] = display
@@ -159,6 +170,7 @@ def get_body(
     id: str,
     *,
     mst: Optional[str] = None,
+    ef_yd: Optional[str] = None,
     oc: Optional[str] = None,
     output_type: str = "JSON",
     timeout: Optional[int] = None,
@@ -166,15 +178,26 @@ def get_body(
     """
     본문 조회 (lawService.do). 판례·법령·해석례·위원회 등 ID로 본문 조회.
     target=law 일 때 mst(법령일련번호)를 넘기면 MST 파라미터로 요청해 올바른 법령 본문 조회.
+    target=law이고 LAW_EFFECTIVE_YEAR/ef_yd가 있으면 target=eflaw로 시행일 기준 본문 조회.
     """
     oc_key = _ensure_oc(oc)
+    use_eflaw = target == "law" and (ef_yd or LAW_EFFECTIVE_YEAR)
+    actual_target = "eflaw" if use_eflaw else target
+    if use_eflaw and not ef_yd and LAW_EFFECTIVE_YEAR:
+        ef_yd = f"{LAW_EFFECTIVE_YEAR}1231"  # 해당 연도 말일 기준 시행법령
+
     params = {
         "OC": oc_key,
-        "target": target,
+        "target": actual_target,
         "type": output_type,
     }
-    if target == "law" and mst:
-        params["MST"] = mst
+    if ef_yd:
+        params["efYd"] = ef_yd
+    if actual_target == "law" or actual_target == "eflaw":
+        if mst:
+            params["MST"] = mst
+        else:
+            params["ID"] = id
     else:
         params["ID"] = id
     _delay()
