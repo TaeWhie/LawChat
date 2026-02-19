@@ -287,8 +287,10 @@ def main():
     messages = st.session_state.messages
     for i, msg in enumerate(messages):
         role = "user" if isinstance(msg, HumanMessage) else "assistant"
+        # 처리 중 메시지일 때는 체크리스트를 붙이지 않음 (처리 중 문구만 표시)
         is_last_and_checklist = (
             i == len(messages) - 1 and isinstance(msg, AIMessage) and cb_checklist
+            and (msg.content or "").strip() != CHECKLIST_PROCESSING_MSG
         )
         with st.chat_message(role):
             st.markdown(msg.content)
