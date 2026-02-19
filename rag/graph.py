@@ -34,6 +34,7 @@ class ChatbotState(TypedDict):
     checklist_index: int
     phase: str  # "input" | "checklist" | "conclusion"
     pending_question: str  # 사용자 답변 대기 중인 질문
+    checklist_rag_results: list  # step2에서 사용한 조문 (2차 시 merge용)
 
 
 def _get_collection():
@@ -124,15 +125,16 @@ def process_turn(state: ChatbotState) -> dict:
         )
         checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
         if checklist:
-            q0 = (checklist[0].get("question") or checklist[0].get("item") or str(checklist[0]))
-            # app.py와 동일 문구: 감지된 이슈, 체크리스트: {issue}, **1.** {q}
-            resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트: {selected_issue}\n\n**1.** {q0}\n\n(답변을 입력해 주세요)"
+            # app.py와 동일: 체크리스트 전체를 한 번에 표시 (버튼으로 답하므로 한 번에 보여줌)
+            lines = [f"**{i+1}.** {(c.get('question') or c.get('item') or str(c))}" for i, c in enumerate(checklist)]
+            resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트: {selected_issue}\n\n" + "\n\n".join(lines) + "\n\n각 질문에 대해 네/아니요/모르겠음 버튼을 눌러 주세요."
             return {
                 "messages": [AIMessage(content=resp)],
                 "situation": situation, "issues": issues, "selected_issue": selected_issue,
                 "qa_list": qa_list, "articles_by_issue": articles_by_issue,
                 "checklist": checklist, "checklist_index": 0,
-                "phase": "checklist", "pending_question": q0,
+                "phase": "checklist", "pending_question": "",
+                "checklist_rag_results": step2_res.get("rag_results", []) if isinstance(step2_res, dict) else [],
             }
         narrow_answers = [x.get("answer", "").strip() for x in qa_list if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
         res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
@@ -145,30 +147,7 @@ def process_turn(state: ChatbotState) -> dict:
             "qa_list": qa_list, "phase": "conclusion", "pending_question": "",
         }
 
-    # checklist 답변 (app.py와 동일: narrow_answers에서 네/아니요/모르겠음 제외 후 step3에 전달)
-    if phase == "checklist" and checklist:
-        pending_q = state.get("pending_question", "")
-        qa_list = list(qa_list) + [{"question": pending_q, "answer": user_text}]
-        idx = checklist_index + 1
-        if idx >= len(checklist):
-            narrow_answers = [x.get("answer", "").strip() for x in qa_list if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
-            res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
-            conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
-            rel = res.get("related_articles", []) if isinstance(res, dict) else []
-            tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
-            return {
-                "messages": [AIMessage(content=f"**결론**\n\n{conc}{tail}")],
-                "qa_list": qa_list, "checklist_index": idx,
-                "phase": "conclusion", "pending_question": "",
-            }
-        next_q = (checklist[idx].get("question") or checklist[idx].get("item") or str(checklist[idx]))
-        # app.py와 동일: **N.** 질문
-        resp = f"**{idx+1}.** {next_q}\n\n(답변을 입력해 주세요)"
-        return {
-            "messages": [AIMessage(content=resp)],
-            "qa_list": qa_list, "checklist_index": idx,
-            "phase": "checklist", "pending_question": next_q,
-        }
+    # checklist 답변은 앱에서 버튼(네/아니요/모르겠음)으로 수집 후 step3/step2 호출하므로 그래프에서는 처리하지 않음
 
     # 새 상담 시작
     return {
