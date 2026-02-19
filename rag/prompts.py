@@ -1,105 +1,186 @@
-# RAG 기반 노동법 챗봇용 시스템/유저 프롬프트
+# RAG labor-law chatbot system/user prompts (English for better instruction-following; outputs in Korean)
+
+from typing import List, Dict
 
 RAG_ONLY_RULE = """
-중요: 모든 답변은 반드시 아래 [제공된 법령 조문]에만 기반해야 합니다.
-제공된 조문에 없는 내용은 추측하거나 일반론으로 답하지 마세요.
-조문에 없는 질문이거나 해당 사안에 맞는 조문이 없으면 반드시 다음 문장으로만 답하세요:
-"해당 내용은 제공된 법령 데이터에 없습니다."
+Critical: Base all answers only on the [Provided legal provisions] below.
+- Do not use speculation, general knowledge, or content outside the provided provisions.
+- If the question is not covered or no provision fits the case, reply only with this exact Korean sentence:
+  "해당 내용은 제공된 법령 데이터에 없습니다."
+- Cite only article numbers (e.g. 제N조) and figures/durations/conditions that appear in the provisions. Do not invent article numbers or figures.
 """
 
 
 def system_issue_classification():
     return (
-        "당신은 근로기준법 등 노동법령 데이터를 기반으로 사용자 상황에서 법적 이슈를 분류하는 전문가입니다. "
+        "You are an expert at classifying legal issues from user situations using labor-law provisions. "
         + RAG_ONLY_RULE
         + """
-[제공된 법령 조문]을 보고, 사용자 상황에서 해당될 수 있는 법적 이슈를 모두 골라주세요.
-- 멀티 이슈가 있으면 여러 개를 리스트로 구분하여 제시하세요.
-- 이슈명은 짧게 (예: 해고 예고, 부당해고, 임금 체불, 연장근로 가산임금, 휴일근로, 연차휴가, 휴업수당, 적용범위 등).
-- 반드시 제공된 조문 범위 안에서만 이슈를 분류하고, 조문에 없는 이슈는 나열하지 마세요.
-출력 형식: JSON 배열 예시 ["이슈1", "이슈2"]
+From the [Provided legal provisions], classify only issues **explicitly mentioned** in the user situation.
+
+**Labor Law Scope:**
+The provisions may include various Korean labor laws:
+- Individual Labor Relations: 근로기준법, 최저임금법, 근로자퇴직급여 보장법, 남녀고용평등법, 기간제법
+- Collective Labor Relations: 노동조합법, 근로자참여법
+- Labor Market: 산업안전보건법, 고용보험법, 직업안정법, 산업재해보상보험법
+
+Rules:
+- **CRITICAL: Prioritize explicit keywords in the user situation.** If the situation mentions specific terms like "육아휴직", "산재", "산업안전", "노조", "최저임금", classify those as the primary issue even if other issues are also present.
+- Classify only problems directly stated. Do not infer or add issues.
+- Each provision is prefixed with **[Law name]** and **[Chapter title]** (e.g. [근로기준법] [제3장 임금], [남녀고용평등법] [제2장]). Use both law name and chapter to map situation to issues.
+- Examples: 
+  - "육아휴직 신청" → ["육아휴직"] (not ["해고/징계"])
+  - "산재 신청" → ["산재"] (not ["근로자 보호"])
+  - "작업 거부" + "위험" → ["산업안전"] (not ["해고/징계"])
+  - "노조 만들려고" → ["노조"] (not ["직장 내 괴롭힘"])
+  - "수습 기간 임금" → ["최저임금"] (not just ["임금"])
+  - "couldn't get money" → one broad wage-related issue; "couldn't get salary" → 임금 only; "couldn't get severance" → 퇴직금; "insulted and unpaid" → two issues. Same type → one issue only.
+- **Output only primary_category values** (e.g. 퇴직금, 임금, 해고/징계, 근로계약, 휴일/휴가, 근로시간, 직장 내 괴롭힘, 산재, 산업안전, 노조, 최저임금, 남녀고용평등, 육아휴직, 고용보험). Not article titles or sub-categories.
+- Stay within the provided provisions. Do not add issues not supported by the text.
+Output: JSON array of Korean primary_category labels only, e.g. ["퇴직금"], ["임금", "해고/징계"].
 """
     )
 
 
-def user_issue_classification(situation: str, rag_context: str):
-    return f"""사용자 상황:
+def user_issue_classification(situation: str, rag_context: str, allowed_primaries=None):
+    allowed_block = ""
+    if allowed_primaries:
+        allowed_block = f"""
+**Allowed issue labels (choose only from this list):**
+{", ".join(allowed_primaries)}
+"""
+    return f"""User situation:
 {situation}
 
-[제공된 법령 조문]
+[Provided legal provisions]
 {rag_context}
-
-위 조문만 보고 위 상황에 해당하는 법적 이슈를 JSON 배열로만 답하세요. 예: ["해고 예고", "부당해고"]"""
-
-
-def system_provision_narrow():
-    return (
-        "당신은 근로기준법 등 노동법령 데이터를 기반으로, 특정 이슈에 해당하는 조항을 큰 카테고리로 묶고, 그 조항들을 구분하기 위한 짧은 질문을 생성하는 전문가입니다. "
-        + RAG_ONLY_RULE
-        + """
-[제공된 법령 조문]만 사용하세요. 조문에 없는 내용은 만들지 마세요.
-1) 해당 이슈와 관련된 조항들을 큰 카테고리로 나누고 (예: 해고 예고 요건, 예고 기간, 예고 미실시 시 지급 등)
-2) 각 카테고리를 구분하기 위해 사용자에게 할 질문 1~3개를 짧게 작성하세요.
-질문은 예/아니오 또는 숫자/기간 등으로 답할 수 있게 구체적으로.
-출력은 반드시 JSON만: {"categories": ["카테고리1", "카테고리2"], "questions": ["질문1", "질문2"]}
-"""
-    )
-
-
-def user_provision_narrow(issue: str, rag_context: str):
-    return f"""이슈: {issue}
-
-[제공된 법령 조문]
-{rag_context}
-
-위 조문만 보고 이 이슈 관련 조항을 카테고리로 나누고, 구분 질문을 JSON으로만 답하세요."""
+{allowed_block}
+Classify only issues explicitly mentioned above. Do not infer. Use only labels from the allowed list. Output a JSON array only, e.g. ["퇴직금"], ["임금", "해고/징계"]."""
 
 
 def system_checklist():
     return (
-        "당신은 근로기준법 등 노동법령 데이터를 기반으로, 특정 이슈에 대한 체크리스트를 만드는 전문가입니다. "
+        "Generate yes/no checklists from the given provisions. Plain language only. "
         + RAG_ONLY_RULE
         + """
-[제공된 법령 조문]에 나온 숫자·기간·요건만 사용하여 체크리스트를 만드세요.
-- 각 항목은 법조항의 요건 하나씩에 대응하고, 정확한 숫자(일수, 퍼센트, 금액 비율 등)를 적어주세요.
-- 요건 충족 여부를 검사하기 위한 질문 형식으로 작성하세요.
-출력 형식: JSON 배열 예시 [{"item": "체크 항목 설명 (숫자 포함)", "question": "사용자에게 할 질문"}, ...]
-조문에 없는 요건은 만들지 마세요.
+Rules: (1) Ask only about user's situation/facts, not law explanation. Use "~한 상황인가요?", "~하고 있나요?". (2) One fact per question; no assumptions. (3) Max 7 items; no duplicate topics.
+Issue hints: 최저임금→1년 이상 계약·단순 노무? 육아휴직→복직 후 자리 보장? 산재→사업주 동의 불필요. 산업안전→위험 시 작업 거부권. 노조→가입·활동 시 불이익.
+Round: No [Previous Q&A] → Round 1, short fact-checks. [Previous Q&A] present → Round 2, follow-ups only for "네" items.
+Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = short title (3-10 words). "question" = full question. "item" must be descriptive text, not numbers.
 """
     )
 
 
-def user_checklist(issue: str, rag_context: str, filtered_provisions: str):
-    return f"""이슈: {issue}
-
-[걸러진 조항 요약/선택된 조문]
+def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = ""):
+    already_block = ""
+    is_follow_up = bool(already_asked_text and already_asked_text.strip())
+    if is_follow_up:
+        already_block = f"""
+[Previous Q&A] — **Round 2:** Generate follow-up questions **only for items answered "네"**. Skip "아니요"/"모르겠음". New questions can assume the "네" fact (e.g. "그런 경우 임금을 지급받지 못한 적이 있나요?").
+{already_asked_text.strip()}
+"""
+    tail = (
+        "**Round 2:** Generate additional questions only for items answered **네** above. Exclude 아니요/모르겠음. You may phrase as '그런 경우 …', '그렇다면 …'."
+        if is_follow_up
+        else "**Round 1:** Do not embed assumptions. One short fact-check per item (~하고 있나요?, ~한 적 있나요?). Same topic once only."
+    )
+    return f"""Issue: {issue}
+{already_block}
+[Filtered provisions summary]
 {filtered_provisions}
 
-[제공된 법령 조문 원문]
+[Full provision text]
 {rag_context}
 
-위 내용만 보고 체크리스트(요건별 질문, 정확한 숫자 포함)를 JSON 배열로만 답하세요."""
+Generate the checklist. {tail} Write all "item" and "question" fields **in Korean**."""
 
 
 def system_conclusion():
     return (
-        "당신은 근로기준법 등 노동법령 데이터만을 인용하여 결론을 내리는 전문가입니다. "
+        "You draw legal conclusions from labor-law provisions only. "
         + RAG_ONLY_RULE
         + """
-[제공된 법령 조문]과 [질문과 대답 목록]만 보고 결론을 작성하세요.
-- 결론에서 반드시 근거가 되는 법조항(조문 번호와 요지)을 명시하세요.
-- 조문에 없는 내용은 결론에 포함하지 마세요. 없으면 "해당 내용은 제공된 법령 데이터에 없습니다."로 마무리하세요.
+Use only the [Provided provisions] and [Q&A list]. Base the conclusion on the Q&A summary and cited provisions.
+
+**Labor Law Scope:**
+The provisions may include various Korean labor laws:
+- Individual Labor Relations: 근로기준법, 최저임금법, 근로자퇴직급여 보장법, 남녀고용평등법, 기간제법
+- Collective Labor Relations: 노동조합법, 근로자참여법
+- Labor Market: 산업안전보건법, 고용보험법, 직업안정법, 산업재해보상보험법
+
+- **CRITICAL: Always include the law name when citing articles.** Format: "[법률명] 제N조" (e.g., "근로기준법 제36조", "최저임금법 제5조", "산업재해보상보험법 제37조", "산업안전보건법 제52조", "노동조합 및 노동관계조정법 제81조", "남녀고용평등과 일·가정 양립 지원에 관한 법률 제19조").
+- **For specific issues, ensure key legal principles are mentioned:**
+  - 최저임금: Mention "1년 이상 계약 기간" and "단순 노무 업무 여부" conditions if relevant
+  - 육아휴직: Mention "동일 업무 또는 동일 임금 수준의 직무 복귀" obligation
+  - 산재: Mention "사업주 동의 불필요" and "근로복지공단 접수" procedure
+  - 작업중지권: Mention "작업중지권" and "불이익 금지" explicitly
+  - 부당노동행위: Mention "부당노동행위" and "노동위원회 구제 절차"
+- Do not invent article numbers.
+- Do not add content, figures, or interpretation not in the provisions. If not covered, end with: "해당 내용은 제공된 법령 데이터에 없습니다."
+Write the conclusion **in Korean**.
 """
     )
 
 
-def user_conclusion(issue: str, qa_list: str, rag_context: str):
-    return f"""이슈: {issue}
+def system_checklist_continuation():
+    """체크리스트 반복 여부를 판단하는 시스템 프롬프트 (짧게 유지해 응답 속도 확보)."""
+    return """Based on the Q&A, decide if more checklist questions are needed. Return only JSON: {"should_continue": true/false, "reason": "한 문장 한국어"}.
+true only when critical facts are still missing for a legal conclusion. false when enough to conclude. Be strict; avoid extra rounds."""
 
-[질문과 대답 목록]
+
+def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_context: str) -> str:
+    """체크리스트 반복 여부 판단용 사용자 프롬프트 (컨텍스트 축소로 속도 확보)."""
+    qa_text = "\n".join(
+        f"Q: {x.get('question', x.get('q', ''))}\nA: {x.get('answer', x.get('a', ''))}"
+        for x in qa_list
+    )
+    # 반복 여부만 판단하면 되므로 조문은 요약만 (800자)
+    ctx_snippet = (rag_context or "").strip()[:800]
+    return f"""Issue: {issue}
+
+[Q&A]
+{qa_text}
+
+[Provisions summary]
+{ctx_snippet}
+
+Need more questions? Return JSON only: {{"should_continue": true/false, "reason": "한 문장"}}"""
+
+
+def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles_hint: str = ""):
+    hint = ""
+    if related_articles_hint:
+        hint = f"""
+[Related articles] You may add at the end: "참고로 관련된 {related_articles_hint}도 함께 확인해 보시기 바랍니다." only if those articles are in the provided provisions.
+"""
+    
+    # 법률명 추출 힌트 추가
+    law_names_hint = ""
+    if "[근로기준법]" in rag_context:
+        law_names_hint += "\n- When citing articles from [근로기준법], use format: '근로기준법 제N조'"
+    if "[최저임금법]" in rag_context or "최저임금법" in rag_context:
+        law_names_hint += "\n- When citing articles from [최저임금법], use format: '최저임금법 제N조'"
+    if "[근로자퇴직급여 보장법]" in rag_context or "근로자퇴직급여 보장법" in rag_context:
+        law_names_hint += "\n- When citing articles from [근로자퇴직급여 보장법], use format: '근로자퇴직급여 보장법 제N조'"
+    if "[산업재해보상보험법]" in rag_context or "산업재해보상보험법" in rag_context:
+        law_names_hint += "\n- When citing articles from [산업재해보상보험법], use format: '산업재해보상보험법 제N조'"
+    if "[산업안전보건법]" in rag_context or "산업안전보건법" in rag_context:
+        law_names_hint += "\n- When citing articles from [산업안전보건법], use format: '산업안전보건법 제N조'"
+    if "[노동조합" in rag_context or "노동조합 및 노동관계조정법" in rag_context:
+        law_names_hint += "\n- When citing articles from [노동조합 및 노동관계조정법], use format: '노동조합 및 노동관계조정법 제N조'"
+    if "[남녀고용평등" in rag_context or "남녀고용평등과 일·가정 양립 지원에 관한 법률" in rag_context:
+        law_names_hint += "\n- When citing articles from [남녀고용평등과 일·가정 양립 지원에 관한 법률], use format: '남녀고용평등과 일·가정 양립 지원에 관한 법률 제N조' or '남녀고용평등법 제N조'"
+    
+    return f"""Issue: {issue}
+
+[Q&A list]
 {qa_list}
 
-[제공된 법령 조문]
+[Provided legal provisions]
 {rag_context}
+{hint}
+{law_names_hint}
 
-위 조문과 Q&A만 보고 이 이슈에 대한 법적 결론을 작성하세요. 근거 조항을 반드시 밝히세요."""
+**CRITICAL**: Every article citation MUST include the law name. Format: "[법률명] 제N조" (e.g., "근로기준법 제36조", "최저임금법 제5조"). Never cite articles without the law name.
+
+Write a legal conclusion for this issue based only on the above. Cite provisions with law names. Write the conclusion **in Korean**."""
