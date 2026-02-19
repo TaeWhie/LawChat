@@ -14,21 +14,52 @@ try:
 except ImportError:
     LAWS_DATA_DIR = Path("api_data/laws")
 
-# 근로기준법 조문 번호 구간 → 장 (API에 장 정보가 없을 때 사용)
-LABOR_LAW_CHAPTERS = [
-    ("제1장", "총칙", 1, 5),
-    ("제2장", "근로계약", 6, 17),
-    ("제3장", "임금", 18, 43),
-    ("제4장", "근로시간·휴게", 44, 60),
-    ("제5장", "해고 등", 61, 72),
-    ("제6장", "기술공부생", 73, 76),
-    ("제7장", "재해보상", 77, 84),
-    ("제8장", "취업규칙", 85, 94),
-    ("제9장", "기숙사", 95, 98),
-    ("제10장", "검사와 감독", 99, 105),
-    ("제11장", "벌칙", 106, 115),
-    ("부칙", "부칙", 116, 999),
-]
+import re
+
+# 장 헤더 정규: 제1장, 제6장의2, 부칙 등
+_CHAPTER_HEADER_RE = re.compile(r"^\s*(제\d+장(?:의\d+)?|부칙)\s*(.*)$")
+
+
+def _parse_chapters_from_units(units: List[Dict[str, Any]]) -> List[tuple]:
+    """조문단위 배열에서 '전문'(장 제목)을 스캔해 (장번호, 제목, start조, end조) 리스트 반환. 전부 JSON 기준."""
+    result = []
+    current_key = None
+    current_title = ""
+    current_start = None
+    last_jo = 0
+
+    for u in units:
+        if not isinstance(u, dict):
+            continue
+        gubun = (u.get("조문여부") or u.get("joGubun") or "").strip()
+        content = u.get("조문내용") or u.get("joContent") or ""
+        if isinstance(content, list):
+            content = " ".join(str(x) for x in content)
+        content = str(content).strip()
+        jo_no = u.get("조문번호") or u.get("joNo") or ""
+        n = _article_num_to_int(jo_no)
+
+        if gubun == "전문":
+            m = _CHAPTER_HEADER_RE.match(content)
+            if m:
+                key = m.group(1).strip()
+                title = m.group(2).strip()
+                title = re.sub(r"\s*<[^>]+>\s*$", "", title).strip() or key
+                if current_key is not None:
+                    result.append((current_key, current_title, current_start or 1, last_jo if last_jo > 0 else 999))
+                current_key = key
+                current_title = title
+                current_start = None
+            continue
+
+        if gubun == "조문" and n is not None:
+            if current_start is None and current_key is not None:
+                current_start = n
+            last_jo = n
+
+    if current_key is not None:
+        result.append((current_key, current_title, current_start or 1, last_jo if last_jo > 0 else 999))
+    return result
 
 
 def _article_num_to_int(jo_no: str) -> Optional[int]:
@@ -155,7 +186,7 @@ def _find_geunro_body_path() -> Optional[Path]:
 
 
 def get_chapters_from_api() -> List[Dict[str, Any]]:
-    """API 동기화된 근로기준법 본문에서 장 목록 반환. 없으면 빈 리스트."""
+    """API 동기화된 근로기준법 본문에서 장 목록 반환. JSON에서 '전문'(장 제목) 파싱해 전부 반환."""
     import sys
     path = _find_geunro_body_path()
     if not path:
@@ -169,15 +200,15 @@ def get_chapters_from_api() -> List[Dict[str, Any]]:
     if not units:
         print(f"[get_chapters_from_api] {path}에서 조문단위를 추출할 수 없습니다. JSON 구조를 확인하세요.", file=sys.stderr)
         return []
-    # 근로기준법 장 구간으로 장 목록 반환
+    parsed = _parse_chapters_from_units(units)
     return [
         {"number": num, "title": title, "order": order}
-        for order, (num, title, _start, _end) in enumerate(LABOR_LAW_CHAPTERS, 1)
+        for order, (num, title, _start, _end) in enumerate(parsed, 1)
     ]
 
 
 def get_articles_by_chapter_from_api(chapter_number: str) -> Optional[List[Dict[str, Any]]]:
-    """API 동기화된 근로기준법 본문에서 해당 장의 조문 목록 반환. 본문 없으면 None."""
+    """API 동기화된 근로기준법 본문에서 해당 장의 조문 목록 반환. JSON 파싱한 장 구간 사용."""
     import sys
     path = _find_geunro_body_path()
     if not path:
@@ -192,28 +223,22 @@ def get_articles_by_chapter_from_api(chapter_number: str) -> Optional[List[Dict[
         print(f"[get_articles_by_chapter_from_api] {path}에서 조문단위를 추출할 수 없습니다 (장: {chapter_number}). JSON 구조를 확인하세요.", file=sys.stderr)
         return None
 
-    # 장 번호 → (start, end) 조문 번호 구간
-    chapter_ranges = {}
-    for num, title, start, end in LABOR_LAW_CHAPTERS:
-        chapter_ranges[num] = (start, end)
-
-    # 실제 조문만 사용 (조문여부 '전문'은 장 제목 등)
-    units = [u for u in units if isinstance(u, dict) and (u.get("조문여부") or "").strip() == "조문"]
+    chapter_ranges = {num: (s, e) for num, _title, s, e in _parse_chapters_from_units(units)}
     start, end = chapter_ranges.get(chapter_number, (-1, -1))
-    # 같은 조문 번호+가지번호끼리 묶기 (제43조와 제43조의2는 별도 조문)
+
+    jo_units = [u for u in units if isinstance(u, dict) and (u.get("조문여부") or "").strip() == "조문"]
     by_article: Dict[str, List[Dict[str, Any]]] = {}
-    for u in units:
+    for u in jo_units:
         if not isinstance(u, dict):
             continue
         jo_no = u.get("조문번호") or u.get("joNo") or ""
         jo_gaji = u.get("조문가지번호") or u.get("joGajiNo") or ""
         n = _article_num_to_int(jo_no)
-        # 제43조의2 같은 경우: 조문번호="43", 조문가지번호="2" → "제43조의2"
         article_key = f"제{jo_no}조"
         if jo_gaji:
             article_key += f"의{jo_gaji}"
         if chapter_number == "부칙":
-            if n is not None and n >= 116:
+            if n is not None and start >= 0 and n >= start:
                 by_article.setdefault(article_key, []).append(u)
         elif n is not None and start >= 0 and start <= n <= end:
             by_article.setdefault(article_key, []).append(u)
