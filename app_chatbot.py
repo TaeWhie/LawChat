@@ -300,84 +300,86 @@ def main():
                 content = msg.content if hasattr(msg, 'content') else str(msg)
                 if content:
                     st.markdown(str(content))
+                
+                # 결론 메시지인 경우 조항 링크 버튼 추가
+                if isinstance(msg, AIMessage) and "**결론**" in (msg.content or ""):
+                    try:
+                        from rag.article_linker import extract_article_citations, find_article_info
+                        try:
+                            col = build_vector_store()[0]
+                        except Exception:
+                            col = None
+                        
+                        if col:
+                            citations = extract_article_citations(msg.content or "")
+                            if citations:
+                                st.markdown("**📜 관련 조항:**")
+                                cols = st.columns(min(len(citations), 4))
+                                for idx, (law_name, article_number) in enumerate(citations[:4]):
+                                    with cols[idx % 4]:
+                                        article_info = find_article_info(law_name, article_number, col)
+                                        if article_info:
+                                            btn_label = f"{law_name}\n{article_number}"
+                                            if st.button(btn_label, key=f"article_btn_{i}_{idx}", use_container_width=True):
+                                                # 조항 상세 페이지로 이동
+                                                st.session_state.browse_view = "article_detail"
+                                                st.session_state.browse_law_id = article_info.get("law_id", "")
+                                                st.session_state.browse_law_name = law_name
+                                                st.session_state.browse_law_source = article_info.get("source", "")
+                                                st.session_state.browse_article_number = article_number
+                                                st.session_state.browse_chapter_title = article_info.get("chapter", "")
+                                                
+                                                # 조항 상세 정보 가져오기 (API에서)
+                                                try:
+                                                    from rag.api_chapters import get_article_by_number_from_api
+                                                    law_id = article_info.get("law_id", "")
+                                                    source = article_info.get("source", "")
+                                                    article_detail = get_article_by_number_from_api(article_number, law_id, source)
+                                                    if article_detail:
+                                                        st.session_state.browse_article_paragraphs = article_detail.get("paragraphs", [])
+                                                        st.session_state.browse_article_title = article_detail.get("title", article_number)
+                                                    else:
+                                                        st.session_state.browse_article_paragraphs = []
+                                                        st.session_state.browse_article_title = article_number
+                                                except Exception:
+                                                    st.session_state.browse_article_paragraphs = []
+                                                    st.session_state.browse_article_title = article_number
+                                                st.rerun()
+                    except Exception:
+                        pass
+                
+                # 체크리스트 표시 (마지막 메시지이고 체크리스트가 있을 때)
+                if is_last_and_checklist:
+                    cb_submitted = st.session_state.get("cb_checklist_submitted", False)
+                    st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
+                    for j, item in enumerate(cb_checklist):
+                        q = item.get("question") or item.get("item") or str(item)
+                        cur = cb_answers.get(j, "").strip()
+                        st.write(f"**{j+1}.** {q}")
+                        c1, c2, c3, _ = st.columns([1, 1, 1, 2])
+                        with c1:
+                            if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted):
+                                st.session_state.cb_checklist_answers[j] = "네"
+                                st.rerun()
+                        with c2:
+                            if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary", disabled=cb_submitted):
+                                st.session_state.cb_checklist_answers[j] = "아니요"
+                                st.rerun()
+                        with c3:
+                            if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted):
+                                st.session_state.cb_checklist_answers[j] = "모르겠음"
+                                st.rerun()
+                    # 다음 버튼: 모든 답변이 완료되었을 때만 활성화
+                    all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
+                    if not cb_submitted:
+                        st.divider()
+                        if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True, disabled=not all_answered):
+                            st.session_state.cb_checklist_submitted = True
+                            st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+                            st.rerun()
         except Exception as e:
             # 메시지 렌더링 오류 시 건너뛰기
             continue
-            
-            # 결론 메시지인 경우 조항 링크 버튼 추가
-            if isinstance(msg, AIMessage) and "**결론**" in (msg.content or ""):
-                try:
-                    from rag.article_linker import extract_article_citations, find_article_info
-                    try:
-                        col = build_vector_store()[0]
-                    except Exception:
-                        col = None
-                    
-                    if col:
-                        citations = extract_article_citations(msg.content or "")
-                        if citations:
-                            st.markdown("**📜 관련 조항:**")
-                            cols = st.columns(min(len(citations), 4))
-                            for idx, (law_name, article_number) in enumerate(citations[:4]):
-                                with cols[idx % 4]:
-                                    article_info = find_article_info(law_name, article_number, col)
-                                    if article_info:
-                                        btn_label = f"{law_name}\n{article_number}"
-                                        if st.button(btn_label, key=f"article_btn_{i}_{idx}", use_container_width=True):
-                                            # 조항 상세 페이지로 이동
-                                            st.session_state.browse_view = "article_detail"
-                                            st.session_state.browse_law_id = article_info.get("law_id", "")
-                                            st.session_state.browse_law_name = law_name
-                                            st.session_state.browse_law_source = article_info.get("source", "")
-                                            st.session_state.browse_article_number = article_number
-                                            st.session_state.browse_chapter_title = article_info.get("chapter", "")
-                                            
-                                            # 조항 상세 정보 가져오기 (API에서)
-                                            try:
-                                                from rag.api_chapters import get_article_by_number_from_api
-                                                law_id = article_info.get("law_id", "")
-                                                source = article_info.get("source", "")
-                                                article_detail = get_article_by_number_from_api(article_number, law_id, source)
-                                                if article_detail:
-                                                    st.session_state.browse_article_paragraphs = article_detail.get("paragraphs", [])
-                                                    st.session_state.browse_article_title = article_detail.get("title", article_number)
-                                                else:
-                                                    st.session_state.browse_article_paragraphs = []
-                                                    st.session_state.browse_article_title = article_number
-                                            except Exception:
-                                                st.session_state.browse_article_paragraphs = []
-                                                st.session_state.browse_article_title = article_number
-                                            st.rerun()
-                except Exception:
-                    pass
-            if is_last_and_checklist:
-                cb_submitted = st.session_state.get("cb_checklist_submitted", False)
-                st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
-                for j, item in enumerate(cb_checklist):
-                    q = item.get("question") or item.get("item") or str(item)
-                    cur = cb_answers.get(j, "").strip()
-                    st.write(f"**{j+1}.** {q}")
-                    c1, c2, c3, _ = st.columns([1, 1, 1, 2])
-                    with c1:
-                        if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted):
-                            st.session_state.cb_checklist_answers[j] = "네"
-                            st.rerun()
-                    with c2:
-                        if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary", disabled=cb_submitted):
-                            st.session_state.cb_checklist_answers[j] = "아니요"
-                            st.rerun()
-                    with c3:
-                        if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted):
-                            st.session_state.cb_checklist_answers[j] = "모르겠음"
-                            st.rerun()
-                # 다음 버튼: 모든 답변이 완료되었을 때만 활성화
-                all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
-                if not cb_submitted:
-                    st.divider()
-                    if st.button("다음", type="primary", key="cb_next_btn", use_container_width=True, disabled=not all_answered):
-                        st.session_state.cb_checklist_submitted = True
-                        st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
-                        st.rerun()
 
     # 체크리스트 제출 버튼을 눌렀으면 should_continue 판단 → 2차 체크리스트 또는 결론
     cb_submitted = st.session_state.get("cb_checklist_submitted", False)
@@ -522,8 +524,10 @@ def main():
         placeholder = random.choice(input_placeholders)
         prompt = st.chat_input(placeholder)
         if prompt:
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
             st.session_state.messages.append(HumanMessage(content=prompt))
-            st.rerun()
+            # st.chat_input()은 자동으로 rerun을 트리거함
         return
 
     # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 중)
@@ -543,9 +547,6 @@ def main():
             st.session_state.messages.append(HumanMessage(content=prompt))
             st.session_state.related_questions = []  # 새 질문 입력 시 관련 질문 제거
             # st.chat_input()은 자동으로 rerun을 트리거하므로 수동 rerun 불필요
-            # 하지만 명시적으로 rerun 호출하여 즉시 반영
-            st.rerun()
-            return  # rerun 후 즉시 반환하여 이번 렌더링 중단 (메시지가 표시되도록)
     else:
         # AI 처리 중일 때는 입력 필드를 비활성화 (시각적 표시만)
         placeholder = random.choice(input_placeholders)
@@ -558,38 +559,49 @@ def main():
     # 마지막 메시지가 사용자 메시지면 AI 응답 생성
     if is_ai_processing:
         last_human = st.session_state.messages[-1]
+        # 처리 중 메시지가 아직 추가되지 않았다면 추가하고 rerun
+        if not (len(st.session_state.messages) > 1 and isinstance(st.session_state.messages[-1], AIMessage) and 
+                st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG):
+            st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+            st.rerun()
+            return
+        
+        # 처리 중 메시지 제거하고 실제 응답 생성
+        if st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage) and \
+           st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG:
+            st.session_state.messages.pop()
+        
         with st.chat_message("assistant"):
-            with st.spinner("검토 중..."):
-                config = {"configurable": {"thread_id": thread_id}}
-                try:
-                    result = graph.invoke(
-                        {"messages": [last_human]},
-                        config=config,
-                    )
-                    new_msgs = result.get("messages", [])
-                    ai_content = ""
-                    for m in reversed(new_msgs):
-                        if isinstance(m, AIMessage):
-                            ai_content = m.content
-                            break
-                    if ai_content:
-                        st.markdown(ai_content)
-                        st.session_state.messages.append(AIMessage(content=ai_content))
-                        # 체크리스트면 app.py와 동일하게 버튼으로 답하도록 상태 저장
-                        if result.get("phase") == "checklist" and result.get("checklist"):
-                            st.session_state.cb_checklist = result.get("checklist", [])
-                            st.session_state.cb_checklist_answers = {}
-                            st.session_state.cb_checklist_submitted = False
-                            st.session_state.cb_issue = result.get("selected_issue", "")
-                            st.session_state.cb_situation = result.get("situation", "")
-                            st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
-                            st.session_state.cb_round = 1
-                            st.session_state.cb_all_qa = []
-                            st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
-                            st.session_state.pending_buttons = []
-                        else:
-                            st.session_state.pending_buttons = []
-                            if result.get("phase") == "conclusion":
+            config = {"configurable": {"thread_id": thread_id}}
+            try:
+                result = graph.invoke(
+                    {"messages": [last_human]},
+                    config=config,
+                )
+                new_msgs = result.get("messages", [])
+                ai_content = ""
+                for m in reversed(new_msgs):
+                    if isinstance(m, AIMessage):
+                        ai_content = m.content
+                        break
+                if ai_content:
+                    st.markdown(ai_content)
+                    st.session_state.messages.append(AIMessage(content=ai_content))
+                    # 체크리스트면 app.py와 동일하게 버튼으로 답하도록 상태 저장
+                    if result.get("phase") == "checklist" and result.get("checklist"):
+                        st.session_state.cb_checklist = result.get("checklist", [])
+                        st.session_state.cb_checklist_answers = {}
+                        st.session_state.cb_checklist_submitted = False
+                        st.session_state.cb_issue = result.get("selected_issue", "")
+                        st.session_state.cb_situation = result.get("situation", "")
+                        st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
+                        st.session_state.cb_round = 1
+                        st.session_state.cb_all_qa = []
+                        st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
+                        st.session_state.pending_buttons = []
+                    else:
+                        st.session_state.pending_buttons = []
+                        if result.get("phase") == "conclusion":
                                 # 결론 메시지에서 결론 내용 추출
                                 conclusion_content = ""
                                 for msg in reversed(new_msgs):
