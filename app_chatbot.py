@@ -545,10 +545,15 @@ def main():
             # st.chat_input()은 자동으로 rerun을 트리거하므로 수동 rerun 불필요
             # 하지만 명시적으로 rerun 호출하여 즉시 반영
             st.rerun()
+            return  # rerun 후 즉시 반환하여 이번 렌더링 중단 (메시지가 표시되도록)
     else:
         # AI 처리 중일 때는 입력 필드를 비활성화 (시각적 표시만)
         placeholder = random.choice(input_placeholders)
-        st.chat_input(placeholder, disabled=True)
+        # disabled 파라미터가 지원되지 않을 수 있으므로, 입력을 받더라도 무시
+        prompt = st.chat_input(placeholder)
+        if prompt:
+            # AI 처리 중에는 입력 무시
+            pass
 
     # 마지막 메시지가 사용자 메시지면 AI 응답 생성
     if is_ai_processing:
@@ -623,44 +628,46 @@ def main():
                     st.session_state.pending_buttons = []
         st.rerun()
 
-    # 페이지 하단 출처 표시 및 면책 공고
-    st.divider()
-    st.markdown("---")
-    
-    # 업데이트 날짜 읽기
-    update_date = "알 수 없음"
-    try:
-        from pathlib import Path
-        last_update_file = Path("api_data/last_update.txt")
-        if last_update_file.exists():
-            update_date = last_update_file.read_text(encoding="utf-8").strip()
-            # UTC를 한국 시간으로 변환 (UTC+9)
-            if "UTC" in update_date:
-                from datetime import datetime, timedelta
-                try:
-                    dt_str = update_date.replace(" UTC", "")
-                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
-                    dt_kst = dt + timedelta(hours=9)
-                    update_date = dt_kst.strftime("%Y년 %m월 %d일 %H:%M")
-                except Exception:
-                    pass
-    except Exception:
-        pass
-    
-    st.markdown(
-        f"""
-        <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
-            <p><strong>📚 데이터 출처</strong></p>
-            <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
-            <p style="margin-top: 0.5em; color: #888; font-size: 0.9em;">마지막 업데이트: {update_date}</p>
-            <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
-            <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
-            <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
-            <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    # 페이지 하단 출처 표시 및 면책 공고 (채팅창이 비어있을 때만 표시)
+    messages = st.session_state.get("messages", [])
+    if not messages or len(messages) == 0:
+        st.divider()
+        st.markdown("---")
+        
+        # 업데이트 날짜 읽기
+        update_date = "알 수 없음"
+        try:
+            from pathlib import Path
+            last_update_file = Path("api_data/last_update.txt")
+            if last_update_file.exists():
+                update_date = last_update_file.read_text(encoding="utf-8").strip()
+                # UTC를 한국 시간으로 변환 (UTC+9)
+                if "UTC" in update_date:
+                    from datetime import datetime, timedelta
+                    try:
+                        dt_str = update_date.replace(" UTC", "")
+                        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                        dt_kst = dt + timedelta(hours=9)
+                        update_date = dt_kst.strftime("%Y년 %m월 %d일 %H:%M")
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        
+        st.markdown(
+            f"""
+            <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
+                <p><strong>📚 데이터 출처</strong></p>
+                <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
+                <p style="margin-top: 0.5em; color: #888; font-size: 0.9em;">마지막 업데이트: {update_date}</p>
+                <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
+                <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
+                <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
+                <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 
 if __name__ == "__main__":
