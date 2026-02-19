@@ -28,3 +28,9 @@ api_data/cache/
 # 기타
 .DS_Store
 *.log
+
+# 테스트 출력 파일
+test_output*.txt
+scenario_test*.txt
+test_final.txt
+scenario_test_results_*.json
