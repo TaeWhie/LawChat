@@ -1,11 +1,15 @@
 """
 노동법 RAG 챗봇 - LangGraph + Streamlit 챗봇 UI (실제 서비스용)
 app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모르겠음 버튼으로 답하며, 여러 차수(라운드) 지원.
+장별 둘러보기는 app.py와 동일하게 조항 클릭 시 상세 페이지 표시.
 """
+import re
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
 from rag.law_json import SCENARIO_QUICK, get_chapters, get_articles_by_chapter
+from rag.store import build_vector_store, search_by_article_numbers
+from config import SOURCE_LAW
 
 CHECKLIST_MAX_ROUNDS = 3  # app.py와 동일
 
@@ -39,6 +43,17 @@ def init_session():
         st.session_state.cb_all_qa = []
     if "cb_checklist_rag_results" not in st.session_state:
         st.session_state.cb_checklist_rag_results = []
+    # 장별 둘러보기 (app.py와 동일)
+    if "browse_view" not in st.session_state:
+        st.session_state.browse_view = None
+    if "browse_article_number" not in st.session_state:
+        st.session_state.browse_article_number = None
+    if "browse_chapter_title" not in st.session_state:
+        st.session_state.browse_chapter_title = ""
+    if "browse_article_paragraphs" not in st.session_state:
+        st.session_state.browse_article_paragraphs = []
+    if "browse_article_title" not in st.session_state:
+        st.session_state.browse_article_title = ""
 
 
 def get_graph_safe():
@@ -81,15 +96,118 @@ def main():
             st.session_state.thread_id = str(uuid.uuid4())[:8]
             st.rerun()
         st.divider()
-        st.subheader("📚 장별 둘러보기")
+        st.subheader("📚 장(章)별 둘러보기")
         try:
-            chapters = get_chapters()[:12]
+            chapters = get_chapters()
         except Exception:
             chapters = []
-        for ch in chapters:
+        for ch in chapters[:14]:
             with st.expander(f"{ch['number']} {ch['title']}", expanded=False):
-                for a in get_articles_by_chapter(ch["number"]) or []:
-                    st.caption(f"· {a.get('article_number','')} {a.get('title','')}")
+                articles = get_articles_by_chapter(ch["number"]) or []
+                for i, a in enumerate(articles):
+                    art_num = a.get("article_number", "")
+                    title = a.get("title", "")
+                    paras = a.get("paragraphs") or []
+                    label = f"{art_num} {title}".strip() or art_num
+                    if st.button(label, key=f"browse_{ch['number']}_{i}_{art_num}", use_container_width=True):
+                        st.session_state.browse_view = "article_detail"
+                        st.session_state.browse_article_number = art_num
+                        st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
+                        st.session_state.browse_article_paragraphs = paras
+                        st.session_state.browse_article_title = title
+                        st.rerun()
+
+    # ---------- 조항 상세 페이지 (장별 둘러보기에서 조항 클릭 시, app.py와 동일) ----------
+    if st.session_state.get("browse_view") == "article_detail":
+        art_num = st.session_state.get("browse_article_number") or ""
+        ch_title = st.session_state.get("browse_chapter_title") or ""
+        if art_num:
+            paragraphs = st.session_state.get("browse_article_paragraphs") or []
+            display_title = st.session_state.get("browse_article_title") or ""
+            st.subheader(f"📜 {art_num} {display_title}".strip())
+            if ch_title:
+                st.caption(f"장: {ch_title}")
+            st.divider()
+            if paragraphs:
+                def _strip_paragraph_text(typ: str, raw: str) -> str:
+                    if not raw:
+                        return raw
+                    raw = raw.strip()
+                    if typ == "항":
+                        return re.sub(r"^[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]\s*", "", raw)
+                    if typ == "호":
+                        return re.sub(r"^\d+\.\s*", "", raw)
+                    if typ == "목":
+                        return re.sub(r"^[가-힣]\.\s*", "", raw)
+                    return raw
+                prev_type = None
+                for i, p in enumerate(paragraphs):
+                    p_type = p.get("type", "")
+                    num = p.get("num")
+                    text = (p.get("text") or "").strip()
+                    if not text:
+                        continue
+                    if prev_type == "항" and p_type not in ("호", "목"):
+                        st.divider()
+                    prev_type = p_type
+                    display_text = _strip_paragraph_text(p_type, text)
+                    if p_type == "본문":
+                        st.markdown("### 본문")
+                        st.markdown(display_text)
+                    elif p_type == "항":
+                        if num:
+                            hang_num_map = {"①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
+                                            "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10"}
+                            hang_num = hang_num_map.get(num, num)
+                            hlabel = f"### 제{hang_num}항"
+                        else:
+                            hlabel = "### 항"
+                        st.markdown(hlabel)
+                        st.markdown(display_text)
+                    elif p_type == "호":
+                        label = f"-{num.rstrip('.')}호" if num else "-호"
+                        st.markdown(f'<div style="margin-left: 2.5em; margin-top: 0.8em; margin-bottom: 0.3em; color: #666;">{label}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="margin-left: 2.5em; margin-bottom: 0.5em;">{display_text}</div>', unsafe_allow_html=True)
+                    elif p_type == "목":
+                        label = f"{num}목" if num else "목"
+                        st.markdown(f'<div style="margin-left: 4.5em; margin-top: 0.3em; margin-bottom: 0.2em; font-size: 0.95em; color: #888;">{label}</div>', unsafe_allow_html=True)
+                        st.markdown(f'<div style="margin-left: 4.5em; font-size: 0.95em;">{display_text}</div>', unsafe_allow_html=True)
+                    else:
+                        st.markdown(display_text)
+                if prev_type == "항":
+                    st.divider()
+            else:
+                try:
+                    col = build_vector_store()[0]
+                except Exception:
+                    col = None
+                if col is not None:
+                    docs = search_by_article_numbers(col, [art_num], SOURCE_LAW)
+                    if docs:
+                        r = docs[0]
+                        text = (r.get("text") or "").strip()
+                        chapter = r.get("chapter", "")
+                        source = r.get("source", "")
+                        if chapter:
+                            st.caption(f"장: {chapter}")
+                        if source:
+                            st.caption(f"출처: {source}")
+                        st.markdown(text if text else "(본문 없음)")
+                    else:
+                        st.warning(f"해당 조문({art_num}) 본문을 불러올 수 없습니다.")
+                else:
+                    st.warning("벡터 스토어를 불러올 수 없어 조문을 표시할 수 없습니다.")
+        else:
+            st.info("조문을 선택해 주세요.")
+        st.divider()
+        if st.button("← 챗봇으로 돌아가기", type="primary", key="back_to_chat_from_article"):
+            st.session_state.browse_view = None
+            st.session_state.browse_article_number = None
+            st.session_state.browse_chapter_title = ""
+            st.session_state.browse_article_paragraphs = []
+            st.session_state.browse_article_title = ""
+            st.rerun()
+        return
 
     st.title("⚖️ 노동법 RAG 챗봇")
     st.caption("근로기준법 기반 상담. 상황을 말씀해 주세요.")
