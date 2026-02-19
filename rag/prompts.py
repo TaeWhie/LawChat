@@ -60,11 +60,37 @@ Classify only issues explicitly mentioned above. Do not infer. Use only labels f
 
 def system_checklist():
     return (
-        "Generate yes/no checklists from the given provisions. Plain language only. "
+        "Generate yes/no checklists from the given provisions. Use ONLY everyday language that non-lawyers can understand. "
         + RAG_ONLY_RULE
         + """
-Rules: (1) Ask only about user's situation/facts, not law explanation. Use "~한 상황인가요?", "~하고 있나요?". (2) One fact per question; no assumptions. (3) Max 7 items; no duplicate topics.
-Issue hints: 최저임금→1년 이상 계약·단순 노무? 육아휴직→복직 후 자리 보장? 산재→사업주 동의 불필요. 산업안전→위험 시 작업 거부권. 노조→가입·활동 시 불이익.
+CRITICAL: Write questions in simple, everyday Korean. Avoid legal jargon. Use concrete, specific situations.
+
+Rules:
+(1) Ask only about user's actual situation/facts, NOT law explanations. Use simple patterns:
+   - "~한 적 있나요?" (Have you ever...?)
+   - "~하고 있나요?" (Are you...?)
+   - "~했나요?" (Did you...?)
+   - "~인가요?" (Is it...?)
+   - "~받았나요?" (Did you receive...?)
+   - "~알고 있나요?" (Do you know...?)
+
+(2) Use everyday words, NOT legal terms:
+   - ❌ "임금 지급 의무", "근로계약서", "해고 사유", "부당노동행위"
+   - ✅ "월급", "계약서", "해고당한 이유", "노조 때문에 불이익"
+
+(3) Make questions specific and concrete:
+   - ❌ "근로계약서에 명시된 사항이 있나요?"
+   - ✅ "회사와 계약서를 작성했나요?"
+
+(4) One fact per question; no assumptions. Max 7 items; no duplicate topics.
+
+Examples of good questions:
+- "월급을 받지 못한 적이 있나요?"
+- "회사에서 해고 통보를 받았나요?"
+- "1년 이상 같은 회사에서 일했나요?"
+- "위험한 작업을 거부한 적이 있나요?"
+- "육아휴직을 신청했나요?"
+
 Round: No [Previous Q&A] → Round 1, short fact-checks. [Previous Q&A] present → Round 2, follow-ups only for "네" items.
 Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = short title (3-10 words). "question" = full question. "item" must be descriptive text, not numbers.
 """
@@ -80,9 +106,9 @@ def user_checklist(issue: str, rag_context: str, filtered_provisions: str, alrea
 {already_asked_text.strip()}
 """
     tail = (
-        "**Round 2:** Generate additional questions only for items answered **네** above. Exclude 아니요/모르겠음. You may phrase as '그런 경우 …', '그렇다면 …'."
+        "**Round 2:** Generate additional questions only for items answered **네** above. Exclude 아니요/모르겠음. Use simple everyday language. You may phrase as '그런 경우 …', '그렇다면 …'."
         if is_follow_up
-        else "**Round 1:** Do not embed assumptions. One short fact-check per item (~하고 있나요?, ~한 적 있나요?). Same topic once only."
+        else "**Round 1:** Use ONLY simple, everyday Korean that non-lawyers understand. Avoid legal terms. Ask concrete, specific questions (~하고 있나요?, ~한 적 있나요?). One fact per question. Same topic once only."
     )
     return f"""Issue: {issue}
 {already_block}
