@@ -1,0 +1,14 @@
+﻿python : Traceback (most recent call last):
+위치 C:\Users\User\AppData\Local\Temp\ps-script-36e19d50-0532-4898-a4a8-8e9c69dd0b27.ps1:82 문자:31
++ ... PhythonProject\LawChat; python scripts\test_scenarios.py 2>&1 | Selec ...
++                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "D:\PhythonProject\LawChat\scripts\test_scenarios.py", line 13, in <module>
+    from rag import (
+  File "D:\PhythonProject\LawChat\rag\__init__.py", line 2, in <module>
+    from rag.pipeline import (
+  File "D:\PhythonProject\LawChat\rag\pipeline.py", line 948
+    if preferred_sources:
+IndentationError: unexpected indent

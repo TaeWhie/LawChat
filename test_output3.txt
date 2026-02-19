@@ -1,0 +1,39 @@
+﻿python : 
+위치 C:\Users\User\AppData\Local\Temp\ps-script-ca309243-184d-4725-8f51-962e93d2d94d.ps1:81 문자:31
++ ... nProject\LawChat; python scripts\simulate_target_flow.py 2>&1 | Out-F ...
++                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+================================================================================
+[이슈 분류 시작] 상황: 퇴직금을 받지 못했어요
+================================================================================
+[이슈 후보] 키워드 매칭 → ['퇴직금']
+  이슈 '퇴직금' 조문 수: 15
+[이슈 분류 완료] 키워드 경로 → 이슈별 조문 반환
+[체크리스트 생성] 컨텍스트 길이: 2562자
+[체크리스트 생성] max_tokens: None
+[chat] API 응답 - finish_reason: stop, content 타입: <class 'str'>, content is None: False
+[chat] 전체 응답 객체: model=gpt-5-nano-2025-08-07, id=chatcmpl-DAXrt8PI4Z92XuMkxDKlFPZOQLAhu, usage=CompletionUsage(completi
+on_tokens=7230, prompt_tokens=2206, total_tokens=9436, completion_tokens_details=CompletionTokensDetails(accepted_predi
+ction_tokens=0, audio_tokens=0, reasoning_tokens=7040, rejected_prediction_tokens=0), prompt_tokens_details=PromptToken
+sDetails(audio_tokens=0, cached_tokens=2048))
+[체크리스트 LLM 응답] 타입: list, 값: [{'item': '1) 퇴직 여부', 'question': '현재 퇴직하셨나요?'}, {'item': '2) 퇴직급여 지급 여부', 'question': '현재 
+퇴직급여를 지급받지 못하고 있나요?'}, {'item': '3) 제34조 적용 여부', 'question': '회사가 제34조에 따라 퇴직급여 제도를 적용하고 있나요?'}, {'item': '4) 지급 시기 규정 
+적용 여부', 'question': '퇴직으로 인한 퇴직급여 지급이 14일 이내에 이루어져야 한다는 규정이 적용되나요? (제36조)'}, {'item': '5) 보상청구권 보호 여부', 'question': '퇴직
+으로 보상청구권이 변경되지 않는다는 점에 대해 알고 있나요?'}]
+[체크리스트 생성 완료] 항목 5개
+[체크리스트 항목 예시] {'item': '1) 퇴직 여부', 'question': '현재 퇴직하셨나요?'}
+[chat] API 응답 - finish_reason: stop, content 타입: <class 'str'>, content is None: False
+[chat] 전체 응답 객체: model=gpt-5-nano-2025-08-07, id=chatcmpl-DAXsp451WPan8esz9fRpxsFC0XJLx, usage=CompletionUsage(completi
+on_tokens=2927, prompt_tokens=1533, total_tokens=4460, completion_tokens_details=CompletionTokensDetails(accepted_predi
+ction_tokens=0, audio_tokens=0, reasoning_tokens=2688, rejected_prediction_tokens=0), prompt_tokens_details=PromptToken
+sDetails(audio_tokens=0, cached_tokens=1408))
+============================================================
+전체 시뮬레이션: 「퇴직금을 받지 못했어요」
+============================================================
+[1] 이슈: 퇴직금
+    조문 수: 15
+[2] 체크리스트: 5개
+[3] 결론: 363자
+============================================================

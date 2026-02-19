@@ -14,7 +14,6 @@ def classify_question_type(user_text: str) -> Literal["knowledge", "calculation"
     text = user_text.lower()
     
     # 예외 상황 키워드 (최우선 체크 - 유도 질문, 모호한 신분, 최신성 확인)
-    # 단, 날짜가 포함된 계산 질문은 제외
     exception_keywords_strict = ["프리랜서", "몰래", "기밀", "빼돌려"]
     exception_keywords_date = ["올해", "2026", "2025", "2024", "최신"]
     
@@ -22,11 +21,15 @@ def classify_question_type(user_text: str) -> Literal["knowledge", "calculation"
     if any(kw in text for kw in exception_keywords_strict):
         return "exception"
     
-    # 날짜 관련 예외 키워드는 계산 질문이 아닐 때만
+    # 최신성 확인 질문 (날짜 + "얼마" 또는 "최저임금" 등) → exception으로 처리
+    # "올해 최저임금은 얼마야?" 같은 경우
     if any(kw in text for kw in exception_keywords_date):
-        # 계산 질문이 아니면 예외로 처리
-        is_calc_question = any(kw in text for kw in ["얼마", "계산", "대략", "총", "받아야", "받을 수 있어", "받을 수 있"]) and \
-                          any(kw in text for kw in ["퇴직금", "수당", "급여", "임금", "연장", "야근", "최저임금"])
+        # 최신성 확인 질문인 경우 (날짜 + 금액/법률 질문)
+        if any(kw in text for kw in ["최저임금", "임금", "법률", "법령", "얼마", "뭐야"]):
+            return "exception"
+        # 날짜만 있고 계산 맥락이 없으면 예외로 처리
+        is_calc_question = any(kw in text for kw in ["계산", "대략", "총", "받아야"]) and \
+                          any(kw in text for kw in ["퇴직금", "수당", "급여", "연장", "야근"])
         if not is_calc_question:
             return "exception"
     
@@ -186,20 +189,41 @@ def system_exception_qa():
     """예외 상황 질문 답변 시스템 프롬프트"""
     return (
         "You are a Korean labor law expert handling edge cases and boundary questions. "
-        + RAG_ONLY_RULE
+        + """
+**CRITICAL RULES:**
+- Base answers on the [Provided legal provisions] when available
+- For ethical questions (유도 질문) about illegal acts, you MUST provide guidance even if the exact scenario is not in the provisions
+- Use related provisions (e.g., 해고 사유, 정당한 해고, 계약 위반) to explain legal consequences
+- Do NOT simply say "해당 내용은 제공된 법령 데이터에 없습니다" for ethical questions - provide guidance based on related provisions
+- Cite relevant articles from the provided provisions when available
+- If no provisions are provided, you may provide general legal guidance but note that specific legal advice should come from an attorney
+"""
         + """
 Your task: Answer questions about ambiguous employment status, ethical guidance, and data currency.
 
 **Types of questions:**
 1. Ambiguous status (프리랜서 vs 근로자): Determine if someone qualifies as a worker under labor law
-2. Ethical questions: Provide guidance on legal and ethical boundaries
-3. Data currency: Confirm if information is current (mention data source year if known)
+2. Ethical questions (유도 질문): For questions about illegal acts (e.g., "몰래 기밀 빼돌려서 퇴사"):
+   - Explain the legal consequences based on labor law provisions (e.g., 해고 사유, 퇴직금 지급, 계약 위반)
+   - Use related provisions such as 근로기준법 제23조 (해고 등의 제한), 제19조 (근로조건의 위반) to explain that illegal acts can be grounds for dismissal
+   - Explain that illegal acts may affect severance pay eligibility
+   - Provide ethical guidance: recommend proper legal procedures (정당한 절차를 통한 퇴사, 노동위원회 상담, 변호사 상담)
+   - Do NOT encourage or provide guidance on how to commit illegal acts
+   - Warn about legal consequences (형사처벌 가능성, 손해배상)
+3. Data currency: For questions asking about current year values (e.g., "올해 최저임금은 얼마야?"), explain:
+   - The legal framework and criteria from the provisions (e.g., 최저임금법 제5조: how minimum wage is determined)
+   - That specific amounts are announced annually by the Ministry of Employment and Labor
+   - How to find the current amount (고용노동부, 국가법령정보센터)
+   - Do NOT simply say "해당 내용은 제공된 법령 데이터에 없습니다" - instead, explain the legal framework and guide users to find the current value
 
 **Rules:**
 - For ambiguous status: Explain the criteria for being considered a "worker" (근로자)
-- For ethical questions: Clearly state what is legal vs illegal, and provide ethical guidance
-- For data currency: Mention the effective year of the legal provisions, and note that laws may change
-- Always cite relevant articles
+- For ethical questions: Use related provisions to explain consequences, provide clear warnings, and recommend proper legal procedures
+- For data currency questions (올해, 2026년, 최신 등):
+  - First, explain the relevant legal provisions and how the system works (e.g., 최저임금법의 최저임금 결정 기준과 절차)
+  - Then explain that specific values are announced annually and guide users to official sources
+  - Cite relevant articles from the provided provisions
+- Always cite relevant articles when available
 - If uncertain, recommend consulting with a labor attorney
 
 Write your answer in Korean.
@@ -209,9 +233,27 @@ Write your answer in Korean.
 
 def user_exception_qa(question: str, rag_context: str) -> str:
     """예외 상황 질문 답변용 사용자 프롬프트"""
+    is_currency_question = any(kw in question for kw in ["올해", "2026", "2025", "2024", "최신", "현재"])
+    
+    currency_instruction = ""
+    if is_currency_question:
+        currency_instruction = """
+**IMPORTANT for currency questions:**
+- If the question asks for a specific current value (e.g., "올해 최저임금은 얼마야?"), do NOT simply say "해당 내용은 제공된 법령 데이터에 없습니다"
+- Instead:
+  1. Explain the legal framework from the provisions (e.g., 최저임금법 제5조: how minimum wage is determined, what criteria are used)
+  2. Explain that specific amounts are announced annually by 고용노동부 (Ministry of Employment and Labor)
+  3. Guide users to check the current value at:
+     - 고용노동부 (www.moel.go.kr)
+     - 국가법령정보센터 (www.law.go.kr)
+     - 최저임금위원회 공지사항
+- Cite relevant articles from the provided provisions
+"""
+    
     return f"""Question: {question}
 
 [Provided legal provisions]
 {rag_context}
+{currency_instruction}
 
 Answer this edge case or exception question based on the provisions above. Provide clear guidance."""

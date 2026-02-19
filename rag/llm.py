@@ -42,9 +42,18 @@ def chat(
         "temperature": temperature,
     }
     if max_tokens is not None:
-        # gpt-5-nano는 max_completion_tokens 사용, 다른 모델은 max_tokens
+        # gpt-5-nano는 reasoning 모델 → reasoning_tokens 사용하므로 실제 출력을 위해 더 큰 값 필요
+        # reasoning 모델은 max_completion_tokens 사용하되, reasoning 토큰을 제외한 실제 출력을 위해 충분히 큰 값 필요
         if "gpt-5" in model or "nano" in model.lower():
-            kwargs["max_completion_tokens"] = max_tokens
+            # reasoning 모델: reasoning_tokens가 대부분이므로 실제 출력을 위해 최소 1000 이상 필요
+            # max_tokens가 너무 작으면 reasoning만 하고 출력 없음
+            if max_tokens < 1000:
+                # 작은 값이면 None으로 설정하여 모델이 충분히 출력하도록 함
+                if _DEBUG:
+                    print(f"[chat] reasoning 모델 감지, max_tokens({max_tokens})가 너무 작아 None으로 설정", file=sys.stderr)
+                max_tokens = None
+            if max_tokens is not None:
+                kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
     try:

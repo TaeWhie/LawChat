@@ -270,7 +270,7 @@ def main():
         return
 
     st.title("⚖️ 노동법 RAG 챗봇")
-    st.caption("근로기준법 기반 상담. 상황을 말씀해 주세요.")
+    st.caption("근로기준법 기반 상담. 직장에서 겪은 문제나 궁금한 점을 자유롭게 말씀해 주세요.")
 
     # 시나리오 버튼
     st.caption("시나리오:")
@@ -415,7 +415,19 @@ def main():
             st.rerun()
 
     # 사용자 입력 (채팅창)
-    prompt = st.chat_input("상황을 입력하세요...")
+    # 다양한 친근한 입력 안내 문구 (랜덤 선택)
+    import random
+    input_placeholders = [
+        "직장에서 겪은 문제를 말씀해 주세요...",
+        "어떤 도움이 필요하신가요?",
+        "궁금한 노동법 질문을 입력하세요...",
+        "상황을 자유롭게 설명해 주세요...",
+        "예: 월급을 못 받았어요, 해고당했어요...",
+        "직장 관련 법적 문제를 알려주세요...",
+        "무엇이 궁금하신가요?",
+    ]
+    placeholder = random.choice(input_placeholders)
+    prompt = st.chat_input(placeholder)
     if prompt:
         st.session_state.messages.append(HumanMessage(content=prompt))
         st.rerun()

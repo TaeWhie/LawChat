@@ -1,0 +1,44 @@
+﻿python : 
+위치 C:\Users\User\AppData\Local\Temp\ps-script-60b62019-4a7d-46ba-984b-a05dd20c1a65.ps1:81 문자:31
++ ... nProject\LawChat; python scripts\simulate_target_flow.py 2>&1 | Out-F ...
++                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+================================================================================
+[이슈 분류 시작] 상황: 퇴직금을 받지 못했어요
+================================================================================
+[이슈 후보] 키워드 매칭 → ['퇴직금']
+  이슈 '퇴직금' 조문 수: 15
+[이슈 분류 완료] 키워드 경로 → 이슈별 조문 반환
+[체크리스트] remaining_articles로 14개 조문 사용
+[체크리스트 생성] 컨텍스트 길이: 2562자
+[체크리스트 생성] max_tokens: 8000
+[chat] API 응답 - finish_reason: stop, content 타입: <class 'str'>, content is None: False
+[chat] 전체 응답 객체: model=gpt-5-nano-2025-08-07, id=chatcmpl-DAY96u4NC3jcrdX4hufpg4bsg2Wln, usage=CompletionUsage(completi
+on_tokens=5641, prompt_tokens=2206, total_tokens=7847, completion_tokens_details=CompletionTokensDetails(accepted_predi
+ction_tokens=0, audio_tokens=0, reasoning_tokens=5376, rejected_prediction_tokens=0), prompt_tokens_details=PromptToken
+sDetails(audio_tokens=0, cached_tokens=0))
+[체크리스트 LLM 응답] 타입: list, 값: [{'item': '퇴직 여부 확인', 'question': '최근에 퇴직하신 상황인가요?'}, {'item': '퇴직급여 제도 적용 여부', 'question':
+ '퇴직급여 제도가 적용되어 퇴직금 지급 의무가 생긴 상황인가요?'}, {'item': '퇴직금 미지급 여부', 'question': '퇴직금이 아직 지급되지 않은 상태인가요?'}, {'item': '지급 기한 규
+정 적용 여부', 'question': '퇴직으로 지급 사유가 발생한 때부터 14일 이내에 지급해야 한다는 규정이 귀하의 상황에 적용되나요?'}, {'item': '임금 지급 원칙 적용 여부', 'question'
+: '임금은 매월 1회 이상 일정한 날짜에 지급되어야 한다는 원칙이 귀하의 상황에 적용되나요?'}, {'item': '보상청구권의 비양도/비압류 여부', 'question': '퇴직으로 인하여 보상 청구권이 양도되
+거나 압류될 수 없다는 점이 귀하의 상황에 적용되나요?'}]
+[체크리스트 생성 완료] 항목 6개
+[체크리스트 항목 예시] {'item': '퇴직 여부 확인', 'question': '최근에 퇴직하신 상황인가요?'}
+[결론 생성] 법률 조문 10개 검색
+[결론 생성] 시행령·시행규칙 0개 검색
+[chat] API 응답 - finish_reason: stop, content 타입: <class 'str'>, content is None: False
+[chat] 전체 응답 객체: model=gpt-5-nano-2025-08-07, id=chatcmpl-DAY9kfTFUQbS3dRbU9Xn6SnaXcF9z, usage=CompletionUsage(completi
+on_tokens=3117, prompt_tokens=1533, total_tokens=4650, completion_tokens_details=CompletionTokensDetails(accepted_predi
+ction_tokens=0, audio_tokens=0, reasoning_tokens=2752, rejected_prediction_tokens=0), prompt_tokens_details=PromptToken
+sDetails(audio_tokens=0, cached_tokens=0))
+[결론 검증] 인용 있음: True, 인용 검증: True
+============================================================
+전체 시뮬레이션: 「퇴직금을 받지 못했어요」
+============================================================
+[1] 이슈: 퇴직금
+    조문 수: 15
+[2] 체크리스트: 6개
+[3] 결론: 557자
+============================================================
