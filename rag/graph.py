@@ -258,19 +258,42 @@ def process_turn(state: ChatbotState) -> dict:
                         }
                 else:
                     # 계산 질문이지만 패턴 매칭 실패 → RAG로 답변
-                    search_results = search(
-                        col, user_text, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
-                    )
-                    if search_results:
-                        rag_context = _rag_context(search_results, max_length=2000)
-                        answer = chat(
-                            system_calculation_qa(),
-                            user_calculation_qa(user_text, rag_context),
-                            max_tokens=1000
+                    try:
+                        search_results = search(
+                            col, user_text, top_k=5,
+                            filter_sources=ALL_LABOR_LAW_SOURCES,
                         )
+                        if search_results:
+                            rag_context = _rag_context(search_results, max_length=2000)
+                            answer = chat(
+                                system_calculation_qa(),
+                                user_calculation_qa(user_text, rag_context),
+                                max_tokens=1500  # 충분한 토큰 수 확보
+                            )
+                            if not answer or not answer.strip():
+                                answer = "계산 질문에 대한 답변을 생성하지 못했습니다. 구체적인 날짜와 금액 정보를 포함하여 다시 질문해 주세요."
+                            return {
+                                "messages": [AIMessage(content=answer)],
+                                "situation": "",
+                                "issues": [],
+                                "phase": "input",
+                            }
+                        else:
+                            return {
+                                "messages": [AIMessage(content="퇴직금 계산에 필요한 정보를 찾지 못했습니다. 구체적인 입사일, 퇴사일, 월급 정보를 포함하여 질문해 주세요.")],
+                                "situation": "",
+                                "issues": [],
+                                "phase": "input",
+                            }
+                    except Exception as e:
+                        import traceback
+                        import sys
+                        import os
+                        _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
+                        if _DEBUG:
+                            print(f"[계산 질문 처리 오류] {e}\n{traceback.format_exc()}", file=sys.stderr)
                         return {
-                            "messages": [AIMessage(content=answer)],
+                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
                             "situation": "",
                             "issues": [],
                             "phase": "input",
@@ -601,19 +624,43 @@ def process_turn(state: ChatbotState) -> dict:
                             "phase": "input",
                         }
                 else:
-                    search_results = search(
-                        col, user_text, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
-                    )
-                    if search_results:
-                        rag_context = _rag_context(search_results, max_length=2000)
-                        answer = chat(
-                            system_calculation_qa(),
-                            user_calculation_qa(user_text, rag_context),
-                            max_tokens=1000
+                    # 계산 질문이지만 패턴 매칭 실패 → RAG로 답변
+                    try:
+                        search_results = search(
+                            col, user_text, top_k=5,
+                            filter_sources=ALL_LABOR_LAW_SOURCES,
                         )
+                        if search_results:
+                            rag_context = _rag_context(search_results, max_length=2000)
+                            answer = chat(
+                                system_calculation_qa(),
+                                user_calculation_qa(user_text, rag_context),
+                                max_tokens=1500  # 충분한 토큰 수 확보
+                            )
+                            if not answer or not answer.strip():
+                                answer = "계산 질문에 대한 답변을 생성하지 못했습니다. 구체적인 날짜와 금액 정보를 포함하여 다시 질문해 주세요."
+                            return {
+                                "messages": [AIMessage(content=answer)],
+                                "situation": "",
+                                "issues": [],
+                                "phase": "input",
+                            }
+                        else:
+                            return {
+                                "messages": [AIMessage(content="퇴직금 계산에 필요한 정보를 찾지 못했습니다. 구체적인 입사일, 퇴사일, 월급 정보를 포함하여 질문해 주세요.")],
+                                "situation": "",
+                                "issues": [],
+                                "phase": "input",
+                            }
+                    except Exception as e:
+                        import traceback
+                        import sys
+                        import os
+                        _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
+                        if _DEBUG:
+                            print(f"[계산 질문 처리 오류] {e}\n{traceback.format_exc()}", file=sys.stderr)
                         return {
-                            "messages": [AIMessage(content=answer)],
+                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
                             "situation": "",
                             "issues": [],
                             "phase": "input",

@@ -23,37 +23,58 @@ def classify_question_type(user_text: str) -> Literal["knowledge", "calculation"
     
     # 최신성 확인 질문 (날짜 + "얼마" 또는 "최저임금" 등) → exception으로 처리
     # "올해 최저임금은 얼마야?" 같은 경우
+    # 단, 실제 계산 질문(입사일, 퇴사일, 월급 포함)은 제외
     if any(kw in text for kw in exception_keywords_date):
-        # 최신성 확인 질문인 경우 (날짜 + 금액/법률 질문)
-        if any(kw in text for kw in ["최저임금", "임금", "법률", "법령", "얼마", "뭐야"]):
+        # 실제 계산 질문 패턴 (입사일, 퇴사일, 월급 등이 포함된 경우)은 계산 질문으로 처리
+        has_calc_pattern = bool(re.search(r"\d{4}.*입사.*\d{4}.*퇴사", text) or 
+                               re.search(r"입사.*\d{4}.*퇴사.*월급", text) or
+                               re.search(r"입사.*\d{4}.*퇴사.*\d+[만천백]?\s*원", text))
+        if has_calc_pattern:
+            pass  # 계산 질문으로 처리하도록 넘어감
+        # 최신성 확인 질문인 경우 (날짜 + 금액/법률 질문, 하지만 계산 패턴 없음)
+        elif any(kw in text for kw in ["최저임금", "임금", "법률", "법령", "얼마", "뭐야"]):
             return "exception"
         # 날짜만 있고 계산 맥락이 없으면 예외로 처리
-        is_calc_question = any(kw in text for kw in ["계산", "대략", "총", "받아야"]) and \
-                          any(kw in text for kw in ["퇴직금", "수당", "급여", "연장", "야근"])
-        if not is_calc_question:
+        elif not any(kw in text for kw in ["계산", "대략", "총", "받아야", "퇴직금", "수당", "급여"]):
             return "exception"
     
-    # 계산 질문 키워드
-    calc_keywords = ["얼마", "계산", "대략", "총", "받아야", "받을 수 있어", "받을 수 있", "기간", "일 동안", "원이면"]
-    calc_context = ["퇴직금", "수당", "급여", "임금", "연장", "야근", "근무", "일했어", "실업급여"]
+    # 지식/개념 질문 키워드 (계산보다 우선 체크)
+    # "계산법", "계산 방법", "계산 기준", "계산 공식" 등은 지식 질문
+    knowledge_keywords = ["차이", "뭐야", "무엇", "의미", "정의", "개념", "적용", "받을 수 있어", "우선순위", "어떻게 돼", "뭐예요", "계산법", "계산 방법", "계산 기준", "계산 공식", "계산식", "어떻게 계산", "계산 원리"]
     
-    # 계산 질문: 계산 키워드 + 계산 맥락 또는 숫자 패턴
-    has_calc_keyword = any(kw in text for kw in calc_keywords)
+    # 계산 맥락 확인 (지식 질문 체크 전에 필요)
+    calc_context = ["퇴직금", "수당", "급여", "임금", "연장", "야근", "근무", "일했어", "실업급여", "월급"]
     has_calc_context = any(kw in text for kw in calc_context)
-    has_number_pattern = bool(re.search(r"\d+[만천백]?\s*원", text) or re.search(r"\d+시간.*\d+시간", text) or 
-                             re.search(r"\d{4}.*입사.*\d{4}.*퇴사", text))
     
-    if has_calc_keyword and (has_calc_context or has_number_pattern):
-        return "calculation"
-    
-    # 지식/개념 질문 키워드 (계산보다 우선)
-    knowledge_keywords = ["차이", "뭐야", "무엇", "의미", "정의", "개념", "적용", "받을 수 있어", "우선순위", "어떻게 돼", "뭐예요"]
     # "받을 수 있어"는 맥락에 따라 다르므로, 계산 맥락이 없을 때만 지식 질문
     if "받을 수 있어" in text or "받을 수 있" in text:
         if not has_calc_context:
             return "knowledge"
     elif any(kw in text for kw in knowledge_keywords):
         return "knowledge"
+    
+    # 계산 질문 키워드 (지식 질문이 아닐 때만 체크)
+    calc_keywords = ["얼마", "계산", "대략", "총", "받아야", "기간", "일 동안", "원이면"]
+    has_calc_keyword = any(kw in text for kw in calc_keywords)
+    
+    # 숫자 패턴 체크 (입사일/퇴사일/금액 패턴)
+    has_number_pattern = bool(
+        re.search(r"\d+[만천백]?\s*원", text) or 
+        re.search(r"\d+시간.*\d+시간", text) or 
+        re.search(r"\d{4}.*입사.*\d{4}.*퇴사", text) or
+        re.search(r"입사.*\d{4}.*퇴사", text) or
+        (re.search(r"\d{4}.*\d{1,2}.*\d{1,2}", text) and re.search(r"입사|퇴사", text) and re.search(r"월급|급여|임금|\d+[만천백]?\s*원", text))
+    )
+    
+    # 계산 질문: 계산 키워드 + 계산 맥락 또는 숫자 패턴 (단, "계산법" 등 지식 질문 키워드가 없을 때만)
+    # 또는 숫자 패턴 + 계산 맥락이 있으면 계산 질문으로 분류 (입사일/퇴사일/금액이 모두 있으면)
+    if has_number_pattern and has_calc_context:
+        return "calculation"
+    elif has_calc_keyword and (has_calc_context or has_number_pattern):
+        return "calculation"
+    # 입사일/퇴사일/금액이 모두 있으면 계산 질문으로 분류 (키워드 없어도)
+    elif has_number_pattern and (re.search(r"입사", text) and re.search(r"퇴사", text) and re.search(r"월급|급여|임금|\d+[만천백]?\s*원", text)):
+        return "calculation"
     
     # 기본값: 상황 기반 상담
     return "situation"
