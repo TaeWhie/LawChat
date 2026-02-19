@@ -133,6 +133,10 @@ def _find_law_body_dir() -> Path:
     return LAWS_DATA_DIR / "law"
 
 
+def _find_admrul_body_dir() -> Path:
+    return LAWS_DATA_DIR / "admrul"
+
+
 def _load_law_body(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -169,48 +173,89 @@ def _parse_jo_mun_unit(body: Any) -> List[Dict[str, Any]]:
 
 
 def _find_geunro_body_path() -> Optional[Path]:
-    """api_data/laws/law/ 에서 근로기준법 본문 JSON 경로 반환 (하위 호환)."""
-    for law in get_laws_from_api():
-        if "근로기준법" in law.get("name", "") and "시행" not in law.get("name", ""):
-            return _find_law_body_path(law["id"])
+    """근로기준법(법률) 본문 경로 반환 (하위 호환)."""
+    for item in get_laws_flat_from_api():
+        if "근로기준법" in item.get("name", "") and "시행" not in item.get("name", ""):
+            return _find_law_body_path(item["id"], item.get("source"))
     return None
 
 
+def _base_law_name(full_name: str) -> str:
+    """법령명에서 시행령/시행규칙 접미사 제거해 묶음용 기본명 반환. 예: 근로기준법 시행령 -> 근로기준법."""
+    s = (full_name or "").strip()
+    for suffix in (" 시행규칙", " 시행령"):
+        if s.endswith(suffix):
+            return s[: -len(suffix)].strip()
+    return s
+
+
 def get_laws_from_api() -> List[Dict[str, Any]]:
-    """api_data/laws/law/ 아래 모든 법령 본문 JSON에서 (id, name) 목록 반환. 법률 둘러보기용."""
-    law_dir = _find_law_body_dir()
-    if not law_dir.exists():
-        return []
-    result = []
-    for path in sorted(law_dir.glob("*.json")):
-        if path.name == "list.json":
+    """법률 둘러보기용: law/ + admrul/ 수집 후, 동일 법률명은 하나로 묶어서 반환."""
+    flat = []
+    for source, dir_path in [("law", _find_law_body_dir()), ("admrul", _find_admrul_body_dir())]:
+        if not dir_path.exists():
             continue
-        data = _load_law_body(path)
-        if not data:
-            continue
-        name = _get_law_name_from_body(data)
-        if name:
-            result.append({"id": path.stem, "name": name})
-    return result
+        for path in sorted(dir_path.glob("*.json")):
+            if path.name == "list.json":
+                continue
+            data = _load_law_body(path)
+            if not data:
+                continue
+            name = _get_law_name_from_body(data)
+            if name:
+                flat.append({"id": path.stem, "name": name, "source": source})
+    # 그룹: base_name 기준으로 묶고, 순서는 법률 -> 시행령 -> 시행규칙
+    order_key = lambda n: (0 if "시행" not in n else (1 if "시행령" in n else 2))
+    by_base: Dict[str, List[Dict[str, Any]]] = {}
+    for item in flat:
+        base = _base_law_name(item["name"])
+        by_base.setdefault(base, []).append(item)
+    for base in by_base:
+        by_base[base].sort(key=lambda x: (order_key(x["name"]), x["name"]))
+    return [
+        {"group_name": base, "items": items}
+        for base, items in sorted(by_base.items(), key=lambda x: x[0])
+    ]
 
 
-def _find_law_body_path(law_id: str) -> Optional[Path]:
-    """api_data/laws/law/ 에서 law_id(파일 stem)에 해당하는 본문 JSON 경로 반환."""
-    law_dir = _find_law_body_dir()
-    if not law_dir.exists():
+def get_laws_flat_from_api() -> List[Dict[str, Any]]:
+    """하위 호환: 묶지 않고 (id, name, source) 리스트. source 없으면 law."""
+    flat = []
+    for source, dir_path in [("law", _find_law_body_dir()), ("admrul", _find_admrul_body_dir())]:
+        if not dir_path.exists():
+            continue
+        for path in sorted(dir_path.glob("*.json")):
+            if path.name == "list.json":
+                continue
+            data = _load_law_body(path)
+            if not data:
+                continue
+            name = _get_law_name_from_body(data)
+            if name:
+                flat.append({"id": path.stem, "name": name, "source": source})
+    return flat
+
+
+def _find_law_body_path(law_id: str, source: Optional[str] = None) -> Optional[Path]:
+    """law_id(파일 stem)에 해당하는 본문 JSON 경로. source가 admrul이면 admrul/에서 조회."""
+    if source == "admrul":
+        dir_path = _find_admrul_body_dir()
+    else:
+        dir_path = _find_law_body_dir()
+    if not dir_path.exists():
         return None
-    path = law_dir / f"{law_id}.json"
+    path = dir_path / f"{law_id}.json"
     return path if path.exists() else None
 
 
-def get_chapters_from_api(law_id: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_chapters_from_api(law_id: Optional[str] = None, source: Optional[str] = None) -> List[Dict[str, Any]]:
     """API 동기화된 법령 본문에서 장 목록 반환. law_id 없으면 근로기준법 우선."""
     import sys
-    path = _find_law_body_path(law_id) if law_id else _find_geunro_body_path()
+    path = _find_law_body_path(law_id, source) if law_id else _find_geunro_body_path()
     if not path and not law_id:
-        laws = get_laws_from_api()
-        if laws:
-            path = _find_law_body_path(laws[0]["id"])
+        flat = get_laws_flat_from_api()
+        if flat:
+            path = _find_law_body_path(flat[0]["id"], flat[0].get("source"))
     if not path:
         print("[get_chapters_from_api] api_data/laws/law에서 본문 JSON을 찾을 수 없습니다. sync_laws를 실행하세요.", file=sys.stderr)
         return []
@@ -229,14 +274,14 @@ def get_chapters_from_api(law_id: Optional[str] = None) -> List[Dict[str, Any]]:
     ]
 
 
-def get_articles_by_chapter_from_api(chapter_number: str, law_id: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+def get_articles_by_chapter_from_api(chapter_number: str, law_id: Optional[str] = None, source: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
     """API 동기화된 법령 본문에서 해당 장의 조문 목록 반환. law_id 없으면 근로기준법 우선."""
     import sys
-    path = _find_law_body_path(law_id) if law_id else _find_geunro_body_path()
+    path = _find_law_body_path(law_id, source) if law_id else _find_geunro_body_path()
     if not path and not law_id:
-        laws = get_laws_from_api()
-        if laws:
-            path = _find_law_body_path(laws[0]["id"])
+        flat = get_laws_flat_from_api()
+        if flat:
+            path = _find_law_body_path(flat[0]["id"], flat[0].get("source"))
     if not path:
         print(f"[get_articles_by_chapter_from_api] api_data/laws/law에서 본문 JSON을 찾을 수 없습니다 (장: {chapter_number}). sync_laws를 실행하세요.", file=sys.stderr)
         return None

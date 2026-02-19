@@ -358,11 +358,11 @@ def get_laws() -> List[Dict[str, Any]]:
         return []
 
 
-def get_chapters(law_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """장(章) 목록. law_id 지정 시 해당 법령, 없으면 근로기준법 등 첫 법령."""
+def get_chapters(law_id: Optional[str] = None, source: Optional[str] = None) -> List[Dict[str, Any]]:
+    """장(章) 목록. law_id·source 지정 시 해당 법령, 없으면 근로기준법 등."""
     try:
         from rag.api_chapters import get_chapters_from_api
-        api_chapters = get_chapters_from_api(law_id)
+        api_chapters = get_chapters_from_api(law_id, source)
         return api_chapters if api_chapters else []
     except Exception as e:
         import sys
@@ -370,11 +370,11 @@ def get_chapters(law_id: Optional[str] = None) -> List[Dict[str, Any]]:
         return []
 
 
-def get_articles_by_chapter(chapter_number: str, law_id: Optional[str] = None) -> List[Dict[str, Any]]:
-    """장 번호로 해당 조문 목록. law_id 지정 시 해당 법령, 없으면 근로기준법 등."""
+def get_articles_by_chapter(chapter_number: str, law_id: Optional[str] = None, source: Optional[str] = None) -> List[Dict[str, Any]]:
+    """장 번호로 해당 조문 목록. law_id·source 지정 시 해당 법령."""
     try:
         from rag.api_chapters import get_articles_by_chapter_from_api
-        api_articles = get_articles_by_chapter_from_api(chapter_number, law_id)
+        api_articles = get_articles_by_chapter_from_api(chapter_number, law_id, source)
         return api_articles if api_articles is not None else []
     except Exception as e:
         import sys

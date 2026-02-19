@@ -50,6 +50,8 @@ def init_session():
         st.session_state.browse_law_id = ""
     if "browse_law_name" not in st.session_state:
         st.session_state.browse_law_name = ""
+    if "browse_law_source" not in st.session_state:
+        st.session_state.browse_law_source = None
     if "browse_article_number" not in st.session_state:
         st.session_state.browse_article_number = None
     if "browse_chapter_title" not in st.session_state:
@@ -96,40 +98,54 @@ def main():
             st.session_state.cb_round = 1
             st.session_state.cb_all_qa = []
             st.session_state.cb_checklist_rag_results = []
+            st.session_state.browse_view = None
+            st.session_state.browse_law_id = ""
+            st.session_state.browse_law_name = ""
+            st.session_state.browse_law_source = None
+            st.session_state.browse_article_number = None
+            st.session_state.browse_chapter_title = ""
+            st.session_state.browse_article_paragraphs = []
+            st.session_state.browse_article_title = ""
             import uuid
             st.session_state.thread_id = str(uuid.uuid4())[:8]
             st.rerun()
         st.divider()
         st.subheader("📚 법률 둘러보기")
         try:
-            laws = get_laws()
+            laws = get_laws()  # [{"group_name": "근로기준법", "items": [{"id","name","source"}, ...]}, ...]
         except Exception:
             laws = []
-        for law in laws:
-            law_id = law.get("id", "")
-            law_name = law.get("name", "")
-            with st.expander(law_name or law_id, expanded=False):
-                try:
-                    chapters = get_chapters(law_id)
-                except Exception:
-                    chapters = []
-                for ch in chapters:
-                    with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
-                        articles = get_articles_by_chapter(ch["number"], law_id) or []
-                        for i, a in enumerate(articles):
-                            art_num = a.get("article_number", "")
-                            title = a.get("title", "")
-                            paras = a.get("paragraphs") or []
-                            label = f"{art_num} {title}".strip() or art_num
-                            if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
-                                st.session_state.browse_view = "article_detail"
-                                st.session_state.browse_law_id = law_id
-                                st.session_state.browse_law_name = law_name
-                                st.session_state.browse_article_number = art_num
-                                st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
-                                st.session_state.browse_article_paragraphs = paras
-                                st.session_state.browse_article_title = title
-                                st.rerun()
+        for group in laws:
+            group_name = group.get("group_name", "") or "법령"
+            items = group.get("items") or []
+            with st.expander(group_name, expanded=False):
+                for item in items:
+                    law_id = item.get("id", "")
+                    law_name = item.get("name", "")
+                    source = item.get("source")
+                    with st.expander(law_name or law_id, expanded=False):
+                        try:
+                            chapters = get_chapters(law_id, source)
+                        except Exception:
+                            chapters = []
+                        for ch in chapters:
+                            with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
+                                articles = get_articles_by_chapter(ch["number"], law_id, source) or []
+                                for i, a in enumerate(articles):
+                                    art_num = a.get("article_number", "")
+                                    title = a.get("title", "")
+                                    paras = a.get("paragraphs") or []
+                                    label = f"{art_num} {title}".strip() or art_num
+                                    if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
+                                        st.session_state.browse_view = "article_detail"
+                                        st.session_state.browse_law_id = law_id
+                                        st.session_state.browse_law_name = law_name
+                                        st.session_state.browse_law_source = source
+                                        st.session_state.browse_article_number = art_num
+                                        st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
+                                        st.session_state.browse_article_paragraphs = paras
+                                        st.session_state.browse_article_title = title
+                                        st.rerun()
 
     # ---------- 조항 상세 페이지 (법률 둘러보기에서 조항 클릭 시) ----------
     if st.session_state.get("browse_view") == "article_detail":
@@ -221,6 +237,7 @@ def main():
             st.session_state.browse_view = None
             st.session_state.browse_law_id = ""
             st.session_state.browse_law_name = ""
+            st.session_state.browse_law_source = None
             st.session_state.browse_article_number = None
             st.session_state.browse_chapter_title = ""
             st.session_state.browse_article_paragraphs = []
