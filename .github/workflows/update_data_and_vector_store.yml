@@ -5,6 +5,7 @@ on:
     # 매주 월요일 새벽 2시 (UTC) 실행 (한국 시간 월요일 오전 11시)
     - cron: '0 2 * * 1'
   workflow_dispatch:  # 수동 실행도 가능하도록
+  # push 이벤트는 제외하여 Streamlit Cloud 배포와 충돌 방지
 
 jobs:
   update:
@@ -60,14 +61,16 @@ jobs:
         
         # 변경사항이 있는지 확인 (api_data만 커밋, vector_store는 제외)
         # last_update.txt는 항상 커밋 (날짜 업데이트)
+        # [skip ci] 태그로 GitHub Actions 재실행 방지
+        # [ci skip] 또는 [skip deploy] 태그로 Streamlit Cloud 재배포 방지
         git add api_data/last_update.txt
         if [ -n "$(git status --porcelain api_data/)" ]; then
           git add api_data/
-          git commit -m "자동 업데이트: 법령 데이터 갱신 (벡터 스토어는 서비스 환경에서 재구축 필요) [skip ci]" || exit 0
+          git commit -m "자동 업데이트: 법령 데이터 갱신 (벡터 스토어는 서비스 환경에서 재구축 필요) [skip ci] [ci skip] [skip deploy]" || exit 0
           git push
           echo "법령 데이터가 커밋되었습니다. 벡터 스토어는 서비스 환경에서 재구축해주세요."
         elif [ -n "$(git status --porcelain api_data/last_update.txt)" ]; then
-          git commit -m "업데이트 날짜 갱신 [skip ci]" || exit 0
+          git commit -m "업데이트 날짜 갱신 [skip ci] [ci skip] [skip deploy]" || exit 0
           git push
           echo "업데이트 날짜만 갱신되었습니다."
         else
