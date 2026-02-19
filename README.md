@@ -89,6 +89,28 @@ python scripts/sync_all.py
 
 주기 실행(스케줄러)은 `scripts/run_sync_scheduled.py`를 작업 스케줄러/cron에 등록하면 됩니다. 로그는 `api_data/sync.log`에 추가됩니다.
 
+## 자동 업데이트 (GitHub Actions)
+
+이 저장소에는 GitHub Actions 워크플로우가 설정되어 있어 **매주 월요일 자동으로** 법령 데이터를 수집하고 갱신합니다.
+
+### 설정 방법
+
+1. GitHub 저장소의 **Settings → Secrets and variables → Actions**로 이동
+2. 다음 Secrets를 추가:
+   - `OPENAI_API_KEY`: OpenAI API 키 (벡터 임베딩용)
+   - `LAW_API_OC`: 국가법령정보 공동활용 API 인증 이메일
+
+### 워크플로우 동작
+
+- **스케줄**: 매주 월요일 새벽 2시 (UTC) = 한국 시간 월요일 오전 11시
+- **수동 실행**: GitHub Actions 탭에서 `Update Data and Vector Store` 워크플로우를 수동으로 실행 가능
+- **실행 내용**:
+  1. 법령 데이터 동기화 (`scripts/sync_all.py`)
+  2. 벡터 스토어 재구축 (임베딩)
+  3. 변경된 데이터만 자동 커밋 (벡터 스토어는 커밋하지 않음)
+
+> **참고**: 벡터 스토어는 용량이 크고 환경별로 다를 수 있어 커밋하지 않습니다. 서비스 환경(예: Streamlit Cloud)에서는 배포 시 자동으로 재구축되도록 설정하세요.
+
 ---
 
 ## 앱 구분

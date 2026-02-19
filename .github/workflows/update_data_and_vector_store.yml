@@ -1,0 +1,78 @@
+name: Update Data and Vector Store
+
+on:
+  schedule:
+    # 매주 월요일 새벽 2시 (UTC) 실행 (한국 시간 월요일 오전 11시)
+    - cron: '0 2 * * 1'
+  workflow_dispatch:  # 수동 실행도 가능하도록
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Sync law data
+      env:
+        LAW_API_OC: ${{ secrets.LAW_API_OC }}
+        LAW_API_DELAY_SEC: 2.0
+        LAW_API_TIMEOUT: 30
+      run: |
+        echo "법령 데이터 동기화 시작..."
+        python scripts/sync_all.py
+        echo "법령 데이터 동기화 완료."
+    
+    - name: Rebuild vector store
+      env:
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        LAW_CHAT_MODEL: gpt-5-nano
+        LAW_EMBEDDING_MODEL: text-embedding-3-large
+      run: |
+        echo "벡터 스토어 재구축 시작..."
+        python -c "from rag.store import build_vector_store; build_vector_store(force_rebuild=True)"
+        echo "벡터 스토어 재구축 완료."
+    
+    - name: Record update date
+      run: |
+        echo "업데이트 날짜 기록 중..."
+        mkdir -p api_data
+        echo "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" > api_data/last_update.txt
+        echo "업데이트 날짜가 기록되었습니다: $(cat api_data/last_update.txt)"
+    
+    - name: Commit and push changes
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # 변경사항이 있는지 확인 (api_data만 커밋, vector_store는 제외)
+        # last_update.txt는 항상 커밋 (날짜 업데이트)
+        git add api_data/last_update.txt
+        if [ -n "$(git status --porcelain api_data/)" ]; then
+          git add api_data/
+          git commit -m "자동 업데이트: 법령 데이터 갱신 (벡터 스토어는 서비스 환경에서 재구축 필요) [skip ci]" || exit 0
+          git push
+          echo "법령 데이터가 커밋되었습니다. 벡터 스토어는 서비스 환경에서 재구축해주세요."
+        elif [ -n "$(git status --porcelain api_data/last_update.txt)" ]; then
+          git commit -m "업데이트 날짜 갱신 [skip ci]" || exit 0
+          git push
+          echo "업데이트 날짜만 갱신되었습니다."
+        else
+          echo "변경사항이 없습니다."
+        fi
+        
+        # 벡터 스토어는 용량이 크고 환경별로 다를 수 있으므로 커밋하지 않음
+        # 서비스 환경(예: Streamlit Cloud)에서 배포 시 자동으로 재구축되도록 설정
