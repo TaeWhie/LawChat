@@ -7,7 +7,7 @@ import re
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
-from rag.law_json import SCENARIO_QUICK, get_chapters, get_articles_by_chapter
+from rag.law_json import SCENARIO_QUICK, get_laws, get_chapters, get_articles_by_chapter
 from rag.store import build_vector_store, search_by_article_numbers
 from config import SOURCE_LAW
 
@@ -43,9 +43,13 @@ def init_session():
         st.session_state.cb_all_qa = []
     if "cb_checklist_rag_results" not in st.session_state:
         st.session_state.cb_checklist_rag_results = []
-    # 장별 둘러보기 (app.py와 동일)
+    # 법률 둘러보기
     if "browse_view" not in st.session_state:
         st.session_state.browse_view = None
+    if "browse_law_id" not in st.session_state:
+        st.session_state.browse_law_id = ""
+    if "browse_law_name" not in st.session_state:
+        st.session_state.browse_law_name = ""
     if "browse_article_number" not in st.session_state:
         st.session_state.browse_article_number = None
     if "browse_chapter_title" not in st.session_state:
@@ -96,35 +100,48 @@ def main():
             st.session_state.thread_id = str(uuid.uuid4())[:8]
             st.rerun()
         st.divider()
-        st.subheader("📚 장(章)별 둘러보기")
+        st.subheader("📚 법률 둘러보기")
         try:
-            chapters = get_chapters()
+            laws = get_laws()
         except Exception:
-            chapters = []
-        for ch in chapters[:14]:
-            with st.expander(f"{ch['number']} {ch['title']}", expanded=False):
-                articles = get_articles_by_chapter(ch["number"]) or []
-                for i, a in enumerate(articles):
-                    art_num = a.get("article_number", "")
-                    title = a.get("title", "")
-                    paras = a.get("paragraphs") or []
-                    label = f"{art_num} {title}".strip() or art_num
-                    if st.button(label, key=f"browse_{ch['number']}_{i}_{art_num}", use_container_width=True):
-                        st.session_state.browse_view = "article_detail"
-                        st.session_state.browse_article_number = art_num
-                        st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
-                        st.session_state.browse_article_paragraphs = paras
-                        st.session_state.browse_article_title = title
-                        st.rerun()
+            laws = []
+        for law in laws:
+            law_id = law.get("id", "")
+            law_name = law.get("name", "")
+            with st.expander(law_name or law_id, expanded=False):
+                try:
+                    chapters = get_chapters(law_id)
+                except Exception:
+                    chapters = []
+                for ch in chapters:
+                    with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
+                        articles = get_articles_by_chapter(ch["number"], law_id) or []
+                        for i, a in enumerate(articles):
+                            art_num = a.get("article_number", "")
+                            title = a.get("title", "")
+                            paras = a.get("paragraphs") or []
+                            label = f"{art_num} {title}".strip() or art_num
+                            if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
+                                st.session_state.browse_view = "article_detail"
+                                st.session_state.browse_law_id = law_id
+                                st.session_state.browse_law_name = law_name
+                                st.session_state.browse_article_number = art_num
+                                st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
+                                st.session_state.browse_article_paragraphs = paras
+                                st.session_state.browse_article_title = title
+                                st.rerun()
 
-    # ---------- 조항 상세 페이지 (장별 둘러보기에서 조항 클릭 시, app.py와 동일) ----------
+    # ---------- 조항 상세 페이지 (법률 둘러보기에서 조항 클릭 시) ----------
     if st.session_state.get("browse_view") == "article_detail":
         art_num = st.session_state.get("browse_article_number") or ""
         ch_title = st.session_state.get("browse_chapter_title") or ""
+        law_name = st.session_state.get("browse_law_name") or ""
         if art_num:
             paragraphs = st.session_state.get("browse_article_paragraphs") or []
             display_title = st.session_state.get("browse_article_title") or ""
             st.subheader(f"📜 {art_num} {display_title}".strip())
+            if law_name:
+                st.caption(f"**{law_name}**")
             if ch_title:
                 st.caption(f"장: {ch_title}")
             st.divider()
@@ -202,6 +219,8 @@ def main():
         st.divider()
         if st.button("← 챗봇으로 돌아가기", type="primary", key="back_to_chat_from_article"):
             st.session_state.browse_view = None
+            st.session_state.browse_law_id = ""
+            st.session_state.browse_law_name = ""
             st.session_state.browse_article_number = None
             st.session_state.browse_chapter_title = ""
             st.session_state.browse_article_paragraphs = []

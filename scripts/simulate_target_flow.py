@@ -20,9 +20,10 @@ from rag.pipeline import (
 
 def articles_from_api(max_items: int = 50):
     """API 동기화된 근로기준법 본문에서 조문 목록 생성. sync_laws 필요."""
-    from rag.api_chapters import get_articles_by_chapter_from_api, LABOR_LAW_CHAPTERS
+    from rag.api_chapters import get_articles_by_chapter_from_api, get_chapters_from_api
     out = []
-    for num, _title, _start, _end in LABOR_LAW_CHAPTERS:
+    for ch in get_chapters_from_api():
+        num = ch.get("number", "")
         arts = get_articles_by_chapter_from_api(num)
         if arts:
             for a in arts:

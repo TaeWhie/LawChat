@@ -169,28 +169,50 @@ def _parse_jo_mun_unit(body: Any) -> List[Dict[str, Any]]:
 
 
 def _find_geunro_body_path() -> Optional[Path]:
-    """api_data/laws/law/ 에서 근로기준법 본문 JSON 경로 반환 (법령명 한글 기준)."""
+    """api_data/laws/law/ 에서 근로기준법 본문 JSON 경로 반환 (하위 호환)."""
+    for law in get_laws_from_api():
+        if "근로기준법" in law.get("name", "") and "시행" not in law.get("name", ""):
+            return _find_law_body_path(law["id"])
+    return None
+
+
+def get_laws_from_api() -> List[Dict[str, Any]]:
+    """api_data/laws/law/ 아래 모든 법령 본문 JSON에서 (id, name) 목록 반환. 법률 둘러보기용."""
     law_dir = _find_law_body_dir()
     if not law_dir.exists():
-        return None
-    for path in law_dir.glob("*.json"):
+        return []
+    result = []
+    for path in sorted(law_dir.glob("*.json")):
         if path.name == "list.json":
             continue
         data = _load_law_body(path)
         if not data:
             continue
         name = _get_law_name_from_body(data)
-        if name and "근로기준법" in name and "시행" not in name:
-            return path
-    return None
+        if name:
+            result.append({"id": path.stem, "name": name})
+    return result
 
 
-def get_chapters_from_api() -> List[Dict[str, Any]]:
-    """API 동기화된 근로기준법 본문에서 장 목록 반환. JSON에서 '전문'(장 제목) 파싱해 전부 반환."""
+def _find_law_body_path(law_id: str) -> Optional[Path]:
+    """api_data/laws/law/ 에서 law_id(파일 stem)에 해당하는 본문 JSON 경로 반환."""
+    law_dir = _find_law_body_dir()
+    if not law_dir.exists():
+        return None
+    path = law_dir / f"{law_id}.json"
+    return path if path.exists() else None
+
+
+def get_chapters_from_api(law_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """API 동기화된 법령 본문에서 장 목록 반환. law_id 없으면 근로기준법 우선."""
     import sys
-    path = _find_geunro_body_path()
+    path = _find_law_body_path(law_id) if law_id else _find_geunro_body_path()
+    if not path and not law_id:
+        laws = get_laws_from_api()
+        if laws:
+            path = _find_law_body_path(laws[0]["id"])
     if not path:
-        print("[get_chapters_from_api] api_data/laws/law에서 근로기준법 본문 JSON을 찾을 수 없습니다. sync_laws를 실행하세요.", file=sys.stderr)
+        print("[get_chapters_from_api] api_data/laws/law에서 본문 JSON을 찾을 수 없습니다. sync_laws를 실행하세요.", file=sys.stderr)
         return []
     data = _load_law_body(path)
     if not data:
@@ -207,12 +229,16 @@ def get_chapters_from_api() -> List[Dict[str, Any]]:
     ]
 
 
-def get_articles_by_chapter_from_api(chapter_number: str) -> Optional[List[Dict[str, Any]]]:
-    """API 동기화된 근로기준법 본문에서 해당 장의 조문 목록 반환. JSON 파싱한 장 구간 사용."""
+def get_articles_by_chapter_from_api(chapter_number: str, law_id: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+    """API 동기화된 법령 본문에서 해당 장의 조문 목록 반환. law_id 없으면 근로기준법 우선."""
     import sys
-    path = _find_geunro_body_path()
+    path = _find_law_body_path(law_id) if law_id else _find_geunro_body_path()
+    if not path and not law_id:
+        laws = get_laws_from_api()
+        if laws:
+            path = _find_law_body_path(laws[0]["id"])
     if not path:
-        print(f"[get_articles_by_chapter_from_api] api_data/laws/law에서 근로기준법 본문 JSON을 찾을 수 없습니다 (장: {chapter_number}). sync_laws를 실행하세요.", file=sys.stderr)
+        print(f"[get_articles_by_chapter_from_api] api_data/laws/law에서 본문 JSON을 찾을 수 없습니다 (장: {chapter_number}). sync_laws를 실행하세요.", file=sys.stderr)
         return None
     data = _load_law_body(path)
     if not data:
@@ -223,8 +249,28 @@ def get_articles_by_chapter_from_api(chapter_number: str) -> Optional[List[Dict[
         print(f"[get_articles_by_chapter_from_api] {path}에서 조문단위를 추출할 수 없습니다 (장: {chapter_number}). JSON 구조를 확인하세요.", file=sys.stderr)
         return None
 
-    chapter_ranges = {num: (s, e) for num, _title, s, e in _parse_chapters_from_units(units)}
+    parsed = _parse_chapters_from_units(units)
+    chapter_ranges = {num: (s, e) for num, _title, s, e in parsed}
+    chapter_keys = [num for num, _, _, _ in parsed]
     start, end = chapter_ranges.get(chapter_number, (-1, -1))
+
+    # 제6장 vs 제6장의2: 제6장에는 제76조만, 제6장의2에는 제76조의2·의3 등만 (제76조 제외)
+    is_jang_ui = "장의" in chapter_number  # e.g. 제6장의2
+    has_sibling_jang_ui = any(
+        k != chapter_number and k.startswith(chapter_number) and "의" in k for k in chapter_keys
+    )
+    # 제N장의2 형태 장: 해당 조문번호 중 가지번호 있는 것만 (제76조의2 등)
+    # 제N장 이고 제N장의2가 있을 때: 해당 조문번호 중 가지번호 없는 것만 (제76조만)
+    def _belongs_to_chapter(jo_no: str, jo_gaji: str, n: Optional[int]) -> bool:
+        if chapter_number == "부칙":
+            return n is not None and start >= 0 and n >= start
+        if n is None or start < 0 or not (start <= n <= end):
+            return False
+        if is_jang_ui:
+            return bool(jo_gaji.strip())
+        if has_sibling_jang_ui:
+            return not bool(jo_gaji.strip())
+        return True
 
     jo_units = [u for u in units if isinstance(u, dict) and (u.get("조문여부") or "").strip() == "조문"]
     by_article: Dict[str, List[Dict[str, Any]]] = {}
@@ -234,14 +280,12 @@ def get_articles_by_chapter_from_api(chapter_number: str) -> Optional[List[Dict[
         jo_no = u.get("조문번호") or u.get("joNo") or ""
         jo_gaji = u.get("조문가지번호") or u.get("joGajiNo") or ""
         n = _article_num_to_int(jo_no)
+        if not _belongs_to_chapter(jo_no, jo_gaji, n):
+            continue
         article_key = f"제{jo_no}조"
         if jo_gaji:
             article_key += f"의{jo_gaji}"
-        if chapter_number == "부칙":
-            if n is not None and start >= 0 and n >= start:
-                by_article.setdefault(article_key, []).append(u)
-        elif n is not None and start >= 0 and start <= n <= end:
-            by_article.setdefault(article_key, []).append(u)
+        by_article.setdefault(article_key, []).append(u)
     result = []
     def _sort_key(item):
         k = item[0]
