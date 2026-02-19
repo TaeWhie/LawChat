@@ -302,14 +302,15 @@ def main():
                     with c1:
                         if st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted):
                             st.session_state.cb_checklist_answers[j] = "네"
+                            st.rerun()
                     with c2:
                         if st.button("아니요", key=f"cb_btn_{j}_1", type="primary" if cur == "아니요" else "secondary", disabled=cb_submitted):
                             st.session_state.cb_checklist_answers[j] = "아니요"
+                            st.rerun()
                     with c3:
                         if st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted):
                             st.session_state.cb_checklist_answers[j] = "모르겠음"
-                    if cur:
-                        st.caption(f"선택: **{cur}**")
+                            st.rerun()
                 # 다음 버튼: 모든 답변이 완료되었을 때만 활성화
                 all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
                 if not cb_submitted:
