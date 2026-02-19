@@ -696,12 +696,12 @@ def main():
                                 st.session_state.cb_checklist = []
                                 st.session_state.cb_checklist_answers = {}
                                 st.session_state.cb_checklist_submitted = False
-                    else:
-                        st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
-                        st.session_state.pending_buttons = []
-                except Exception:
-                    st.error(USER_FACING_ERROR)
+                else:
+                    st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
                     st.session_state.pending_buttons = []
+            except Exception:
+                st.error(USER_FACING_ERROR)
+                st.session_state.pending_buttons = []
         st.rerun()
 
     # 페이지 하단 출처 표시 및 면책 공고 (채팅창이 비어있을 때만 표시)
