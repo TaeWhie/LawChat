@@ -791,18 +791,17 @@ def _render_chat_ui():
 
 
 def main():
-    # 사이드바: 처리 중일 때 자동 닫기 (메시지 전송·체크리스트·관련질문 등 모든 상황 커버)
-    if "sidebar_state" not in st.session_state:
-        st.session_state.sidebar_state = "collapsed"
+    # set_page_config는 반드시 첫 번째 Streamlit 호출이어야 함. 사이드바 기본 닫힘 + 처리 중일 때도 닫힌 상태 유지.
+    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state="collapsed")
+    init_session()
+    # 처리 중이면 다음 rerun에서도 사이드바 닫힌 상태로 보이도록 (이미 위에서 collapsed로 설정됨)
     messages = st.session_state.get("messages", [])
     if messages:
         last = messages[-1]
         if isinstance(last, HumanMessage):
-            st.session_state.sidebar_state = "collapsed"  # 사용자 입력 직후 → AI 처리 예정
+            st.session_state.sidebar_state = "collapsed"
         elif isinstance(last, AIMessage) and getattr(last, "content", None) == CHECKLIST_PROCESSING_MSG:
-            st.session_state.sidebar_state = "collapsed"  # 체크리스트 처리 중
-    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state=st.session_state.sidebar_state)
-    init_session()
+            st.session_state.sidebar_state = "collapsed"
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
