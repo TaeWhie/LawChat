@@ -295,6 +295,10 @@ def main():
     for i, msg in enumerate(messages):
         if msg is None:
             continue
+        # 처리 중 placeholder는 여기서 그리지 않음 → 아래 대기 블록에서 스피너로 한 번만 그림
+        content = msg.content if hasattr(msg, 'content') else str(msg)
+        if i == len(messages) - 1 and content == CHECKLIST_PROCESSING_MSG:
+            continue
         try:
             role = "user" if isinstance(msg, HumanMessage) else "assistant"
             # 처리 중 메시지일 때는 체크리스트를 붙이지 않음 (처리 중 문구만 표시)
@@ -303,7 +307,6 @@ def main():
                 and (msg.content or "").strip() != CHECKLIST_PROCESSING_MSG
             )
             with st.chat_message(role):
-                content = msg.content if hasattr(msg, 'content') else str(msg)
                 if content:
                     st.markdown(str(content))
                 
@@ -757,10 +760,10 @@ def main():
                     st.session_state.pending_buttons = []
             st.rerun()
             return
-        # 결과 아직 없음: 짧게 대기 후 재실행 (run 타임아웃 방지)
+        # 결과 아직 없음: 스피너로 표시하고 짧게 대기 후 재실행 (run 타임아웃 방지)
         with st.chat_message("assistant"):
-            st.markdown(CHECKLIST_PROCESSING_MSG)
-        time.sleep(2)
+            with st.spinner("처리 중입니다. 잠시만 기다려 주세요."):
+                time.sleep(2)
         st.rerun()
         return
 
