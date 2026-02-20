@@ -935,9 +935,6 @@ def main():
         st.header("설정")
         if st.session_state.get("graph_load_error"):
             st.error(st.session_state.graph_load_error)
-        if st.button("⬅️ 사이드바 닫기", key="sidebar_close_btn"):
-            _set_sidebar_open(False)
-            st.rerun()
         st.button("🔄 새 대화 시작", on_click=_on_new_chat)
         st.divider()
         is_article_view = st.session_state.get("browse_view") == "article_detail"
