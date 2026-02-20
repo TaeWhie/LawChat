@@ -56,6 +56,81 @@ def _get_collection():
     return build_vector_store()[0]
 
 
+def _knowledge_empty_fallback(user_text: str, rag_context: str) -> str:
+    """LLM이 빈 답을 줬을 때 RAG 조문만으로 재요청. 그래도 없으면 검색된 조문 본문을 그대로 반환."""
+    retry_sys = (
+        "You are a Korean labor law expert. Answer the user's question using ONLY the following legal text. "
+        "Write 2-4 short paragraphs in Korean. Do not add anything not in the text. "
+        "Do not say you cannot answer if the text contains relevant information. Cite article numbers from the text."
+    )
+    retry_user = f"Question: {user_text}\n\n[Legal text]\n{rag_context}\n\nAnswer based ONLY on the legal text above, in Korean."
+    try:
+        answer_retry = chat(retry_sys, retry_user, max_tokens=1000)
+        if answer_retry and str(answer_retry).strip():
+            return answer_retry
+    except Exception:
+        pass
+    # 조문 그대로 노출 (RAG에서 불러온 내용)
+    max_len = 3200
+    if len(rag_context) > max_len:
+        shown = rag_context[:max_len] + "\n\n...(이하 생략)"
+    else:
+        shown = rag_context
+    return "**검색된 조문**\n\n" + shown + "\n\n위 조문을 참고해 주세요. 퇴직금·연장근로 수당 등 **금액 계산**이 필요하시면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 적어 주시면 계산해 드립니다."
+
+
+def _calculation_empty_fallback(user_text: str, rag_context: str) -> str:
+    """계산 질문인데 LLM이 빈 답을 줬을 때 RAG 조문만으로 재요청. 그래도 없으면 검색된 조문 본문 그대로 반환."""
+    retry_sys = (
+        "You are a Korean labor law expert. Answer the user's question about calculation (severance pay, overtime pay, etc.) "
+        "using ONLY the following legal text. Explain the formula and conditions from the text in 2-4 short paragraphs in Korean. "
+        "Do not add anything not in the text. Cite article numbers from the text."
+    )
+    retry_user = f"Question: {user_text}\n\n[Legal text]\n{rag_context}\n\nAnswer based ONLY on the legal text above, in Korean. If the user needs a specific amount calculated, tell them to provide dates and salary."
+    try:
+        answer_retry = chat(retry_sys, retry_user, max_tokens=1000)
+        if answer_retry and str(answer_retry).strip():
+            return answer_retry
+    except Exception:
+        pass
+    max_len = 3200
+    if len(rag_context) > max_len:
+        shown = rag_context[:max_len] + "\n\n...(이하 생략)"
+    else:
+        shown = rag_context
+    return "**검색된 조문**\n\n" + shown + "\n\n위 조문을 참고해 주세요. 구체적인 **금액**을 계산해 드리려면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 적어 주시면 계산해 드립니다."
+
+
+def _prepend_rag_for_calculation(col, user_text: str, calc_result_section: str, query: str) -> str:
+    """계산 결과 앞에 RAG에서 가져온 해당 조문을 붙여 반환. 관련 조항이 없으면 폴백 검색."""
+    fallback_queries = {
+        "퇴직금": ["퇴직금 평균임금 재직일수 제34조", "퇴직금 지급 근로기준법", "퇴직금"],
+        "연장근로": ["연장근로 수당 가산 제56조", "연장근로 가산근로기준법", "연장근로 수당"],
+    }
+    queries_to_try = [query]
+    if "퇴직금" in query or "제34조" in query:
+        queries_to_try.extend(fallback_queries["퇴직금"])
+    if "연장" in query or "제56조" in query:
+        queries_to_try.extend(fallback_queries["연장근로"])
+    # 중복 제거, 순서 유지
+    seen = set()
+    for q in queries_to_try:
+        if q not in seen:
+            seen.add(q)
+            try:
+                search_results = search(
+                    col, q, top_k=3,
+                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                    exclude_sections=["벌칙", "부칙"],
+                )
+                if search_results:
+                    rag_context = _rag_context(search_results, max_length=1200)
+                    return "**검색된 조문**\n\n" + rag_context + "\n\n**계산 결과**\n\n" + calc_result_section
+            except Exception:
+                pass
+    return "**계산 결과**\n\n" + calc_result_section
+
+
 def _detect_intent(last_msg: str, state: ChatbotState) -> Literal["new_situation", "answer_checklist"]:
     """마지막 사용자 메시지가 새 상황인지, checklist 답변인지 판별"""
     phase = state.get("phase", "input")
@@ -156,7 +231,8 @@ def process_turn(state: ChatbotState) -> dict:
                         max_tokens=1000
                     )
                     if not (answer and str(answer).strip()):
-                        answer = "관련 조문을 바탕으로 답변을 생성하지 못했습니다. 퇴직금·연장근로 수당 등 **계산**이 필요하시면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 함께 적어 주시면 계산해 드립니다."
+                        # RAG 조문만으로 재요청 후, 그래도 없으면 검색된 조문 본문 그대로 노출
+                        answer = _knowledge_empty_fallback(user_text, rag_context)
                     return {
                         "messages": [AIMessage(content=answer)],
                         "situation": "",
@@ -219,9 +295,7 @@ def process_turn(state: ChatbotState) -> dict:
                     monthly_salary = float(severance_match.group(7)) * 10000  # 만원 단위 변환
                     calc_result = calculate_severance_pay(start_date, end_date, monthly_salary)
                     if calc_result.get("success"):
-                        answer = f"""**퇴직금 계산 결과** (근로기준법 제34조 기준)
-
-📅 근무 기간: {calc_result['work_days']}일 ({calc_result['work_years']}년)
+                        calc_section = f"""📅 근무 기간: {calc_result['work_days']}일 ({calc_result['work_years']}년)
 💰 월 평균임금: {calc_result['monthly_salary']:,.0f}원
 📊 계산식: {calc_result['formula']}
 
@@ -229,6 +303,7 @@ def process_turn(state: ChatbotState) -> dict:
 
 ⚠️ {calc_result['note']}
 정확한 계산을 위해서는 최근 3개월간의 임금 총액과 각종 수당을 포함한 평균임금이 필요합니다."""
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조")
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -242,9 +317,7 @@ def process_turn(state: ChatbotState) -> dict:
                     hourly_wage = int(overtime_match.group(3)) * 10000  # 만원 단위 변환
                     calc_result = calculate_overtime_pay(base_hours, overtime_hours, hourly_wage)
                     if calc_result.get("success"):
-                        answer = f"""**연장근로 수당 계산 결과** (근로기준법 제56조 기준)
-
-⏰ 기본 근무: {calc_result['base_hours']}시간 → {calc_result['base_pay']:,}원
+                        calc_section = f"""⏰ 기본 근무: {calc_result['base_hours']}시간 → {calc_result['base_pay']:,}원
 🌙 연장 근무: {calc_result['overtime_hours']}시간 → {calc_result['overtime_pay']:,}원 (시급의 150%)
 
 **총 수당: {calc_result['total_pay']:,}원**
@@ -252,6 +325,7 @@ def process_turn(state: ChatbotState) -> dict:
 📋 계산식: {calc_result['formula']}
 
 💡 {calc_result['note']}"""
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "연장근로 수당 가산 제56조")
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -297,7 +371,7 @@ def process_turn(state: ChatbotState) -> dict:
                                 max_tokens=1500  # 충분한 토큰 수 확보
                             )
                             if not answer or not answer.strip():
-                                answer = "계산 질문에 대한 답변을 생성하지 못했습니다. 구체적인 날짜와 금액 정보를 포함하여 다시 질문해 주세요."
+                                answer = _calculation_empty_fallback(user_text, rag_context)
                             return {
                                 "messages": [AIMessage(content=answer)],
                                 "situation": "",
@@ -305,8 +379,18 @@ def process_turn(state: ChatbotState) -> dict:
                                 "phase": "input",
                             }
                         else:
+                            # 검색 결과 없으면 넓게 한 번 더 검색
+                            search_results2 = search(
+                                col, "퇴직금 연장근로 수당 평균임금", top_k=3,
+                                filter_sources=ALL_LABOR_LAW_SOURCES,
+                            )
+                            if search_results2:
+                                rag_context2 = _rag_context(search_results2, max_length=2000)
+                                answer = _calculation_empty_fallback(user_text, rag_context2)
+                            else:
+                                answer = "검색된 조문이 없습니다. 구체적인 입사일, 퇴사일, 월급(또는 시급·근무시간)을 적어 주시면 계산해 드립니다."
                             return {
-                                "messages": [AIMessage(content="퇴직금 계산에 필요한 정보를 찾지 못했습니다. 구체적인 입사일, 퇴사일, 월급 정보를 포함하여 질문해 주세요.")],
+                                "messages": [AIMessage(content=answer)],
                                 "situation": "",
                                 "issues": [],
                                 "phase": "input",
@@ -319,15 +403,14 @@ def process_turn(state: ChatbotState) -> dict:
                         if _DEBUG:
                             print(f"[계산 질문 처리 오류] {e}\n{traceback.format_exc()}", file=sys.stderr)
                         return {
-                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
+                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 다시 질문해 주세요.")],
                             "situation": "",
                             "issues": [],
                             "phase": "input",
                         }
             except Exception as e:
-                # 계산 질문인데 오류 발생 → 체크리스트 없이 바로 답변만 반환
                 return {
-                    "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
+                    "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 다시 질문해 주세요.")],
                     "situation": "",
                     "issues": [],
                     "phase": "input",
@@ -564,7 +647,7 @@ def process_turn(state: ChatbotState) -> dict:
                         max_tokens=1000
                     )
                     if not (answer and str(answer).strip()):
-                        answer = "관련 조문을 바탕으로 답변을 생성하지 못했습니다. 퇴직금·연장근로 수당 등 **계산**이 필요하시면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 함께 적어 주시면 계산해 드립니다."
+                        answer = _knowledge_empty_fallback(user_text, rag_context)
                     return {
                         "messages": [AIMessage(content=answer)],
                         "situation": "",
@@ -612,9 +695,7 @@ def process_turn(state: ChatbotState) -> dict:
                     monthly_salary = float(severance_match.group(7)) * 10000
                     calc_result = calculate_severance_pay(start_date, end_date, monthly_salary)
                     if calc_result.get("success"):
-                        answer = f"""**퇴직금 계산 결과** (근로기준법 제34조 기준)
-
-📅 근무 기간: {calc_result['work_days']}일 ({calc_result['work_years']}년)
+                        calc_section = f"""📅 근무 기간: {calc_result['work_days']}일 ({calc_result['work_years']}년)
 💰 월 평균임금: {calc_result['monthly_salary']:,.0f}원
 📊 계산식: {calc_result['formula']}
 
@@ -622,6 +703,7 @@ def process_turn(state: ChatbotState) -> dict:
 
 ⚠️ {calc_result['note']}
 정확한 계산을 위해서는 최근 3개월간의 임금 총액과 각종 수당을 포함한 평균임금이 필요합니다."""
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조")
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -635,9 +717,7 @@ def process_turn(state: ChatbotState) -> dict:
                     hourly_wage = int(overtime_match.group(3)) * 10000
                     calc_result = calculate_overtime_pay(base_hours, overtime_hours, hourly_wage)
                     if calc_result.get("success"):
-                        answer = f"""**연장근로 수당 계산 결과** (근로기준법 제56조 기준)
-
-⏰ 기본 근무: {calc_result['base_hours']}시간 → {calc_result['base_pay']:,}원
+                        calc_section = f"""⏰ 기본 근무: {calc_result['base_hours']}시간 → {calc_result['base_pay']:,}원
 🌙 연장 근무: {calc_result['overtime_hours']}시간 → {calc_result['overtime_pay']:,}원 (시급의 150%)
 
 **총 수당: {calc_result['total_pay']:,}원**
@@ -645,6 +725,7 @@ def process_turn(state: ChatbotState) -> dict:
 📋 계산식: {calc_result['formula']}
 
 💡 {calc_result['note']}"""
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "연장근로 수당 가산 제56조")
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -689,7 +770,7 @@ def process_turn(state: ChatbotState) -> dict:
                                 max_tokens=1500  # 충분한 토큰 수 확보
                             )
                             if not answer or not answer.strip():
-                                answer = "계산 질문에 대한 답변을 생성하지 못했습니다. 구체적인 날짜와 금액 정보를 포함하여 다시 질문해 주세요."
+                                answer = _calculation_empty_fallback(user_text, rag_context)
                             return {
                                 "messages": [AIMessage(content=answer)],
                                 "situation": "",
@@ -697,8 +778,17 @@ def process_turn(state: ChatbotState) -> dict:
                                 "phase": "input",
                             }
                         else:
+                            search_results2 = search(
+                                col, "퇴직금 연장근로 수당 평균임금", top_k=3,
+                                filter_sources=ALL_LABOR_LAW_SOURCES,
+                            )
+                            if search_results2:
+                                rag_context2 = _rag_context(search_results2, max_length=2000)
+                                answer = _calculation_empty_fallback(user_text, rag_context2)
+                            else:
+                                answer = "검색된 조문이 없습니다. 구체적인 입사일, 퇴사일, 월급(또는 시급·근무시간)을 적어 주시면 계산해 드립니다."
                             return {
-                                "messages": [AIMessage(content="퇴직금 계산에 필요한 정보를 찾지 못했습니다. 구체적인 입사일, 퇴사일, 월급 정보를 포함하여 질문해 주세요.")],
+                                "messages": [AIMessage(content=answer)],
                                 "situation": "",
                                 "issues": [],
                                 "phase": "input",
@@ -711,7 +801,7 @@ def process_turn(state: ChatbotState) -> dict:
                         if _DEBUG:
                             print(f"[계산 질문 처리 오류] {e}\n{traceback.format_exc()}", file=sys.stderr)
                         return {
-                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 질문을 다시 정확히 입력해 주세요.")],
+                            "messages": [AIMessage(content="계산 질문 처리 중 오류가 발생했습니다. 다시 질문해 주세요.")],
                             "situation": "",
                             "issues": [],
                             "phase": "input",
