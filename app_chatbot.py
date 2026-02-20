@@ -259,6 +259,7 @@ def _make_checklist_cb(idx: int, answer: str):
     """체크리스트 네/아니요/모르겠음 버튼용 콜백 (인덱스·답변 캡처)."""
     def _():
         st.session_state.cb_checklist_answers[idx] = answer
+        st.session_state.sidebar_state = "collapsed"
         st.rerun()
     return _
 
@@ -267,6 +268,7 @@ def _on_checklist_next():
     """체크리스트 '다음' 버튼 콜백."""
     st.session_state.cb_checklist_submitted = True
     st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+    st.session_state.sidebar_state = "collapsed"
     st.rerun()
 
 
@@ -275,6 +277,7 @@ def _make_related_q_cb(question: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=question))
         st.session_state.related_questions = []
+        st.session_state.sidebar_state = "collapsed"
         st.rerun()
     return _
 
@@ -284,6 +287,7 @@ def _make_pending_btn_cb(label: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=label))
         st.session_state.pending_buttons = []
+        st.session_state.sidebar_state = "collapsed"
         st.rerun()
     return _
 
@@ -292,6 +296,7 @@ def _on_pending_none():
     """'둘 다 해당 없음' 버튼 콜백."""
     st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
     st.session_state.pending_buttons = []
+    st.session_state.sidebar_state = "collapsed"
     st.rerun()
 
 
@@ -582,6 +587,7 @@ def _render_chat_ui():
                 if "messages" not in st.session_state:
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
+                st.session_state.sidebar_state = "collapsed"
                 st.rerun()
                 return
             
@@ -625,6 +631,7 @@ def _render_chat_ui():
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
                 st.session_state.related_questions = []
+                st.session_state.sidebar_state = "collapsed"
                 st.rerun()
                 return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
         else:
@@ -791,10 +798,13 @@ def _render_chat_ui():
 
 
 def main():
-    # set_page_config는 반드시 첫 번째 Streamlit 호출이어야 함. 사이드바 기본 닫힘 + 처리 중일 때도 닫힌 상태 유지.
-    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state="collapsed")
+    # set_page_config는 첫 호출이어야 함. session_state.sidebar_state로 매 run마다 적용 (자동 닫기 위해).
+    st.set_page_config(
+        page_title="노동법 챗봇", layout="wide",
+        initial_sidebar_state=st.session_state.get("sidebar_state", "collapsed")
+    )
     init_session()
-    # 처리 중이면 다음 rerun에서도 사이드바 닫힌 상태로 보이도록 (이미 위에서 collapsed로 설정됨)
+    # 다음 run에서도 닫힌 상태 유지: 처리 중이면 sidebar_state 유지
     messages = st.session_state.get("messages", [])
     if messages:
         last = messages[-1]
@@ -802,6 +812,27 @@ def main():
             st.session_state.sidebar_state = "collapsed"
         elif isinstance(last, AIMessage) and getattr(last, "content", None) == CHECKLIST_PROCESSING_MSG:
             st.session_state.sidebar_state = "collapsed"
+
+    # rerun 시 사이드바 자동 닫기: initial_sidebar_state는 첫 로드에만 적용되므로, 열려 있으면 JS로 닫기 버튼 클릭
+    if st.session_state.get("sidebar_state") == "collapsed":
+        try:
+            st.components.v1.html(
+                """
+                <script>
+                (function(){
+                    var d = window.parent.document;
+                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
+                    if (sidebar && sidebar.getAttribute('aria-expanded') === 'true') {
+                        var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
+                        if (btn) btn.click();
+                    }
+                })();
+                </script>
+                """,
+                height=0,
+            )
+        except Exception:
+            pass
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
