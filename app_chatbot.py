@@ -299,9 +299,8 @@ def _on_pending_none():
 
 
 def _on_show_browse():
-    """법률 둘러보기 열기 버튼 콜백 (지연 로딩)."""
+    """법률 둘러보기 열기 버튼 콜백 (지연 로딩). 버튼 클릭 후 Streamlit이 자동 rerun하므로 여기서 rerun 호출 안 함."""
     st.session_state.sidebar_show_browse = True
-    st.rerun()
 
 
 @st.cache_data(ttl=60)
