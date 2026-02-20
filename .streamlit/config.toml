@@ -3,6 +3,8 @@
 headless = true
 enableCORS = false
 enableXsrfProtection = true
+# Cloud 등 inotify 한도 부족 환경에서 watcher 비활성화 (ENOSPC/EMFILE 방지)
+fileWatcherType = "none"
 
 [browser]
 gatherUsageStats = false
