@@ -4,8 +4,14 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 장별 둘러보기는 app.py와 동일하게 조항 클릭 시 상세 페이지 표시.
 """
 import re
+import time
+import threading
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
+
+# 백그라운드 처리 결과 (스레드에서 저장, 메인에서 읽기) — 타임아웃 방지
+_pending_result = {}
+_lock = threading.Lock()
 
 from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from rag.store import build_vector_store, search_by_article_numbers
@@ -597,6 +603,12 @@ def main():
         st.session_state.messages and
         isinstance(st.session_state.messages[-1], HumanMessage)
     )
+    # 백그라운드 처리 대기 중인지 (처리 placeholder가 마지막 메시지)
+    is_processing_placeholder = (
+        st.session_state.messages
+        and isinstance(st.session_state.messages[-1], AIMessage)
+        and st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG
+    )
 
     # 사용자 입력 처리 (AI 처리 중이 아닐 때만)
     if not is_ai_processing:
@@ -614,9 +626,9 @@ def main():
         st.chat_input(placeholder, key="main_chat_input")
         # AI 처리 중에는 입력 무시 (prompt 확인 안 함)
 
-    # 페이지 하단 출처/면책: 채팅 비어있을 때만, 그리고 처리 중이 아닐 때만 (처리 중에는 이전 run 푸터가 안 보이도록)
+    # 페이지 하단 출처/면책: 채팅 비어있을 때만, 처리 중·대기 중이 아닐 때만
     _messages = st.session_state.get("messages", [])
-    _show_footer = (not _messages or len(_messages) == 0) and not is_ai_processing
+    _show_footer = (not _messages or len(_messages) == 0) and not is_ai_processing and not is_processing_placeholder
     if _show_footer:
         st.divider()
         st.markdown("---")
@@ -652,73 +664,105 @@ def main():
             unsafe_allow_html=True
         )
 
-    # 마지막 메시지가 사용자 메시지면 같은 run에서 바로 AI 응답 생성 (스피너만 사용, rerun 없이)
+    request_id = st.session_state.get("_processing_request_id")
+
+    def _run_invoke(req_id, last_human_msg, config_dict):
+        try:
+            r = graph.invoke({"messages": [last_human_msg]}, config=config_dict)
+            with _lock:
+                _pending_result[req_id] = ("ok", r)
+        except Exception as e:
+            with _lock:
+                _pending_result[req_id] = ("error", str(e))
+
+    # 1) 방금 사용자 메시지가 들어왔을 때: 처리 placeholder 추가 후 백그라운드 스레드 시작
     if is_ai_processing:
         last_human = st.session_state.messages[-1]
-        with st.chat_message("assistant"):
-            with st.spinner("처리 중입니다. 잠시만 기다려 주세요."):
-                config = {"configurable": {"thread_id": thread_id}}
-                try:
-                    result = graph.invoke(
-                        {"messages": [last_human]},
-                        config=config,
-                    )
-                    new_msgs = result.get("messages", [])
-                    ai_content = ""
-                    for m in reversed(new_msgs):
-                        if isinstance(m, AIMessage):
-                            ai_content = m.content
-                            break
-                    if ai_content:
-                        st.markdown(ai_content)
-                        st.session_state.messages.append(AIMessage(content=ai_content))
-                        if result.get("phase") == "checklist" and result.get("checklist"):
-                            st.session_state.cb_checklist = result.get("checklist", [])
+        import uuid
+        req_id = str(uuid.uuid4())[:12]
+        st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
+        st.session_state._processing_request_id = req_id
+        t = threading.Thread(
+            target=_run_invoke,
+            args=(req_id, last_human, {"configurable": {"thread_id": thread_id}}),
+            daemon=True,
+        )
+        t.start()
+        st.rerun()
+        return
+
+    # 2) 백그라운드 처리 대기 중: 결과 있으면 반영, 없으면 짧게 대기 후 재실행 (타임아웃 방지)
+    if is_processing_placeholder and request_id:
+        with _lock:
+            res = _pending_result.pop(request_id, None)
+        if res is not None:
+            status, data = res
+            # placeholder 제거
+            if st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage):
+                if st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG:
+                    st.session_state.messages.pop()
+            st.session_state._processing_request_id = None
+            if status == "error":
+                st.session_state.messages.append(AIMessage(content=USER_FACING_ERROR))
+                st.session_state.pending_buttons = []
+            else:
+                result = data
+                new_msgs = result.get("messages", [])
+                ai_content = ""
+                for m in reversed(new_msgs):
+                    if isinstance(m, AIMessage):
+                        ai_content = m.content
+                        break
+                if ai_content:
+                    st.session_state.messages.append(AIMessage(content=ai_content))
+                    if result.get("phase") == "checklist" and result.get("checklist"):
+                        st.session_state.cb_checklist = result.get("checklist", [])
+                        st.session_state.cb_checklist_answers = {}
+                        st.session_state.cb_checklist_submitted = False
+                        st.session_state.cb_issue = result.get("selected_issue", "")
+                        st.session_state.cb_situation = result.get("situation", "")
+                        st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
+                        st.session_state.cb_round = 1
+                        st.session_state.cb_all_qa = []
+                        st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
+                        st.session_state.pending_buttons = []
+                    else:
+                        st.session_state.pending_buttons = []
+                        if result.get("phase") == "conclusion":
+                            conclusion_content = ""
+                            for msg in reversed(new_msgs):
+                                if isinstance(msg, AIMessage) and "결론" in (msg.content or ""):
+                                    conclusion_content = msg.content
+                                    break
+                            try:
+                                from rag.prompts import system_related_questions, user_related_questions
+                                from rag.llm import chat_json
+                                issue = result.get("selected_issue", "")
+                                if conclusion_content and issue:
+                                    qr = chat_json(
+                                        system_related_questions(),
+                                        user_related_questions(conclusion_content, issue),
+                                        max_tokens=300,
+                                    )
+                                    st.session_state.related_questions = (qr[:5] if isinstance(qr, list) and qr else [])
+                                else:
+                                    st.session_state.related_questions = []
+                            except Exception:
+                                st.session_state.related_questions = []
+                            st.session_state.cb_checklist = []
                             st.session_state.cb_checklist_answers = {}
                             st.session_state.cb_checklist_submitted = False
-                            st.session_state.cb_issue = result.get("selected_issue", "")
-                            st.session_state.cb_situation = result.get("situation", "")
-                            st.session_state.cb_articles_by_issue = dict(result.get("articles_by_issue") or {})
-                            st.session_state.cb_round = 1
-                            st.session_state.cb_all_qa = []
-                            st.session_state.cb_checklist_rag_results = list(result.get("checklist_rag_results") or [])
-                            st.session_state.pending_buttons = []
-                        else:
-                            st.session_state.pending_buttons = []
-                            if result.get("phase") == "conclusion":
-                                conclusion_content = ""
-                                for msg in reversed(new_msgs):
-                                    if isinstance(msg, AIMessage) and "결론" in (msg.content or ""):
-                                        conclusion_content = msg.content
-                                        break
-                                try:
-                                    from rag.prompts import system_related_questions, user_related_questions
-                                    from rag.llm import chat_json
-                                    issue = result.get("selected_issue", "")
-                                    if conclusion_content and issue:
-                                        questions_result = chat_json(
-                                            system_related_questions(),
-                                            user_related_questions(conclusion_content, issue),
-                                            max_tokens=300
-                                        )
-                                        if isinstance(questions_result, list) and len(questions_result) > 0:
-                                            st.session_state.related_questions = questions_result[:5]
-                                        else:
-                                            st.session_state.related_questions = []
-                                    else:
-                                        st.session_state.related_questions = []
-                                except Exception:
-                                    st.session_state.related_questions = []
-                                st.session_state.cb_checklist = []
-                                st.session_state.cb_checklist_answers = {}
-                                st.session_state.cb_checklist_submitted = False
-                    else:
-                        st.warning("응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요.")
-                        st.session_state.pending_buttons = []
-                except Exception:
-                    st.error(USER_FACING_ERROR)
+                else:
+                    st.session_state.messages.append(AIMessage(content="응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요."))
                     st.session_state.pending_buttons = []
+            st.rerun()
+            return
+        # 결과 아직 없음: 짧게 대기 후 재실행 (run 타임아웃 방지)
+        with st.chat_message("assistant"):
+            st.markdown(CHECKLIST_PROCESSING_MSG)
+        time.sleep(2)
         st.rerun()
+        return
 
 
 if __name__ == "__main__":
