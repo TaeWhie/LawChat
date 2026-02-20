@@ -239,10 +239,11 @@ def _on_new_chat():
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
     st.session_state.chat_placeholder = None
+    st.session_state.sidebar_state = "collapsed"  # 새 대화 시 사이드바 닫기
 
 
 def _on_back_to_chat():
-    """채팅으로 돌아가기 버튼 콜백. 챗봇 화면으로 돌아오면 법률 둘러보기 패널 접기."""
+    """채팅으로 돌아가기 버튼 콜백. 챗봇 화면으로 돌아오면 사이드바 닫기."""
     st.session_state.browse_view = None
     st.session_state.browse_law_id = ""
     st.session_state.browse_law_name = ""
@@ -251,6 +252,7 @@ def _on_back_to_chat():
     st.session_state.browse_chapter_title = ""
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
+    st.session_state.sidebar_state = "collapsed"
 
 
 def _make_checklist_cb(idx: int, answer: str):
@@ -789,7 +791,17 @@ def _render_chat_ui():
 
 
 def main():
-    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state="collapsed")
+    # 사이드바: 처리 중일 때 자동 닫기 (메시지 전송·체크리스트·관련질문 등 모든 상황 커버)
+    if "sidebar_state" not in st.session_state:
+        st.session_state.sidebar_state = "collapsed"
+    messages = st.session_state.get("messages", [])
+    if messages:
+        last = messages[-1]
+        if isinstance(last, HumanMessage):
+            st.session_state.sidebar_state = "collapsed"  # 사용자 입력 직후 → AI 처리 예정
+        elif isinstance(last, AIMessage) and getattr(last, "content", None) == CHECKLIST_PROCESSING_MSG:
+            st.session_state.sidebar_state = "collapsed"  # 체크리스트 처리 중
+    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state=st.session_state.sidebar_state)
     init_session()
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
