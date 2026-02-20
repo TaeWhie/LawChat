@@ -925,6 +925,27 @@ def main():
     except Exception:
         pass
 
+    # rerun 후에도 사이드바가 열려 있으면 JS로 한 번 닫기 (Streamlit은 initial_sidebar_state를 rerun에 반영 안 함, 버튼 추가 없이)
+    if not st.session_state.get("sidebar_open", False):
+        try:
+            st.components.v1.html(
+                """
+                <script>
+                (function(){
+                    var d = window.parent.document;
+                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
+                    if (sidebar && sidebar.getAttribute('aria-expanded') === 'true') {
+                        var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
+                        if (btn) btn.click();
+                    }
+                })();
+                </script>
+                """,
+                height=0,
+            )
+        except Exception:
+            pass
+
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
         st.header("설정")
