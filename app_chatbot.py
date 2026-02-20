@@ -17,8 +17,9 @@ from langchain_core.messages import HumanMessage, AIMessage
 _pending_result = {}
 _lock = threading.Lock()
 
-# 멀티 워커 시 프로세스 간 결과 공유: 모든 워커가 같은 경로를 써야 하므로 시스템 temp 사용
-_PENDING_DIR = Path(tempfile.gettempdir()) / "lawchat_pending"
+# 멀티 워커 시 프로세스 간 결과 공유: 배포(Streamlit Cloud 등)에서 temp 디렉터리가 워커별로 다를 수 있으므로 프로젝트 루트 기준 사용
+_APP_DIR = Path(__file__).resolve().parent
+_PENDING_DIR = _APP_DIR / ".streamlit_pending"
 
 def _pending_path(req_id: str):
     return _PENDING_DIR / f"{req_id}.json"
@@ -784,7 +785,7 @@ def main():
         # 멀티 워커: 다른 프로세스에서 스레드가 끝났을 수 있음 → 파일에서 확인
         if res is None:
             p = _pending_path(request_id)
-            for _ in range(3):
+            for _ in range(15):  # 배포 환경에서 스레드 쓰기 지연 대비 (최대 약 4.5초 대기)
                 if _PENDING_DIR.exists() and p.exists():
                     try:
                         data = json.loads(p.read_text(encoding="utf-8"))
@@ -793,7 +794,7 @@ def main():
                         break
                     except Exception:
                         pass
-                time.sleep(0.2)
+                time.sleep(0.3)
         if res is not None:
             status, data = res
             # placeholder 제거
