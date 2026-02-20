@@ -7,7 +7,7 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 - @st.cache_resource: 그래프(_cached_get_graph), 벡터 스토어(_cached_vector_store) 한 번만 로드.
 - @st.cache_data(ttl=3600): 법률 목록/장/조문(_cached_get_laws 등) 1시간 캐싱.
 - on_click 콜백: 새 대화, 돌아가기, 체크리스트, 다음, 관련 질문, 타겟 선택.
-- 법률 둘러보기 지연 로딩: "📚 법률 둘러보기" 클릭 시에만 _cached_get_laws() 및 expander 트리 실행.
+- 법률 둘러보기: 사이드바에서 "📚 법률 둘러보기"로 열기, "접기"로 닫기. 챗봇 사용(메시지 전송) 시 기본 닫힘.
 - 조항 상세 보기 시 사이드바 경량화: article_detail일 때 법률 트리 미로드, "← 채팅으로"만 표시.
 - 채팅 placeholder 세션 고정, footer 업데이트 날짜 @st.cache_data(ttl=60).
 - 채팅 영역 @st.fragment: 체크리스트/입력 시 해당 부분만 리런되어 속도 개선 (Streamlit 1.33+).
@@ -196,8 +196,9 @@ def init_session():
         st.session_state.browse_article_paragraphs = []
     if "browse_article_title" not in st.session_state:
         st.session_state.browse_article_title = ""
-    if "sidebar_show_browse" not in st.session_state:
-        st.session_state.sidebar_show_browse = False
+    # 법률 둘러보기 패널: 챗봇 작동 시 기본 닫힘. 사용자가 열기/접기 가능.
+    if "sidebar_browse_expanded" not in st.session_state:
+        st.session_state.sidebar_browse_expanded = False
     if "chat_placeholder" not in st.session_state:
         st.session_state.chat_placeholder = None
 
@@ -217,7 +218,7 @@ def get_graph_safe():
 
 
 def _on_new_chat():
-    """새 대화 시작 버튼 콜백: 세션 초기화 후 rerun."""
+    """새 대화 시작 버튼 콜백: 세션 초기화. 버튼 클릭 후 Streamlit이 자동 rerun하므로 여기서 rerun 호출 안 함."""
     import uuid
     st.session_state.related_questions = []
     st.session_state.messages = []
@@ -240,13 +241,12 @@ def _on_new_chat():
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
-    st.session_state.sidebar_show_browse = False
+    st.session_state.sidebar_browse_expanded = False
     st.session_state.chat_placeholder = None
-    st.rerun()
 
 
 def _on_back_to_chat():
-    """채팅으로 돌아가기 버튼 콜백."""
+    """채팅으로 돌아가기 버튼 콜백. 챗봇 화면으로 돌아오면 법률 둘러보기 패널 접기."""
     st.session_state.browse_view = None
     st.session_state.browse_law_id = ""
     st.session_state.browse_law_name = ""
@@ -255,7 +255,7 @@ def _on_back_to_chat():
     st.session_state.browse_chapter_title = ""
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
-    st.rerun()
+    st.session_state.sidebar_browse_expanded = False
 
 
 def _make_checklist_cb(idx: int, answer: str):
@@ -298,9 +298,14 @@ def _on_pending_none():
     st.rerun()
 
 
-def _on_show_browse():
-    """법률 둘러보기 열기 버튼 콜백 (지연 로딩). 버튼 클릭 후 Streamlit이 자동 rerun하므로 여기서 rerun 호출 안 함."""
-    st.session_state.sidebar_show_browse = True
+def _on_open_browse():
+    """법률 둘러보기 패널 열기. 콜백 내부에서 rerun 호출 안 함."""
+    st.session_state.sidebar_browse_expanded = True
+
+
+def _on_close_browse():
+    """법률 둘러보기 패널 접기. 콜백 내부에서 rerun 호출 안 함."""
+    st.session_state.sidebar_browse_expanded = False
 
 
 @st.cache_data(ttl=60)
@@ -494,17 +499,21 @@ def _render_chat_ui():
                     tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
                     st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
                     
-                    # 결론 생성 후 관련 질문 생성
+                    # 결론 생성 후 관련 질문 생성 (답변 가능한 유형만: 정보·계산·상황)
                     try:
                         from rag.prompts import system_related_questions, user_related_questions
                         from rag.llm import chat_json
+                        from rag.capabilities import get_related_question_capabilities, ALLOWED_RELATED_QUESTION_TYPES
+                        from rag.question_classifier import classify_question_type
+                        caps = get_related_question_capabilities()
                         questions_result = chat_json(
-                            system_related_questions(),
-                            user_related_questions(conc, cb_issue),
+                            system_related_questions(caps),
+                            user_related_questions(conc, cb_issue, caps),
                             max_tokens=300
                         )
-                        if isinstance(questions_result, list) and len(questions_result) > 0:
-                            st.session_state.related_questions = questions_result[:5]  # 최대 5개
+                        if isinstance(questions_result, list) and questions_result:
+                            filtered = [q for q in questions_result if isinstance(q, str) and classify_question_type(q) in ALLOWED_RELATED_QUESTION_TYPES]
+                            st.session_state.related_questions = filtered[:5]
                         else:
                             st.session_state.related_questions = []
                     except Exception:
@@ -586,8 +595,7 @@ def _render_chat_ui():
                 if "messages" not in st.session_state:
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
-                # st.chat_input()은 자동으로 rerun을 트리거하므로 명시적 rerun 불필요
-                # 하지만 메시지가 즉시 표시되도록 명시적으로 rerun 호출
+                st.session_state.sidebar_browse_expanded = False  # 챗봇 사용 시 사이드바(법률 둘러보기) 접기
                 st.rerun()
                 return
             
@@ -631,6 +639,7 @@ def _render_chat_ui():
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
                 st.session_state.related_questions = []
+                st.session_state.sidebar_browse_expanded = False  # 챗봇 사용 시 사이드바(법률 둘러보기) 접기
                 st.rerun()
                 return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
         else:
@@ -762,14 +771,21 @@ def _render_chat_ui():
                                 try:
                                     from rag.prompts import system_related_questions, user_related_questions
                                     from rag.llm import chat_json
+                                    from rag.capabilities import get_related_question_capabilities, ALLOWED_RELATED_QUESTION_TYPES
+                                    from rag.question_classifier import classify_question_type
                                     issue = result.get("selected_issue", "")
                                     if conclusion_content and issue:
+                                        caps = get_related_question_capabilities()
                                         qr = chat_json(
-                                            system_related_questions(),
-                                            user_related_questions(conclusion_content, issue),
+                                            system_related_questions(caps),
+                                            user_related_questions(conclusion_content, issue, caps),
                                             max_tokens=300,
                                         )
-                                        st.session_state.related_questions = (qr[:5] if isinstance(qr, list) and qr else [])
+                                        if isinstance(qr, list) and qr:
+                                            filtered = [q for q in qr if isinstance(q, str) and classify_question_type(q) in ALLOWED_RELATED_QUESTION_TYPES]
+                                            st.session_state.related_questions = filtered[:5]
+                                        else:
+                                            st.session_state.related_questions = []
                                     else:
                                         st.session_state.related_questions = []
                                 except Exception:
@@ -805,10 +821,11 @@ def main():
             st.caption("조문 보기 중")
             st.button("← 채팅으로", key="sidebar_back_chat", on_click=_on_back_to_chat)
         else:
-            # 법률 둘러보기: 클릭 시에만 로드 (지연 로딩)
-            if not st.session_state.get("sidebar_show_browse"):
-                st.button("📚 법률 둘러보기", key="sidebar_open_browse", on_click=_on_show_browse)
+            # 법률 둘러보기: 열기/접기 가능. 챗봇 사용 시 기본 닫힘.
+            if not st.session_state.get("sidebar_browse_expanded"):
+                st.button("📚 법률 둘러보기", key="sidebar_open_browse", on_click=_on_open_browse)
             else:
+                st.button("접기", key="sidebar_close_browse", on_click=_on_close_browse)
                 st.subheader("📚 법률 둘러보기")
                 laws = _cached_get_laws()
                 for group in laws:

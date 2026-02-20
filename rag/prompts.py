@@ -1,6 +1,6 @@
 # RAG labor-law chatbot system/user prompts (English for better instruction-following; outputs in Korean)
 
-from typing import List, Dict
+from typing import List, Dict, Optional, Any
 
 RAG_ONLY_RULE = """
 Critical: Base all answers only on the [Provided legal provisions] below.
@@ -11,11 +11,23 @@ Critical: Base all answers only on the [Provided legal provisions] below.
 """
 
 
-def system_related_questions():
-    """결론 생성 후 관련 질문 생성 시스템 프롬프트"""
+def system_related_questions(capabilities: Optional[List[Dict[str, Any]]] = None):
+    """결론 생성 후 관련 질문 생성 시스템 프롬프트. capabilities가 있으면 이 서비스가 답할 수 있는 유형만 제안."""
+    from rag.capabilities import get_related_question_capabilities, format_capabilities_for_prompt
+    caps = capabilities if capabilities is not None else get_related_question_capabilities()
+    caps_block = ""
+    if caps:
+        caps_block = """
+**CRITICAL - Answerable types only:**
+This service can answer ONLY the following types of questions. Suggest follow-up questions that fall into these types only. Do NOT suggest questions about: latest/current year figures, freelancers, or topics outside the list below.
+
+""" + format_capabilities_for_prompt(caps) + """
+
+Generate only questions that the user can get a real answer to in this chatbot (info, calculation, or situation-based advice)."""
     return """You are a helpful assistant that generates follow-up questions based on a legal conclusion.
 
 Your task: Generate 3-5 relevant follow-up questions that users might have after reading the conclusion.
+""" + caps_block + """
 
 **Guidelines:**
 - Questions should be practical and directly related to the conclusion
@@ -32,13 +44,18 @@ Example: ["퇴직금은 언제 받을 수 있나요?", "회사가 거부하면 �
 Do not include any explanation or additional text, only the JSON array."""
 
 
-def user_related_questions(conclusion: str, issue: str) -> str:
-    """결론 기반 관련 질문 생성용 사용자 프롬프트"""
+def user_related_questions(conclusion: str, issue: str, capabilities: Optional[List[Dict[str, Any]]] = None) -> str:
+    """결론 기반 관련 질문 생성용 사용자 프롬프트. capabilities 전달 시 해당 유형만 제안하도록 함."""
+    from rag.capabilities import get_related_question_capabilities, format_capabilities_for_prompt
+    caps = capabilities if capabilities is not None else get_related_question_capabilities()
+    caps_instruction = ""
+    if caps:
+        caps_instruction = "\n\nSuggest only questions that this service can answer (see system prompt for allowed types). Return ONLY a JSON array of question strings in Korean."
     return f"""Legal conclusion about "{issue}":
 
 {conclusion}
 
-Generate 3-5 relevant follow-up questions that users might have after reading this conclusion. Return ONLY a JSON array of question strings in Korean."""
+Generate 3-5 relevant follow-up questions that users might have after reading this conclusion.{caps_instruction}"""
 
 
 def system_issue_classification():

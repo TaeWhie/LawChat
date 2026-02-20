@@ -255,6 +255,42 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                 }
         
+        # 1.5 서류·서식 질문 (국가법령정보 licbyl/admbyl API)
+        elif question_type == "documents":
+            try:
+                from rag.api_documents import search_documents_for_topic, format_documents_answer
+                # 검색어: 서류 관련 표현 제거 후 첫 의미 있는 단어(2자 이상) 또는 전체
+                query = user_text.strip()
+                for w in ("필요한 서류", "필요 서류", "제출서류", "서식", "서류", "양식", "별표", "뭐가", "무엇", "어떤", "무슨", "가 필요", "가 있나", "가 있나요", "?"):
+                    query = query.replace(w, " ").strip()
+                query = query or user_text.strip() or "근로"
+                # API는 법령명/서식명 검색이므로 긴 문장보다 짧은 키워드가 유리: 첫 단어 사용
+                first_word = (query.split() or [query])[0].strip()
+                if len(first_word) >= 2:
+                    query = first_word
+                docs = search_documents_for_topic(query, display=15)
+                topic = query[:30] if len(query) > 30 else query
+                answer = format_documents_answer(docs, topic)
+                return {
+                    "messages": [AIMessage(content=answer)],
+                    "situation": "",
+                    "issues": [],
+                    "selected_issue": "",
+                    "qa_list": [],
+                    "articles_by_issue": {},
+                    "checklist": [],
+                    "checklist_index": 0,
+                    "phase": "input",
+                    "pending_question": "",
+                    "checklist_rag_results": [],
+                }
+            except Exception:
+                return {
+                    "messages": [AIMessage(content="서류·서식 조회 중 오류가 발생했습니다. 국가법령정보센터(www.law.go.kr)에서 검색해 보시거나, 다른 질문을 해 주세요.")],
+                    "situation": "",
+                    "phase": "input",
+                }
+        
         # 2. 계산 질문 (퇴직금, 연장근로 수당 등)
         elif question_type == "calculation":
             try:
@@ -661,6 +697,35 @@ def process_turn(state: ChatbotState) -> dict:
                         "pending_question": "",
                         "checklist_rag_results": [],
                     }
+            except Exception:
+                pass
+        
+        elif question_type == "documents":
+            try:
+                from rag.api_documents import search_documents_for_topic, format_documents_answer
+                query = user_text.strip()
+                for w in ("필요한 서류", "필요 서류", "제출서류", "서식", "서류", "양식", "별표", "뭐가", "무엇", "어떤", "무슨", "가 필요", "가 있나", "가 있나요", "?"):
+                    query = query.replace(w, " ").strip()
+                query = query or user_text.strip() or "근로"
+                first_word = (query.split() or [query])[0].strip()
+                if len(first_word) >= 2:
+                    query = first_word
+                docs = search_documents_for_topic(query, display=15)
+                topic = query[:30] if len(query) > 30 else query
+                answer = format_documents_answer(docs, topic)
+                return {
+                    "messages": [AIMessage(content=answer)],
+                    "situation": "",
+                    "issues": [],
+                    "selected_issue": "",
+                    "qa_list": [],
+                    "articles_by_issue": {},
+                    "checklist": [],
+                    "checklist_index": 0,
+                    "phase": "input",
+                    "pending_question": "",
+                    "checklist_rag_results": [],
+                }
             except Exception:
                 pass
         

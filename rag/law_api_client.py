@@ -86,6 +86,7 @@ def search_list(
     oc: Optional[str] = None,
     output_type: str = "JSON",
     timeout: Optional[int] = None,
+    extra_params: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     목록/검색 API 호출 (lawSearch.do 또는 lawService.do).
@@ -121,6 +122,8 @@ def search_list(
     if not use_service:
         params["display"] = display
         params["page"] = page
+    if extra_params:
+        params.update(extra_params)
 
     _delay()
     to = timeout if timeout is not None else LAW_API_TIMEOUT

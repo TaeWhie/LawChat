@@ -9,9 +9,14 @@ from rag.prompts import RAG_ONLY_RULE
 from config import ALL_LABOR_LAW_SOURCES
 
 
-def classify_question_type(user_text: str) -> Literal["knowledge", "calculation", "situation", "exception"]:
-    """질문 유형 분류: knowledge(지식/개념), calculation(계산), situation(상황), exception(예외)"""
+def classify_question_type(user_text: str) -> Literal["knowledge", "calculation", "situation", "exception", "documents"]:
+    """질문 유형 분류: knowledge(지식/개념), calculation(계산), situation(상황), exception(예외), documents(서류·서식)"""
     text = user_text.lower()
+    
+    # 서류·서식 질문 (API로 별표·서식 조회 가능)
+    document_keywords = ["서류", "서식", "제출서류", "필요한 서류", "별표", "양식", "제출 서류", "첨부 서류", "필요 서류", "어떤 서류", "무슨 서류"]
+    if any(kw in text for kw in document_keywords):
+        return "documents"
     
     # 예외 상황 키워드 (최우선 체크 - 유도 질문, 모호한 신분, 최신성 확인)
     exception_keywords_strict = ["프리랜서", "몰래", "기밀", "빼돌려"]
