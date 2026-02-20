@@ -337,11 +337,6 @@ def _render_chat_ui():
         thread_id = st.session_state.thread_id
         st.title("⚖️ 노동법 RAG 챗봇")
         st.caption("근로기준법 기반 상담. 직장에서 겪은 문제나 궁금한 점을 자유롭게 말씀해 주세요.")
-        # 사이드바가 닫혀 있을 때만 "법률 둘러보기 열기" 버튼 표시
-        if not st.session_state.get("sidebar_open", False):
-            if st.button("📚 법률 둘러보기 열기", key="open_sidebar_btn"):
-                _set_sidebar_open(True)
-                st.rerun()
 
         # 채팅 히스토리 표시 (체크리스트는 마지막 assistant 말풍선 안에 함께 표시)
         cb_checklist = st.session_state.get("cb_checklist") or []
