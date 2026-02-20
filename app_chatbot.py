@@ -7,7 +7,7 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 - @st.cache_resource: 그래프(_cached_get_graph), 벡터 스토어(_cached_vector_store) 한 번만 로드.
 - @st.cache_data(ttl=3600): 법률 목록/장/조문(_cached_get_laws 등) 1시간 캐싱.
 - on_click 콜백: 새 대화, 돌아가기, 체크리스트, 다음, 관련 질문, 타겟 선택.
-- 법률 둘러보기: 클릭 시에만 로드(닫힌 상태에서 _cached_get_laws 호출 안 함). 로드 후에는 버튼 없이 트리만 표시. 사이드바는 initial_sidebar_state="collapsed"로 기본 닫힘.
+- 법률 둘러보기: 버튼 없이 사이드바에 트리만 표시. 사이드바 기본 닫힘(initial_sidebar_state=collapsed).
 - 조항 상세 보기 시 사이드바 경량화: article_detail일 때 법률 트리 미로드, "← 채팅으로"만 표시.
 - 채팅 placeholder 세션 고정, footer 업데이트 날짜 @st.cache_data(ttl=60).
 - 채팅 영역 @st.fragment: 체크리스트/입력 시 해당 부분만 리런되어 속도 개선 (Streamlit 1.33+).
@@ -196,9 +196,6 @@ def init_session():
         st.session_state.browse_article_paragraphs = []
     if "browse_article_title" not in st.session_state:
         st.session_state.browse_article_title = ""
-    # 법률 둘러보기: 사이드바 닫힌 상태에서는 로드 안 함. 클릭 시에만 _cached_get_laws() 등 호출
-    if "sidebar_browse_loaded" not in st.session_state:
-        st.session_state.sidebar_browse_loaded = False
     if "chat_placeholder" not in st.session_state:
         st.session_state.chat_placeholder = None
 
@@ -242,11 +239,6 @@ def _on_new_chat():
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
     st.session_state.chat_placeholder = None
-
-
-def _on_show_browse():
-    """법률 둘러보기 로드: 클릭 시에만 트리 로드 (사이드바 닫힌 상태에서는 호출 안 됨)."""
-    st.session_state.sidebar_browse_loaded = True
 
 
 def _on_back_to_chat():
@@ -812,40 +804,37 @@ def main():
             st.caption("조문 보기 중")
             st.button("← 채팅으로", key="sidebar_back_chat", on_click=_on_back_to_chat)
         else:
-            # 법률 둘러보기: 클릭 시에만 로드 (닫힌 상태에서 _cached_get_laws() 호출 안 함). 로드 후에는 버튼 없이 트리만 표시.
-            if not st.session_state.get("sidebar_browse_loaded"):
-                st.button("📚 법률 둘러보기", key="sidebar_open_browse", on_click=_on_show_browse)
-            else:
-                st.subheader("📚 법률 둘러보기")
-                laws = _cached_get_laws()
-                for group in laws:
-                    group_name = group.get("group_name", "") or "법령"
-                    items = group.get("items") or []
-                    with st.expander(group_name, expanded=False):
-                        for item in items:
-                            law_id = item.get("id", "")
-                            law_name = item.get("name", "")
-                            source = item.get("source")
-                            with st.expander(law_name or law_id, expanded=False):
-                                chapters = _cached_get_chapters(law_id, source)
-                                for ch in chapters:
-                                    with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
-                                        articles = _cached_get_articles_by_chapter(ch["number"], law_id, source)
-                                        for i, a in enumerate(articles):
-                                            art_num = a.get("article_number", "")
-                                            title = a.get("title", "")
-                                            paras = a.get("paragraphs") or []
-                                            label = f"{art_num} {title}".strip() or art_num
-                                            if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
-                                                st.session_state.browse_view = "article_detail"
-                                                st.session_state.browse_law_id = law_id
-                                                st.session_state.browse_law_name = law_name
-                                                st.session_state.browse_law_source = source
-                                                st.session_state.browse_article_number = art_num
-                                                st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
-                                                st.session_state.browse_article_paragraphs = paras
-                                                st.session_state.browse_article_title = title
-                                                st.rerun()
+            # 법률 둘러보기: 버튼 없이 트리만 표시
+            st.subheader("📚 법률 둘러보기")
+            laws = _cached_get_laws()
+            for group in laws:
+                group_name = group.get("group_name", "") or "법령"
+                items = group.get("items") or []
+                with st.expander(group_name, expanded=False):
+                    for item in items:
+                        law_id = item.get("id", "")
+                        law_name = item.get("name", "")
+                        source = item.get("source")
+                        with st.expander(law_name or law_id, expanded=False):
+                            chapters = _cached_get_chapters(law_id, source)
+                            for ch in chapters:
+                                with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
+                                    articles = _cached_get_articles_by_chapter(ch["number"], law_id, source)
+                                    for i, a in enumerate(articles):
+                                        art_num = a.get("article_number", "")
+                                        title = a.get("title", "")
+                                        paras = a.get("paragraphs") or []
+                                        label = f"{art_num} {title}".strip() or art_num
+                                        if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
+                                            st.session_state.browse_view = "article_detail"
+                                            st.session_state.browse_law_id = law_id
+                                            st.session_state.browse_law_name = law_name
+                                            st.session_state.browse_law_source = source
+                                            st.session_state.browse_article_number = art_num
+                                            st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
+                                            st.session_state.browse_article_paragraphs = paras
+                                            st.session_state.browse_article_title = title
+                                            st.rerun()
 
     # ---------- 조항 상세 페이지 (법률 둘러보기에서 조항 클릭 시) ----------
     if st.session_state.get("browse_view") == "article_detail":
