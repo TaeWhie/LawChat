@@ -7,7 +7,7 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 - @st.cache_resource: 그래프(_cached_get_graph), 벡터 스토어(_cached_vector_store) 한 번만 로드.
 - @st.cache_data(ttl=3600): 법률 목록/장/조문(_cached_get_laws 등) 1시간 캐싱.
 - on_click 콜백: 새 대화, 돌아가기, 체크리스트, 다음, 관련 질문, 타겟 선택.
-- 법률 둘러보기: 버튼 없이 사이드바에 트리만 표시. 사이드바 기본 닫힘(initial_sidebar_state=collapsed).
+- 법률 둘러보기: 버튼 없이 사이드바에 트리만 표시. 사이드바는 streamlit-browser-session-storage로 브라우저와 동기화.
 - 조항 상세 보기 시 사이드바 경량화: article_detail일 때 법률 트리 미로드, "← 채팅으로"만 표시.
 - 채팅 placeholder 세션 고정, footer 업데이트 날짜 @st.cache_data(ttl=60).
 - 채팅 영역 @st.fragment: 체크리스트/입력 시 해당 부분만 리런되어 속도 개선 (Streamlit 1.33+).
@@ -21,6 +21,11 @@ import tempfile
 from pathlib import Path
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
+
+try:
+    from streamlit_session_browser_storage import SessionStorage
+except ImportError:
+    SessionStorage = None  # optional: streamlit-browser-session-storage
 
 # 백그라운드 처리 결과 (스레드에서 저장, 메인에서 읽기) — 타임아웃 방지
 _pending_result = {}
@@ -200,6 +205,12 @@ def init_session():
         st.session_state.chat_placeholder = None
 
 
+def _set_sidebar_open(open: bool):
+    """사이드바 열림 상태 설정. 브라우저 저장소 동기화용 플래그도 설정."""
+    st.session_state.sidebar_open = open
+    st.session_state._sidebar_browser_sync = "true" if open else "false"
+
+
 def get_graph_safe():
     """그래프 로드. 실패 시 None 반환하고 session_state.graph_load_error에 메시지 저장."""
     if st.session_state.get("graph_load_error"):
@@ -239,7 +250,7 @@ def _on_new_chat():
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
     st.session_state.chat_placeholder = None
-    st.session_state.sidebar_state = "collapsed"  # 새 대화 시 사이드바 닫기
+    _set_sidebar_open(False)  # 새 대화 시 사이드바 닫기
 
 
 def _on_back_to_chat():
@@ -252,14 +263,14 @@ def _on_back_to_chat():
     st.session_state.browse_chapter_title = ""
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
-    st.session_state.sidebar_state = "collapsed"
+    _set_sidebar_open(False)
 
 
 def _make_checklist_cb(idx: int, answer: str):
     """체크리스트 네/아니요/모르겠음 버튼용 콜백 (인덱스·답변 캡처)."""
     def _():
         st.session_state.cb_checklist_answers[idx] = answer
-        st.session_state.sidebar_state = "collapsed"
+        _set_sidebar_open(False)
         st.rerun()
     return _
 
@@ -268,7 +279,7 @@ def _on_checklist_next():
     """체크리스트 '다음' 버튼 콜백."""
     st.session_state.cb_checklist_submitted = True
     st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
-    st.session_state.sidebar_state = "collapsed"
+    _set_sidebar_open(False)
     st.rerun()
 
 
@@ -277,7 +288,7 @@ def _make_related_q_cb(question: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=question))
         st.session_state.related_questions = []
-        st.session_state.sidebar_state = "collapsed"
+        _set_sidebar_open(False)
         st.rerun()
     return _
 
@@ -287,7 +298,7 @@ def _make_pending_btn_cb(label: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=label))
         st.session_state.pending_buttons = []
-        st.session_state.sidebar_state = "collapsed"
+        _set_sidebar_open(False)
         st.rerun()
     return _
 
@@ -296,7 +307,7 @@ def _on_pending_none():
     """'둘 다 해당 없음' 버튼 콜백."""
     st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
     st.session_state.pending_buttons = []
-    st.session_state.sidebar_state = "collapsed"
+    _set_sidebar_open(False)
     st.rerun()
 
 
@@ -326,7 +337,12 @@ def _render_chat_ui():
         thread_id = st.session_state.thread_id
         st.title("⚖️ 노동법 RAG 챗봇")
         st.caption("근로기준법 기반 상담. 직장에서 겪은 문제나 궁금한 점을 자유롭게 말씀해 주세요.")
-    
+        # 사이드바가 닫혀 있을 때만 "법률 둘러보기 열기" 버튼 표시
+        if not st.session_state.get("sidebar_open", False):
+            if st.button("📚 법률 둘러보기 열기", key="open_sidebar_btn"):
+                _set_sidebar_open(True)
+                st.rerun()
+
         # 채팅 히스토리 표시 (체크리스트는 마지막 assistant 말풍선 안에 함께 표시)
         cb_checklist = st.session_state.get("cb_checklist") or []
         cb_answers = st.session_state.get("cb_checklist_answers") or {}
@@ -587,7 +603,7 @@ def _render_chat_ui():
                 if "messages" not in st.session_state:
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
-                st.session_state.sidebar_state = "collapsed"
+                _set_sidebar_open(False)
                 st.rerun()
                 return
             
@@ -631,7 +647,7 @@ def _render_chat_ui():
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
                 st.session_state.related_questions = []
-                st.session_state.sidebar_state = "collapsed"
+                _set_sidebar_open(False)
                 st.rerun()
                 return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
         else:
@@ -798,47 +814,130 @@ def _render_chat_ui():
 
 
 def main():
-    # set_page_config는 첫 호출이어야 함. session_state.sidebar_state로 매 run마다 적용 (자동 닫기 위해).
+    # 브라우저 저장소에서 읽은 값으로 sidebar_open 초기화 (한 run 늦게 반영되므로 첫 로드엔 기본값)
+    if "browser_sidebar_open" in st.session_state and st.session_state.browser_sidebar_open not in (None, ""):
+        st.session_state.sidebar_open = (st.session_state.browser_sidebar_open == "true")
+    if "sidebar_open" not in st.session_state:
+        st.session_state.sidebar_open = False
+    # set_page_config는 첫 호출이어야 함. sidebar_open에 따라 사이드바 초기 상태 적용.
     st.set_page_config(
         page_title="노동법 챗봇", layout="wide",
-        initial_sidebar_state=st.session_state.get("sidebar_state", "collapsed")
+        initial_sidebar_state="expanded" if st.session_state.sidebar_open else "collapsed"
     )
     init_session()
-    # 다음 run에서도 닫힌 상태 유지: 처리 중이면 sidebar_state 유지
+    # 채팅/처리 중이면 닫힌 상태 유지
     messages = st.session_state.get("messages", [])
     if messages:
         last = messages[-1]
         if isinstance(last, HumanMessage):
-            st.session_state.sidebar_state = "collapsed"
+            st.session_state.sidebar_open = False
         elif isinstance(last, AIMessage) and getattr(last, "content", None) == CHECKLIST_PROCESSING_MSG:
-            st.session_state.sidebar_state = "collapsed"
+            st.session_state.sidebar_open = False
 
-    # rerun 시 사이드바 자동 닫기: initial_sidebar_state는 첫 로드에만 적용되므로, 열려 있으면 JS로 닫기 버튼 클릭
-    if st.session_state.get("sidebar_state") == "collapsed":
+    # 브라우저 저장소(streamlit-browser-session-storage)와 동기화
+    if SessionStorage is not None:
         try:
-            st.components.v1.html(
-                """
-                <script>
-                (function(){
-                    var d = window.parent.document;
-                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
-                    if (sidebar && sidebar.getAttribute('aria-expanded') === 'true') {
-                        var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
-                        if (btn) btn.click();
-                    }
-                })();
-                </script>
-                """,
-                height=0,
-            )
+            browser_storage = SessionStorage()
+            if "_sidebar_browser_sync" in st.session_state:
+                browser_storage.setItem("sidebar_open", st.session_state._sidebar_browser_sync)
+                del st.session_state._sidebar_browser_sync
+            browser_storage.getItem("sidebar_open", key="browser_sidebar_open")
         except Exception:
             pass
+
+    # 닫은 다음 액션: 버튼/채팅 전송 시 사이드바를 먼저 닫고, 닫힘이 확인된 뒤에만 액션 실행 (고정 대기 없음)
+    try:
+        st.components.v1.html(
+            """
+            <script>
+            (function(){
+                var d = window.parent.document;
+                var closeFirstLabels = ['새 대화 시작', '채팅으로', '챗봇으로 돌아가기'];
+                var programmaticClick = false;
+                var programmaticKey = false;
+
+                function closeSidebar(cb) {
+                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
+                    if (!sidebar || sidebar.getAttribute('aria-expanded') !== 'true') {
+                        if (cb) cb();
+                        return;
+                    }
+                    var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
+                    if (!btn) { if (cb) cb(); return; }
+                    if (cb) {
+                        var obs = new MutationObserver(function(mutations, observer) {
+                            if (sidebar.getAttribute('aria-expanded') === 'false') {
+                                observer.disconnect();
+                                cb();
+                            }
+                        });
+                        obs.observe(sidebar, { attributes: true, attributeFilter: ['aria-expanded'] });
+                    }
+                    btn.click();
+                }
+
+                function attach() {
+                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
+                    if (!sidebar) return false;
+                    var buttons = d.querySelectorAll('button');
+                    buttons.forEach(function(btn) {
+                        if (btn.dataset.closeFirstDone) return;
+                        var text = (btn.textContent || '').trim();
+                        if (!closeFirstLabels.some(function(l){ return text.indexOf(l) !== -1; })) return;
+                        btn.dataset.closeFirstDone = '1';
+                        btn.addEventListener('click', function(e) {
+                            if (programmaticClick) { programmaticClick = false; return; }
+                            if (sidebar.getAttribute('aria-expanded') !== 'true') return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var self = btn;
+                            closeSidebar(function() {
+                                programmaticClick = true;
+                                self.click();
+                            });
+                        }, true);
+                    });
+                    var chatInput = d.querySelector('[data-testid="stChatInput"] textarea');
+                    if (chatInput && !chatInput.dataset.closeFirstDone) {
+                        chatInput.dataset.closeFirstDone = '1';
+                        chatInput.addEventListener('keydown', function(e) {
+                            if (e.key !== 'Enter' || e.shiftKey) return;
+                            if (programmaticKey) { programmaticKey = false; return; }
+                            if (sidebar.getAttribute('aria-expanded') !== 'true') return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            var ta = chatInput;
+                            closeSidebar(function() {
+                                programmaticKey = true;
+                                var ev = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true });
+                                ta.dispatchEvent(ev);
+                            });
+                        }, true);
+                    }
+                    return true;
+                }
+                function tryAttach() {
+                    if (attach()) return;
+                    setTimeout(tryAttach, 80);
+                }
+                if (window.parent.document.readyState === 'complete') tryAttach();
+                else window.parent.addEventListener('load', tryAttach);
+            })();
+            </script>
+            """,
+            height=0,
+        )
+    except Exception:
+        pass
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
         st.header("설정")
         if st.session_state.get("graph_load_error"):
             st.error(st.session_state.graph_load_error)
+        if st.button("⬅️ 사이드바 닫기", key="sidebar_close_btn"):
+            _set_sidebar_open(False)
+            st.rerun()
         st.button("🔄 새 대화 시작", on_click=_on_new_chat)
         st.divider()
         is_article_view = st.session_state.get("browse_view") == "article_detail"
