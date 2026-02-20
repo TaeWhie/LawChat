@@ -2,6 +2,14 @@
 """
 노동법 챗봇 시나리오 테스트 스크립트
 10개 시나리오를 자동으로 테스트하고 결과를 분석합니다.
+
+[왜 여기서는 되는데 Streamlit에서는 안 되나요?]
+- 여기: 같은 프로세스에서 step1 → step2 → step3 를 직접 호출하고, 반환값을 바로 받습니다.
+- Streamlit: 브라우저 제출 → 서버가 백그라운드 스레드로 graph.invoke() 실행 → 결과를
+  메모리(_pending_result) 또는 파일(.streamlit_pending/)에 넣고, 다음 rerun에서 꺼내 씁니다.
+  그 '다음 rerun'이 다른 워커 프로세스로 가면 메모리는 비어 있어서 결과를 못 찾습니다.
+  그래서 app_chatbot.py 에서는 파일 폴백을 두어, 스레드가 끝나면 파일에도 쓰고,
+  폴링 시 메모리에 없으면 파일에서 읽도록 했습니다. Streamlit 재시작 후 적용됩니다.
 """
 import sys
 from pathlib import Path
@@ -9,6 +17,8 @@ import json
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from langchain_core.messages import HumanMessage, AIMessage
 
 from rag import (
     build_vector_store,
@@ -300,17 +310,92 @@ def test_scenario(scenario: dict, collection) -> dict:
     return result
 
 
+def test_scenario_via_graph(scenario: dict, graph) -> dict:
+    """Streamlit과 동일한 graph.invoke() 경로로 시나리오 검증. 통과 조건: 체크리스트 또는 결론이 나와야 함."""
+    sid = scenario["id"]
+    name = scenario["name"]
+    situation = scenario["situation"]
+    result = {
+        "scenario_id": sid,
+        "scenario_name": name,
+        "situation": situation,
+        "passed": False,
+        "phase": None,
+        "ai_content_len": 0,
+        "checklist_len": 0,
+        "error": None,
+    }
+    try:
+        r = graph.invoke(
+            {"messages": [HumanMessage(content=situation)]},
+            config={"configurable": {"thread_id": f"scenario_{sid}"}},
+        )
+        phase = r.get("phase") or "input"
+        result["phase"] = phase
+        msgs = r.get("messages") or []
+        ai_content = ""
+        for m in reversed(msgs):
+            if isinstance(m, AIMessage) and getattr(m, "content", None):
+                ai_content = (m.content or "").strip()
+                break
+        result["ai_content_len"] = len(ai_content)
+        checklist = r.get("checklist") or []
+        result["checklist_len"] = len(checklist)
+        # 통과: phase가 checklist(체크리스트 있음) 또는 conclusion이고, AI 응답이 충분히 있음
+        if phase == "checklist" and checklist and len(ai_content) >= 30:
+            result["passed"] = True
+        elif phase == "conclusion" and len(ai_content) >= 50:
+            result["passed"] = True
+        elif phase == "input" and len(ai_content) >= 80 and "이슈를 찾지 못했습니다" not in ai_content and "상담" not in ai_content[:100]:
+            # 지식/계산 질문으로 바로 답한 경우도 통과로 인정 (유의미한 답변)
+            result["passed"] = True
+    except Exception as e:
+        result["error"] = str(e)
+    return result
+
+
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="노동법 챗봇 시나리오 테스트")
+    parser.add_argument("--graph", action="store_true", help="Streamlit과 동일한 graph.invoke() 경로로 검증")
+    args = parser.parse_args()
+
     print("="*80)
     print("노동법 챗봇 시나리오 테스트")
     print(f"총 {len(SCENARIOS)}개 시나리오")
+    if args.graph:
+        print("[모드] graph 경로 (Streamlit 동일)")
     print("="*80)
-    
-    # 벡터 스토어 준비
+
+    if args.graph:
+        from rag.graph import get_graph
+        print("\n그래프 로드 중...")
+        graph = get_graph()
+        print("[OK] 그래프 준비 완료\n")
+        results = []
+        for scenario in SCENARIOS:
+            print(f"[시나리오 {scenario['id']}] {scenario['name']} ... ", end="", flush=True)
+            result = test_scenario_via_graph(scenario, graph)
+            results.append(result)
+            status = "PASS" if result["passed"] else "FAIL"
+            print(f"{status} (phase={result['phase']}, ai_len={result['ai_content_len']}, checklist={result['checklist_len']})")
+            if result.get("error"):
+                print(f"    error: {result['error']}")
+        # 요약
+        passed = sum(1 for r in results if r["passed"])
+        print("\n" + "="*80)
+        print(f"graph 경로 결과: {passed}/{len(SCENARIOS)} 통과")
+        print("="*80)
+        for r in results:
+            if not r["passed"]:
+                print(f"  [FAIL] {r['scenario_id']}: {r['scenario_name']} phase={r['phase']} ai_len={r['ai_content_len']}")
+        sys.exit(0 if passed == len(SCENARIOS) else 1)
+
+    # 벡터 스토어 준비 (기존 파이프라인 테스트)
     print("\n벡터 스토어 준비 중...")
     collection, _ = build_vector_store()
     print("[OK] 벡터 스토어 준비 완료\n")
-    
+
     # 각 시나리오 테스트
     results = []
     for scenario in SCENARIOS:

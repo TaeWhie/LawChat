@@ -155,6 +155,8 @@ def process_turn(state: ChatbotState) -> dict:
                         user_knowledge_qa(user_text, rag_context),
                         max_tokens=1000
                     )
+                    if not (answer and str(answer).strip()):
+                        answer = "관련 조문을 바탕으로 답변을 생성하지 못했습니다. 퇴직금·연장근로 수당 등 **계산**이 필요하시면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 함께 적어 주시면 계산해 드립니다."
                     return {
                         "messages": [AIMessage(content=answer)],
                         "situation": "",
@@ -257,7 +259,31 @@ def process_turn(state: ChatbotState) -> dict:
                             "phase": "input",
                         }
                 else:
-                    # 계산 질문이지만 패턴 매칭 실패 → RAG로 답변
+                    # 계산 질문이지만 패턴 매칭 실패 → 상황 경로 시도(수습/최저임금 등)
+                    try:
+                        issues_fb, step1_articles_fb, _ = step1_issue_classification(user_text, collection=col)
+                        if issues_fb:
+                            sel_issue = issues_fb[0]
+                            articles_fb = dict(step1_articles_fb) if step1_articles_fb else {}
+                            remaining_fb = list(articles_fb.get(sel_issue) or [])
+                            step2_fb = step2_checklist(
+                                sel_issue, (user_text[:400] if isinstance(user_text, str) else ""),
+                                collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb,
+                            )
+                            checklist_fb = step2_fb.get("checklist", []) if isinstance(step2_fb, dict) else []
+                            if checklist_fb:
+                                resp_fb = f"감지된 이슈: {', '.join(issues_fb)}\n\n체크리스트가 생성되었습니다. 아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
+                                return {
+                                    "messages": [AIMessage(content=resp_fb)],
+                                    "situation": user_text, "issues": issues_fb, "selected_issue": sel_issue,
+                                    "qa_list": [], "articles_by_issue": articles_fb,
+                                    "checklist": checklist_fb, "checklist_index": 0,
+                                    "phase": "checklist", "pending_question": "",
+                                    "checklist_rag_results": step2_fb.get("rag_results", []) if isinstance(step2_fb, dict) else [],
+                                }
+                    except Exception:
+                        pass
+                    # 상황 경로 실패 시 RAG로 답변
                     try:
                         search_results = search(
                             col, user_text, top_k=5,
@@ -537,6 +563,8 @@ def process_turn(state: ChatbotState) -> dict:
                         user_knowledge_qa(user_text, rag_context),
                         max_tokens=1000
                     )
+                    if not (answer and str(answer).strip()):
+                        answer = "관련 조문을 바탕으로 답변을 생성하지 못했습니다. 퇴직금·연장근로 수당 등 **계산**이 필요하시면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 함께 적어 주시면 계산해 드립니다."
                     return {
                         "messages": [AIMessage(content=answer)],
                         "situation": "",
@@ -624,7 +652,30 @@ def process_turn(state: ChatbotState) -> dict:
                             "phase": "input",
                         }
                 else:
-                    # 계산 질문이지만 패턴 매칭 실패 → RAG로 답변
+                    # 계산 질문이지만 패턴 매칭 실패 → 상황 경로 시도(수습/최저임금 등)
+                    try:
+                        issues_fb2, step1_articles_fb2, _ = step1_issue_classification(user_text, collection=col)
+                        if issues_fb2:
+                            sel_issue2 = issues_fb2[0]
+                            articles_fb2 = dict(step1_articles_fb2) if step1_articles_fb2 else {}
+                            remaining_fb2 = list(articles_fb2.get(sel_issue2) or [])
+                            step2_fb2 = step2_checklist(
+                                sel_issue2, (user_text[:400] if isinstance(user_text, str) else ""),
+                                collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb2,
+                            )
+                            checklist_fb2 = step2_fb2.get("checklist", []) if isinstance(step2_fb2, dict) else []
+                            if checklist_fb2:
+                                resp_fb2 = f"감지된 이슈: {', '.join(issues_fb2)}\n\n체크리스트가 생성되었습니다. 아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
+                                return {
+                                    "messages": [AIMessage(content=resp_fb2)],
+                                    "situation": user_text, "issues": issues_fb2, "selected_issue": sel_issue2,
+                                    "qa_list": [], "articles_by_issue": articles_fb2,
+                                    "checklist": checklist_fb2, "checklist_index": 0,
+                                    "phase": "checklist", "pending_question": "",
+                                    "checklist_rag_results": step2_fb2.get("rag_results", []) if isinstance(step2_fb2, dict) else [],
+                                }
+                    except Exception:
+                        pass
                     try:
                         search_results = search(
                             col, user_text, top_k=5,

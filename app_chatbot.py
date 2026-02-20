@@ -6,12 +6,79 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 import re
 import time
 import threading
+import json
+import os
+import tempfile
+from pathlib import Path
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
 # 백그라운드 처리 결과 (스레드에서 저장, 메인에서 읽기) — 타임아웃 방지
 _pending_result = {}
 _lock = threading.Lock()
+
+# 멀티 워커 시 프로세스 간 결과 공유: 모든 워커가 같은 경로를 써야 하므로 시스템 temp 사용
+_PENDING_DIR = Path(tempfile.gettempdir()) / "lawchat_pending"
+
+def _pending_path(req_id: str):
+    return _PENDING_DIR / f"{req_id}.json"
+
+
+def _json_safe(obj):
+    """JSON 직렬화 가능한 형태로 재귀 변환 (복잡한 객체는 제거/문자열화)"""
+    if obj is None or isinstance(obj, (bool, int, float, str)):
+        return obj
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(x) for x in obj]
+    return str(obj)
+
+
+def _serialize_ok_result(r):
+    """graph.invoke() 결과를 JSON 직렬화 가능한 dict로 변환"""
+    msgs = r.get("messages") or []
+    msg_list = []
+    for m in msgs:
+        c = getattr(m, "content", None) or str(m)
+        kind = "AIMessage" if isinstance(m, AIMessage) else "HumanMessage"
+        msg_list.append({"t": kind, "c": c})
+    raw = {
+        "status": "ok",
+        "messages": msg_list,
+        "phase": r.get("phase"),
+        "checklist": r.get("checklist"),
+        "selected_issue": r.get("selected_issue"),
+        "situation": r.get("situation"),
+        "articles_by_issue": r.get("articles_by_issue"),
+        "checklist_rag_results": r.get("checklist_rag_results"),
+    }
+    return _json_safe(raw)
+
+
+def _deserialize_result(data: dict):
+    """파일에서 읽은 JSON을 (status, data) 형태로 복원. data는 기존 result와 동일한 형태."""
+    status = data.get("status", "ok")
+    if status == "error":
+        return ("error", data.get("error", ""))
+    msg_list = data.get("messages") or []
+    new_msgs = []
+    for x in msg_list:
+        if x.get("t") == "AIMessage":
+            new_msgs.append(AIMessage(content=x.get("c") or ""))
+        else:
+            new_msgs.append(HumanMessage(content=x.get("c") or ""))
+    result = {
+        "messages": new_msgs,
+        "phase": data.get("phase"),
+        "checklist": data.get("checklist"),
+        "selected_issue": data.get("selected_issue"),
+        "situation": data.get("situation"),
+        "articles_by_issue": data.get("articles_by_issue"),
+        "checklist_rag_results": data.get("checklist_rag_results"),
+    }
+    return ("ok", result)
+
 
 from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from rag.store import build_vector_store, search_by_article_numbers
@@ -612,7 +679,6 @@ def main():
         and isinstance(st.session_state.messages[-1], AIMessage)
         and st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG
     )
-
     # 사용자 입력 처리 (AI 처리 중이 아닐 때만)
     if not is_ai_processing:
         placeholder = random.choice(input_placeholders)
@@ -674,9 +740,26 @@ def main():
             r = graph.invoke({"messages": [last_human_msg]}, config=config_dict)
             with _lock:
                 _pending_result[req_id] = ("ok", r)
+            # 멀티 워커 시 다른 프로세스에서 폴링할 수 있으므로 파일에도 기록
+            try:
+                _PENDING_DIR.mkdir(parents=True, exist_ok=True)
+                p = _pending_path(req_id)
+                tmp = p.with_suffix(".json.tmp")
+                tmp.write_text(json.dumps(_serialize_ok_result(r), ensure_ascii=False), encoding="utf-8")
+                tmp.replace(p)
+            except Exception:
+                pass
         except Exception as e:
             with _lock:
                 _pending_result[req_id] = ("error", str(e))
+            try:
+                _PENDING_DIR.mkdir(parents=True, exist_ok=True)
+                p = _pending_path(req_id)
+                tmp = p.with_suffix(".json.tmp")
+                tmp.write_text(json.dumps({"status": "error", "error": str(e)}, ensure_ascii=False), encoding="utf-8")
+                tmp.replace(p)
+            except Exception:
+                pass
 
     # 1) 방금 사용자 메시지가 들어왔을 때: 처리 placeholder 추가 후 백그라운드 스레드 시작
     if is_ai_processing:
@@ -698,6 +781,19 @@ def main():
     if is_processing_placeholder and request_id:
         with _lock:
             res = _pending_result.pop(request_id, None)
+        # 멀티 워커: 다른 프로세스에서 스레드가 끝났을 수 있음 → 파일에서 확인
+        if res is None:
+            p = _pending_path(request_id)
+            for _ in range(3):
+                if _PENDING_DIR.exists() and p.exists():
+                    try:
+                        data = json.loads(p.read_text(encoding="utf-8"))
+                        res = _deserialize_result(data)
+                        p.unlink(missing_ok=True)
+                        break
+                    except Exception:
+                        pass
+                time.sleep(0.2)
         if res is not None:
             status, data = res
             # placeholder 제거
@@ -760,10 +856,10 @@ def main():
                     st.session_state.pending_buttons = []
             st.rerun()
             return
-        # 결과 아직 없음: 스피너로 표시하고 짧게 대기 후 재실행 (run 타임아웃 방지)
+        # 결과 아직 없음: 스피너로 표시하고 짧게 대기 후 재실행 (run 타임아웃 방지, 1초 폴링으로 반응 빠르게)
         with st.chat_message("assistant"):
             with st.spinner("처리 중입니다. 잠시만 기다려 주세요."):
-                time.sleep(2)
+                time.sleep(1)
         st.rerun()
         return
 
