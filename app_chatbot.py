@@ -7,7 +7,7 @@ app.py와 동일: 체크리스트는 한 번에 표시하고 네/아니요/모�
 - @st.cache_resource: 그래프(_cached_get_graph), 벡터 스토어(_cached_vector_store) 한 번만 로드.
 - @st.cache_data(ttl=3600): 법률 목록/장/조문(_cached_get_laws 등) 1시간 캐싱.
 - on_click 콜백: 새 대화, 돌아가기, 체크리스트, 다음, 관련 질문, 타겟 선택.
-- 법률 둘러보기: 사이드바에서 "📚 법률 둘러보기"로 열기, "접기"로 닫기. 챗봇 사용(메시지 전송) 시 기본 닫힘.
+- 법률 둘러보기: 클릭 시에만 로드(닫힌 상태에서 _cached_get_laws 호출 안 함). 로드 후에는 버튼 없이 트리만 표시. 사이드바는 initial_sidebar_state="collapsed"로 기본 닫힘.
 - 조항 상세 보기 시 사이드바 경량화: article_detail일 때 법률 트리 미로드, "← 채팅으로"만 표시.
 - 채팅 placeholder 세션 고정, footer 업데이트 날짜 @st.cache_data(ttl=60).
 - 채팅 영역 @st.fragment: 체크리스트/입력 시 해당 부분만 리런되어 속도 개선 (Streamlit 1.33+).
@@ -196,9 +196,9 @@ def init_session():
         st.session_state.browse_article_paragraphs = []
     if "browse_article_title" not in st.session_state:
         st.session_state.browse_article_title = ""
-    # 법률 둘러보기 패널: 챗봇 작동 시 기본 닫힘. 사용자가 열기/접기 가능.
-    if "sidebar_browse_expanded" not in st.session_state:
-        st.session_state.sidebar_browse_expanded = False
+    # 법률 둘러보기: 사이드바 닫힌 상태에서는 로드 안 함. 클릭 시에만 _cached_get_laws() 등 호출
+    if "sidebar_browse_loaded" not in st.session_state:
+        st.session_state.sidebar_browse_loaded = False
     if "chat_placeholder" not in st.session_state:
         st.session_state.chat_placeholder = None
 
@@ -241,8 +241,12 @@ def _on_new_chat():
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
-    st.session_state.sidebar_browse_expanded = False
     st.session_state.chat_placeholder = None
+
+
+def _on_show_browse():
+    """법률 둘러보기 로드: 클릭 시에만 트리 로드 (사이드바 닫힌 상태에서는 호출 안 됨)."""
+    st.session_state.sidebar_browse_loaded = True
 
 
 def _on_back_to_chat():
@@ -255,7 +259,6 @@ def _on_back_to_chat():
     st.session_state.browse_chapter_title = ""
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
-    st.session_state.sidebar_browse_expanded = False
 
 
 def _make_checklist_cb(idx: int, answer: str):
@@ -296,16 +299,6 @@ def _on_pending_none():
     st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
     st.session_state.pending_buttons = []
     st.rerun()
-
-
-def _on_open_browse():
-    """법률 둘러보기 패널 열기. 콜백 내부에서 rerun 호출 안 함."""
-    st.session_state.sidebar_browse_expanded = True
-
-
-def _on_close_browse():
-    """법률 둘러보기 패널 접기. 콜백 내부에서 rerun 호출 안 함."""
-    st.session_state.sidebar_browse_expanded = False
 
 
 @st.cache_data(ttl=60)
@@ -595,7 +588,6 @@ def _render_chat_ui():
                 if "messages" not in st.session_state:
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
-                st.session_state.sidebar_browse_expanded = False  # 챗봇 사용 시 사이드바(법률 둘러보기) 접기
                 st.rerun()
                 return
             
@@ -639,7 +631,6 @@ def _render_chat_ui():
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
                 st.session_state.related_questions = []
-                st.session_state.sidebar_browse_expanded = False  # 챗봇 사용 시 사이드바(법률 둘러보기) 접기
                 st.rerun()
                 return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
         else:
@@ -806,7 +797,7 @@ def _render_chat_ui():
 
 
 def main():
-    st.set_page_config(page_title="노동법 챗봇", layout="wide")
+    st.set_page_config(page_title="노동법 챗봇", layout="wide", initial_sidebar_state="collapsed")
     init_session()
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
@@ -821,11 +812,10 @@ def main():
             st.caption("조문 보기 중")
             st.button("← 채팅으로", key="sidebar_back_chat", on_click=_on_back_to_chat)
         else:
-            # 법률 둘러보기: 열기/접기 가능. 챗봇 사용 시 기본 닫힘.
-            if not st.session_state.get("sidebar_browse_expanded"):
-                st.button("📚 법률 둘러보기", key="sidebar_open_browse", on_click=_on_open_browse)
+            # 법률 둘러보기: 클릭 시에만 로드 (닫힌 상태에서 _cached_get_laws() 호출 안 함). 로드 후에는 버튼 없이 트리만 표시.
+            if not st.session_state.get("sidebar_browse_loaded"):
+                st.button("📚 법률 둘러보기", key="sidebar_open_browse", on_click=_on_show_browse)
             else:
-                st.button("접기", key="sidebar_close_browse", on_click=_on_close_browse)
                 st.subheader("📚 법률 둘러보기")
                 laws = _cached_get_laws()
                 for group in laws:
