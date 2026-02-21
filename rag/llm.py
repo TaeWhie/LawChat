@@ -3,7 +3,7 @@ import json
 import os
 import re
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional
 
 from openai import OpenAI
 
@@ -155,3 +155,95 @@ def chat_json(system: str, user: str, max_tokens: Optional[int] = None) -> Optio
             except Exception:
                 pass
     return parsed
+
+
+def chat_stream(
+    system: str,
+    user: str,
+    model: str = CHAT_MODEL,
+    max_tokens: Optional[int] = None,
+) -> Generator[str, None, None]:
+    """
+    스트리밍 응답을 청크(str) 제너레이터로 반환.
+    Streamlit에서 st.write_stream()과 함께 사용.
+    gpt-5-nano reasoning 모델도 지원 (streaming=True).
+    """
+    client = _get_chat_client()
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 1.0,
+        "stream": True,
+    }
+    if max_tokens is not None:
+        is_reasoning = "gpt-5" in model or "nano" in model.lower()
+        if is_reasoning:
+            if max_tokens >= 1000:
+                kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = max_tokens
+
+    try:
+        stream = client.chat.completions.create(**kwargs)
+        for chunk in stream:
+            if not chunk.choices:
+                continue
+            delta = chunk.choices[0].delta
+            content = getattr(delta, "content", None)
+            if content:
+                yield content
+    except Exception as e:
+        if _DEBUG:
+            print(f"[chat_stream] 스트리밍 오류: {type(e).__name__}: {e}", file=sys.stderr)
+        raise
+
+
+def chat_json_fast(
+    system: str,
+    user: str,
+    max_tokens: int = 200,
+) -> Optional[Any]:
+    """
+    단순 판단(off-topic, checklist_continuation 등) 전용 빠른 JSON 호출.
+    reasoning_effort='low'를 지원하는 모델에서는 reasoning 오버헤드 최소화.
+    지원 안 하면 일반 chat_json으로 폴백.
+    """
+    client = _get_chat_client()
+    model = CHAT_MODEL
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "temperature": 1.0,
+    }
+
+    # reasoning 모델용: reasoning_effort='low' 적용 (API 지원 시)
+    is_reasoning = "gpt-5" in model or "nano" in model.lower()
+    if is_reasoning:
+        kwargs["reasoning_effort"] = "low"
+        # max_completion_tokens: reasoning budget 제한
+        kwargs["max_completion_tokens"] = max(max_tokens, 1000)
+    else:
+        kwargs["max_tokens"] = max_tokens
+
+    try:
+        r = client.chat.completions.create(**kwargs)
+        if not r.choices:
+            return None
+        content = (r.choices[0].message.content or "").strip()
+        if not content:
+            return None
+        parsed = extract_json(content)
+        if _DEBUG and parsed is None:
+            print(f"[chat_json_fast] JSON 파싱 실패: {content[:300]}", file=sys.stderr)
+        return parsed
+    except Exception as e:
+        # reasoning_effort 미지원 API → 일반 chat_json으로 폴백
+        if _DEBUG:
+            print(f"[chat_json_fast] 폴백 (reasoning_effort 미지원): {e}", file=sys.stderr)
+        return chat_json(system, user, max_tokens=max_tokens)

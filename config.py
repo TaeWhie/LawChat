@@ -92,9 +92,9 @@ RAG_AUX_TOP_K = 10    # 보조 검색(총칙 포함)
 RAG_DEF_TOP_K = 10    # 정의 전용 검색
 RAG_FILTER_TOP_K = 20  # 관련도 필터 후 유지 개수 (체크리스트에 더 많은 조문 반영)
 CHECKLIST_MAX_ITEMS = 7  # 체크리스트 한 차수당 최대 질문 개수 (과다 방지)
-CHECKLIST_CONTEXT_MAX_LENGTH = 3600  # 체크리스트용 RAG 컨텍스트 글자 수 (축소 시 응답 속도 향상, 품질 유지)
+CHECKLIST_CONTEXT_MAX_LENGTH = 5000  # 체크리스트용 RAG 컨텍스트 글자 수 (3600→5000: 핵심 조문 잘림 방지)
 CHECKLIST_MAX_TOKENS = 4096  # 체크리스트 LLM 응답 상한 (낮추면 reasoning 모델도 빨리 종료 → 속도 향상, 비어있으면 파이프라인에서 재시도)
-CHECKLIST_MAX_ARTICLES = 10  # 체크리스트 생성 시 참조할 최대 조문 수 (과다 시 컨텍스트만 커져 지연)
+CHECKLIST_MAX_ARTICLES = 12  # 체크리스트 생성 시 참조할 최대 조문 수 (10→12: 다양한 법률 조문 포함)
 STEP1_ISSUE_SEARCH_TOP_N = 3  # step1에서 이슈별 검색으로 조문 수집하는 최대 이슈 수 (나머지는 공통 베이스만)
 
 # 총칙 판별용 장 번호 (JSON chapter.number와 비교)

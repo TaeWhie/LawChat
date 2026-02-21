@@ -15,9 +15,11 @@ from rag.pipeline import (
     step3_conclusion,
     filter_articles_by_issue_relevance,
     _rag_context,
+    step1_and_step2_parallel,
 )
 from rag.prompts import system_off_topic_detection, user_off_topic_detection
-from rag.llm import chat_json, chat
+from rag.llm import chat_json, chat, chat_stream
+from rag.labor_keywords import is_labor_law_related_fast
 from rag.question_classifier import (
     classify_question_type,
     system_knowledge_qa,
@@ -169,18 +171,10 @@ def process_turn(state: ChatbotState) -> dict:
 
     # 새 상황 입력
     if phase == "input" or (not situation and user_text):
-        # 노동법과 무관한 질문인지 먼저 확인
+        # 노동법과 무관한 질문인지 빠르게 확인 (키워드 기반, LLM 호출 없음 → TTFT 단축)
         try:
-            off_topic_result = chat_json(
-                system_off_topic_detection(),
-                user_off_topic_detection(user_text),
-                max_tokens=50
-            )
-            is_labor_law_related = True
-            if isinstance(off_topic_result, dict):
-                is_labor_law_related = off_topic_result.get("is_labor_law_related", True)
-            
-            if not is_labor_law_related:
+            _is_labor, _reason = is_labor_law_related_fast(user_text)
+            if not _is_labor:
                 # 노동법과 무관한 질문 → 상담으로 유도
                 guidance_msg = """안녕하세요! 저는 **노동법 전문 상담 챗봇**입니다. 
 
@@ -549,8 +543,10 @@ def process_turn(state: ChatbotState) -> dict:
         
         # 4. 상황 기반 상담만 체크리스트 생성 (question_type == "situation"일 때만)
         # 지식/계산/예외 질문은 위에서 모두 return했으므로 여기 도달하지 않음
+        # ★ step1 + step2 병렬 실행으로 TTFT 단축 (keyword 경로에서 효과 큼)
         situation = user_text
-        issues, step1_articles, _ = step1_issue_classification(situation, collection=col)
+        parallel_result = step1_and_step2_parallel(situation, collection=col)
+        issues = parallel_result.get("issues", [])
         if not issues:
             return {
                 "messages": [AIMessage(content="제공된 법령 데이터에서 해당 상황에 맞는 이슈를 찾지 못했습니다.\n\n직장에서 겪고 계신 구체적인 문제를 말씀해 주시면 더 정확한 상담을 도와드릴 수 있습니다. 예: '월급을 못 받았어요', '해고당했어요', '연차휴가를 사용하지 못했어요'")],
@@ -558,42 +554,10 @@ def process_turn(state: ChatbotState) -> dict:
                 "issues": [],
                 "phase": "input",
             }
-        selected_issue = issues[0]
-        # step1에서 반환한 이슈별 조문 사용. 비어 있으면 app.py와 동일하게 ALL_LABOR_LAW_SOURCES로 보충
-        articles_by_issue = dict(step1_articles) if step1_articles else {}
-        for issue_item in issues:
-            if issue_item in articles_by_issue and articles_by_issue[issue_item]:
-                continue
-            seen = set()
-            issue_articles = []
-            for q in [issue_item, situation]:
-                if not (q or str(q).strip()):
-                    continue
-                res = search(
-                    col, q, top_k=RAG_MAIN_TOP_K,
-                    filter_sources=ALL_LABOR_LAW_SOURCES,
-                    exclude_sections=["벌칙", "부칙"],
-                    exclude_chapters=["제1장 총칙"],
-                )
-                for r in res:
-                    art = r.get("article", "")
-                    if art and art not in seen:
-                        issue_articles.append(r)
-                        seen.add(art)
-            articles_by_issue[issue_item] = filter_articles_by_issue_relevance(
-                issue_item, issue_articles, top_k=RAG_FILTER_TOP_K
-            )
+        selected_issue = parallel_result.get("selected_issue", issues[0])
+        articles_by_issue = parallel_result.get("articles_by_issue", {})
+        checklist = parallel_result.get("checklist", [])
         qa_list = []
-        # 이슈 선택 후 바로 체크리스트 (app.py와 동일: filter_preview 400자, remaining_articles)
-        remaining = articles_by_issue.get(selected_issue) or []
-        filter_preview = (selected_issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in qa_list))[:400]
-        step2_res = step2_checklist(
-            selected_issue, filter_preview, collection=col,
-            narrow_answers=None,
-            qa_list=qa_list,
-            remaining_articles=remaining,
-        )
-        checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
         if checklist:
             # 말풍선에는 안내만. 질문 전문은 앱 아래 '체크리스트 답변' 영역에만 표시
             resp = f"감지된 이슈: {', '.join(issues)}\n\n체크리스트가 생성되었습니다. 아래에서 각 질문에 대해 **네** / **아니요** / **모르겠음** 버튼을 눌러 주세요."
@@ -603,10 +567,10 @@ def process_turn(state: ChatbotState) -> dict:
                 "qa_list": qa_list, "articles_by_issue": articles_by_issue,
                 "checklist": checklist, "checklist_index": 0,
                 "phase": "checklist", "pending_question": "",
-                "checklist_rag_results": step2_res.get("rag_results", []) if isinstance(step2_res, dict) else [],
+                "checklist_rag_results": parallel_result.get("rag_results", []),
             }
-        narrow_answers = [x.get("answer", "").strip() for x in qa_list if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
-        res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
+        narrow_answers = []
+        res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=None)
         conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
         rel = res.get("related_articles", []) if isinstance(res, dict) else []
         tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
@@ -621,18 +585,10 @@ def process_turn(state: ChatbotState) -> dict:
     # 체크리스트 단계에서 새로운 텍스트 입력이 들어온 경우 → 새 상담으로 처리
     # (phase == "checklist"이고 버튼이 아닌 텍스트 입력)
     if phase == "checklist":
-        # 노동법과 무관한 질문인지 먼저 확인
+        # 노동법과 무관한 질문인지 빠르게 확인 (키워드 기반, LLM 호출 없음 → TTFT 단축)
         try:
-            off_topic_result = chat_json(
-                system_off_topic_detection(),
-                user_off_topic_detection(user_text),
-                max_tokens=50
-            )
-            is_labor_law_related = True
-            if isinstance(off_topic_result, dict):
-                is_labor_law_related = off_topic_result.get("is_labor_law_related", True)
-            
-            if not is_labor_law_related:
+            _is_labor, _reason = is_labor_law_related_fast(user_text)
+            if not _is_labor:
                 # 노동법과 무관한 질문 → 상담으로 유도
                 guidance_msg = """안녕하세요! 저는 **노동법 전문 상담 챗봇**입니다. 
 
