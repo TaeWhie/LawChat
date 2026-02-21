@@ -7,19 +7,27 @@ from functools import lru_cache
 import chromadb
 from openai import OpenAI
 
-from config import VECTOR_DIR, EMBEDDING_MODEL, RAG_TOP_K, OPENAI_API_KEY, SOURCE_LAW
+from config import VECTOR_DIR, EMBEDDING_MODEL, RAG_TOP_K, OPENAI_API_KEY, OPENAI_BASE_URL, SOURCE_LAW
 from rag.load_laws import load_laws_auto
 
-# OpenAI 클라이언트 전역 재사용 (연결 재사용으로 속도 향상)
+# OpenAI 임베딩 클라이언트 전역 재사용 (연결 재사용으로 속도 향상)
+# 임베딩은 반드시 공식 OpenAI 엔드포인트를 사용해야 함
+# (OPENAI_BASE_URL은 gpt-5-nano 같은 LLM 전용 프록시 URL이라 임베딩 API 미지원 → 404)
+OPENAI_OFFICIAL_BASE_URL = "https://api.openai.com/v1"
+
 _embedding_client = None
 def _get_embedding_client() -> OpenAI:
     global _embedding_client
     if _embedding_client is None:
-        _embedding_client = OpenAI(api_key=OPENAI_API_KEY)
+        # 임베딩은 항상 공식 엔드포인트 사용 (OPENAI_BASE_URL 무시)
+        _embedding_client = OpenAI(
+            api_key=OPENAI_API_KEY,
+            base_url=OPENAI_OFFICIAL_BASE_URL,
+        )
     return _embedding_client
 
 # 임베딩 캐싱 (같은 텍스트는 재계산 없이 재사용)
-@lru_cache(maxsize=100)
+@lru_cache(maxsize=500)
 def get_embedding(text: str, model: str = EMBEDDING_MODEL) -> tuple:
     """텍스트 임베딩 (OpenAI). 캐싱으로 같은 쿼리 재사용 시 속도 향상. tuple 반환(리스트는 해시 불가)."""
     client = _get_embedding_client()

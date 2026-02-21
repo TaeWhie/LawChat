@@ -298,12 +298,23 @@ _LABOR_POS_KEYWORDS: frozenset = frozenset([
 
 # 비노동법 확정 키워드 (포함 시 off-topic 판단을 강화)
 _NON_LABOR_KEYWORDS: frozenset = frozenset([
-    "날씨", "요리", "레시피", "맛집", "여행", "관광", "쇼핑", "패션",
-    "주식", "코인", "암호화폐", "부동산", "투자", "재테크",
-    "연예인", "드라마", "영화", "음악", "게임",
-    "의료", "병원", "처방", "약", "다이어트",
-    "형사", "민사", "이혼", "상속", "부동산등기", "교통사고",
-    "수학", "과학", "역사", "지리", "영어번역",
+    # 날씨·음식·생활
+    "날씨", "기온", "비 와", "눈 와", "맑아", "흐려",
+    "요리", "레시피", "맛집", "점심", "저녁", "아침밥", "메뉴", "음식", "식당",
+    "여행", "관광", "숙박", "호텔", "항공", "비행기", "해외여행",
+    "쇼핑", "패션", "옷", "브랜드", "화장품",
+    # 금융·투자
+    "주식", "코인", "암호화폐", "비트코인", "이더리움", "부동산", "투자", "재테크", "펀드",
+    # 엔터테인먼트
+    "연예인", "드라마", "영화", "음악", "노래", "게임", "스포츠", "축구", "야구",
+    # 의료·건강 (근로자 건강 제외 - "직업병", "산재" 등은 노동법 키워드로 먼저 탐지됨)
+    "의료", "병원", "처방", "약 처방", "다이어트", "성형",
+    # 법률 타 분야
+    "형사", "민사", "이혼", "상속", "부동산등기", "교통사고", "보험사기",
+    # 학업·일반지식
+    "수학", "과학", "역사", "지리", "영어번역", "번역해", "번역 해줘",
+    # 일상 잡담
+    "오늘 뭐", "뭐 먹을", "뭐 할까", "추천해줘", "심심해", "안녕하세요만",
 ])
 
 # 노동법 관련 동사·표현 패턴 (단독으로 명확히 직장 상황을 나타냄)
@@ -315,6 +326,15 @@ _LABOR_PATTERN = _re.compile(
     r"연차\s*못|휴가\s*못|"
     r"일하는데|일하고\s*있|근무하는데|"
     r"노동\s*위원|고용\s*노동|근로\s*감독",
+    _re.IGNORECASE,
+)
+
+# 비노동법 패턴 (명확히 일상 잡담·비관련 질문)
+_NON_LABOR_PATTERN = _re.compile(
+    r"^(오늘\s*(날씨|뭐\s*(먹|할)|점심|저녁|기온)|"
+    r"뭐\s*(먹을까|먹으면|할까|볼까)|"
+    r"맛집\s*(추천|알려)|"
+    r"(안녕|반가워|잘\s*지내)\s*[.!?]?\s*$)",
     _re.IGNORECASE,
 )
 
@@ -334,7 +354,7 @@ def is_labor_law_related_fast(text: str) -> Tuple[bool, str]:
 
     text_normalized = text.strip()
 
-    # 1) 노동법 키워드 직접 포함 확인
+    # 1) 노동법 키워드 직접 포함 확인 (최우선: 직장·임금·해고 등)
     for kw in _LABOR_POS_KEYWORDS:
         if kw in text_normalized:
             return True, f"keyword:{kw}"
@@ -343,10 +363,14 @@ def is_labor_law_related_fast(text: str) -> Tuple[bool, str]:
     if _LABOR_PATTERN.search(text_normalized):
         return True, "pattern_match"
 
-    # 3) 비노동법 키워드가 있으면 off-topic 판단
+    # 3) 비노동법 패턴 (명확한 일상 잡담) 확인
+    if _NON_LABOR_PATTERN.search(text_normalized):
+        return False, "non_labor_pattern"
+
+    # 4) 비노동법 키워드가 있으면 off-topic 판단
     for kw in _NON_LABOR_KEYWORDS:
         if kw in text_normalized:
             return False, f"non_labor_keyword:{kw}"
 
-    # 4) 판단 불확실 → 보수적으로 True 반환 (LLM이 처리하도록 위임)
+    # 5) 판단 불확실 → 보수적으로 True 반환 (LLM이 처리하도록 위임)
     return True, "uncertain_default_true"

@@ -5,8 +5,36 @@ from pathlib import Path
 from dotenv import load_dotenv
 load_dotenv()
 
+# ── Streamlit Cloud st.secrets 폴백 ──────────────────────────────────────────
+# Streamlit Cloud 환경에서는 .env가 없으므로 st.secrets에서 값을 가져옴.
+# os.environ에 미리 주입해두면 이후 코드는 os.getenv()만으로 통일 사용 가능.
+def _inject_streamlit_secrets() -> None:
+    """Streamlit Cloud st.secrets → os.environ 주입 (아직 설정 안 된 키만)."""
+    try:
+        import streamlit as st
+        _keys = [
+            "OPENAI_API_KEY",
+            "OPENAI_BASE_URL",
+            "LAW_CHAT_MODEL",
+            "LAW_EMBEDDING_MODEL",
+            "LAW_API_OC",
+            "LAW_API_TIMEOUT",
+            "LAW_API_DELAY_SEC",
+            "LAW_EFFECTIVE_YEAR",
+        ]
+        for k in _keys:
+            if not os.environ.get(k):
+                v = st.secrets.get(k)
+                if v:
+                    os.environ[k] = str(v)
+    except Exception:
+        pass  # Streamlit 미설치 환경(로컬 CLI, 테스트 등)에서는 무시
+
+_inject_streamlit_secrets()
+
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")  # None이면 공식 OpenAI 엔드포인트 사용
 CHAT_MODEL = os.getenv("LAW_CHAT_MODEL", "gpt-5-nano")
 EMBEDDING_MODEL = os.getenv("LAW_EMBEDDING_MODEL", "text-embedding-3-large")
 
