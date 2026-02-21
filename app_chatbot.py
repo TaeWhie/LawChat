@@ -229,6 +229,9 @@ def init_session():
     # AI 처리 단계 표시용
     if "processing_step" not in st.session_state:
         st.session_state.processing_step = 0
+    # 백그라운드 처리 결과 도착 알림 (법률 탐색 중 결과 준비됐을 때 뱃지 표시)
+    if "_result_just_arrived" not in st.session_state:
+        st.session_state._result_just_arrived = False
 
 
 def _set_sidebar_open(open: bool):
@@ -313,16 +316,17 @@ def _on_back_to_chat():
 
 
 def _make_checklist_cb(idx: int, answer: str):
-    """체크리스트 네/아니요/모르겠음 버튼용 콜백 (인덱스·답변 캡처)."""
+    """체크리스트 네/아니요/모르겠음 버튼용 콜백 — fragment 내에서 부분 리런."""
     def _():
         st.session_state.cb_checklist_answers[idx] = answer
         _set_sidebar_open(False)
+        # fragment 내부에서 호출 시 채팅 영역만 리런 (scope 인자 없으면 fragment 기본 동작)
         st.rerun()
     return _
 
 
 def _on_checklist_next():
-    """체크리스트 '다음' 버튼 콜백."""
+    """체크리스트 '다음' 버튼 콜백 — fragment 내에서 부분 리런."""
     st.session_state.cb_checklist_submitted = True
     st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
     _set_sidebar_open(False)
@@ -330,7 +334,7 @@ def _on_checklist_next():
 
 
 def _make_related_q_cb(question: str):
-    """관련 질문 버튼용 콜백."""
+    """관련 질문 버튼용 콜백 — fragment 내에서 부분 리런."""
     def _():
         st.session_state.messages.append(HumanMessage(content=question))
         st.session_state.related_questions = []
@@ -340,7 +344,7 @@ def _make_related_q_cb(question: str):
 
 
 def _make_pending_btn_cb(label: str):
-    """타겟/그룹 선택 버튼용 콜백."""
+    """타겟/그룹 선택 버튼용 콜백 — fragment 내에서 부분 리런."""
     def _():
         st.session_state.messages.append(HumanMessage(content=label))
         st.session_state.pending_buttons = []
@@ -350,7 +354,7 @@ def _make_pending_btn_cb(label: str):
 
 
 def _on_pending_none():
-    """'둘 다 해당 없음' 버튼 콜백."""
+    """'둘 다 해당 없음' 버튼 콜백 — fragment 내에서 부분 리런."""
     st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
     st.session_state.pending_buttons = []
     _set_sidebar_open(False)
@@ -424,6 +428,12 @@ def _render_welcome_screen():
     st.info("💡 위 예시 외에도 직장에서 겪은 문제를 **아래 입력창에 자유롭게 입력**하시면 됩니다.", icon=None)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# @st.fragment: 채팅 영역만 부분 리런
+# - 체크리스트 버튼(네/아니요/모르겠음), 관련 질문, 처리 중 폴링 → fragment 내 st.rerun() → 채팅 영역만 갱신
+# - 조항 상세 이동(article_btn), 예시 질문 → st.rerun(scope="app") → 전체 앱 갱신
+# ─────────────────────────────────────────────────────────────────────────────
+@st.fragment
 def _render_chat_ui():
         graph = get_graph_safe()
         thread_id = st.session_state.thread_id
@@ -501,7 +511,8 @@ def _render_chat_ui():
                                                     except Exception:
                                                         st.session_state.browse_article_paragraphs = []
                                                         st.session_state.browse_article_title = article_number
-                                                    st.rerun()
+                                                    # 조항 상세 페이지로 전환: fragment 밖 layout 변경 → 전체 앱 리런
+                                                    st.rerun(scope="app")
                         except Exception:
                             pass
                     
@@ -772,11 +783,10 @@ def _render_chat_ui():
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
                 st.session_state.related_questions = []
-                _set_sidebar_open(False)
-                st.rerun()
-                return  # rerun 후 같은 run에서 AI 블록으로 넘어가지 않도록
+                # @st.fragment 안에서 chat_input 제출 → Streamlit이 자동으로 fragment만 재실행
+                # 별도 st.rerun() 불필요 — 코드가 그대로 아래로 흘러 AI 처리 블록에 진입
         else:
-            st.chat_input(_placeholder, key="main_chat_input")
+            st.chat_input(_placeholder, key="main_chat_input", disabled=False)
             # AI 처리 중에는 입력 무시 (prompt 확인 안 함)
     
         # 페이지 하단 출처/면책: 채팅 비어있을 때만, 처리 중·대기 중이 아닐 때만
@@ -914,9 +924,10 @@ def _render_chat_ui():
                     else:
                         st.session_state.messages.append(AIMessage(content="응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요."))
                         st.session_state.pending_buttons = []
-                st.rerun()
+                st.rerun(scope="app")  # 결과 반영 → 전체 앱 갱신으로 채팅에 답변 표시
                 return
-            # 결과 아직 없음: 단계 표시 스피너 + 짧게 대기 후 재실행 (run 타임아웃 방지)
+            # 결과 아직 없음: 단계 표시 스피너 + 짧게 대기 후 재실행
+            # fragment 안에서 st.rerun() → 채팅 영역만 반복 폴링 (사이드바 영향 없음)
             st.session_state.processing_step = (st.session_state.get("processing_step", 0) + 1) % 4
             step = st.session_state.processing_step
             step_messages = [
@@ -928,7 +939,7 @@ def _render_chat_ui():
             with st.chat_message("assistant"):
                 with st.spinner(step_messages[step]):
                     time.sleep(1)
-            st.rerun()
+            st.rerun()  # fragment 내 폴링 → 채팅 영역만 재실행
 
 
 def main():
@@ -943,14 +954,80 @@ def main():
         initial_sidebar_state="expanded" if st.session_state.sidebar_open else "collapsed"
     )
     init_session()
-    # 채팅/처리 중이면 닫힌 상태 유지
-    messages = st.session_state.get("messages", [])
-    if messages:
-        last = messages[-1]
-        if isinstance(last, HumanMessage):
-            st.session_state.sidebar_open = False
-        elif isinstance(last, AIMessage) and getattr(last, "content", None) == CHECKLIST_PROCESSING_MSG:
-            st.session_state.sidebar_open = False
+
+    # ── 백그라운드 결과 자동 픽업 ──────────────────────────────────────────
+    # fragment/사이드바 어느 쪽에서 rerun이 와도 main() 첫머리에서 결과 파일을 확인.
+    # 사용자가 법률 탐색 중에도 백그라운드 스레드는 계속 실행되고, 결과 파일을 씀.
+    # 돌아왔을 때 이 블록이 결과를 session_state에 반영 → 채팅 영역에 자동 표시.
+    _req_id = st.session_state.get("_processing_request_id")
+    _last_msg = (st.session_state.get("messages") or [None])[-1]
+    _still_pending = (
+        _req_id
+        and isinstance(_last_msg, AIMessage)
+        and getattr(_last_msg, "content", "") == CHECKLIST_PROCESSING_MSG
+    )
+    if _still_pending:
+        # 1) 메모리에서 먼저 확인
+        with _lock:
+            _bg_res = _pending_result.pop(_req_id, None)
+        # 2) 파일에서 확인 (멀티워커 대비, 즉시 1회만)
+        if _bg_res is None:
+            _p = _pending_path(_req_id)
+            if _PENDING_DIR.exists() and _p.exists():
+                try:
+                    _bg_res = _deserialize_result(json.loads(_p.read_text(encoding="utf-8")))
+                    _p.unlink(missing_ok=True)
+                except Exception:
+                    _bg_res = None
+        if _bg_res is not None:
+            _bg_status, _bg_data = _bg_res
+            # placeholder 제거
+            if (st.session_state.messages
+                    and isinstance(st.session_state.messages[-1], AIMessage)
+                    and st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG):
+                st.session_state.messages.pop()
+            st.session_state._processing_request_id = None
+            if _bg_status == "error":
+                st.session_state.messages.append(AIMessage(content=USER_FACING_ERROR))
+                st.session_state.pending_buttons = []
+            else:
+                _bg_result = _bg_data
+                _bg_new_msgs = _bg_result.get("messages", [])
+                _bg_ai_content = ""
+                for _m in reversed(_bg_new_msgs):
+                    if isinstance(_m, AIMessage):
+                        _bg_ai_content = _m.content
+                        break
+                if _bg_ai_content:
+                    st.session_state.messages.append(AIMessage(content=_bg_ai_content))
+                    if _bg_result.get("phase") == "checklist" and _bg_result.get("checklist"):
+                        st.session_state.cb_checklist = _bg_result.get("checklist", [])
+                        st.session_state.cb_checklist_answers = {}
+                        st.session_state.cb_checklist_submitted = False
+                        st.session_state.cb_issue = _bg_result.get("selected_issue", "")
+                        st.session_state.cb_situation = _bg_result.get("situation", "")
+                        st.session_state.cb_articles_by_issue = dict(_bg_result.get("articles_by_issue") or {})
+                        st.session_state.cb_round = 1
+                        st.session_state.cb_all_qa = []
+                        st.session_state.cb_checklist_rag_results = list(_bg_result.get("checklist_rag_results") or [])
+                        st.session_state.pending_buttons = []
+                    else:
+                        st.session_state.pending_buttons = []
+                        if _bg_result.get("phase") == "conclusion":
+                            st.session_state.cb_checklist = []
+                            st.session_state.cb_checklist_answers = {}
+                            st.session_state.cb_checklist_submitted = False
+                else:
+                    st.session_state.messages.append(AIMessage(content="응답을 생성하지 못했습니다. 다른 표현으로 다시 말씀해 주세요."))
+                    st.session_state.pending_buttons = []
+            # 결과 반영 완료 → "돌아가기" 버튼에 알림 뱃지 표시용 플래그
+            st.session_state._result_just_arrived = True
+            # 사용자가 조문 보기 중이라면 browse_view 유지 (사용자가 직접 돌아가기 선택)
+    else:
+        # 처리 중이 아닐 때는 플래그 초기화 (돌아가기 버튼 클릭 후 자동 소거)
+        if st.session_state.get("browse_view") is None:
+            st.session_state._result_just_arrived = False
+    # ──────────────────────────────────────────────────────────────────────
 
     # 브라우저 저장소(streamlit-browser-session-storage)와 동기화
     if SessionStorage is not None:
@@ -1072,7 +1149,19 @@ def main():
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
         st.markdown("### ⚖️ 노동법 챗봇")
-        st.divider()
+
+        # ── 백그라운드 처리 중 알림 ──────────────────────────────────────
+        _sb_req_id = st.session_state.get("_processing_request_id")
+        _sb_msgs   = st.session_state.get("messages") or []
+        _sb_last   = _sb_msgs[-1] if _sb_msgs else None
+        _sb_processing = (
+            _sb_req_id
+            and isinstance(_sb_last, AIMessage)
+            and getattr(_sb_last, "content", "") == CHECKLIST_PROCESSING_MSG
+        )
+        if _sb_processing:
+            st.info("⏳ 답변을 생성하고 있습니다...\n\n법률을 자유롭게 둘러보세요. 완료되면 자동으로 표시됩니다.", icon=None)
+            st.divider()
 
         # 에러 표시
         if st.session_state.get("graph_load_error"):
@@ -1096,7 +1185,18 @@ def main():
         is_article_view = st.session_state.get("browse_view") == "article_detail"
         if is_article_view:
             st.caption("📄 조문 보기 중")
-            st.button("← 채팅으로 돌아가기", key="sidebar_back_chat",
+            # 처리 완료 여부 확인 후 버튼 레이블 변경
+            _back_req = st.session_state.get("_processing_request_id")
+            _back_msgs = st.session_state.get("messages") or []
+            _back_last = _back_msgs[-1] if _back_msgs else None
+            _back_done = (
+                _back_req is None
+                and isinstance(_back_last, AIMessage)
+                and getattr(_back_last, "content", "") != CHECKLIST_PROCESSING_MSG
+                and len(_back_msgs) > 1  # 실제 답변이 있을 때만
+            )
+            _back_label = "← 채팅으로 돌아가기 🔔" if _back_done and st.session_state.get("_result_just_arrived") else "← 채팅으로 돌아가기"
+            st.button(_back_label, key="sidebar_back_chat",
                       use_container_width=True, on_click=_on_back_to_chat)
         else:
             # 법률 둘러보기: 버튼 없이 트리만 표시
@@ -1130,7 +1230,8 @@ def main():
                                             st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
                                             st.session_state.browse_article_paragraphs = paras
                                             st.session_state.browse_article_title = title
-                                            st.rerun()
+                                            # 사이드바에서 조항 클릭: 전체 앱 리런 (조항 상세 페이지로 레이아웃 전환)
+                                            st.rerun(scope="app")
 
     # ---------- 조항 상세 페이지 (법률 둘러보기에서 조항 클릭 시) ----------
     if st.session_state.get("browse_view") == "article_detail":
@@ -1231,8 +1332,8 @@ def main():
         st.button("← 챗봇으로 돌아가기", type="primary", key="back_to_chat_from_article", on_click=_on_back_to_chat)
         return
 
-    _run_chat = getattr(st, "fragment", lambda f: f)(_render_chat_ui)
-    _run_chat()
+    # @st.fragment으로 선언된 함수 — 채팅 영역만 부분 리런
+    _render_chat_ui()
 
 
 if __name__ == "__main__":
