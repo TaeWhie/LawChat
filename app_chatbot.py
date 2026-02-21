@@ -106,6 +106,16 @@ USER_FACING_ERROR = "일시적인 오류가 발생했습니다. 잠시 후 다�
 LOAD_ERROR_MESSAGE = "서비스를 불러오는 중 문제가 발생했습니다. 새로고침 후 다시 시도해 주세요."
 CHECKLIST_PROCESSING_MSG = "⏳ **처리 중입니다.** 잠시만 기다려 주세요."
 
+# 예시 질문 (초기 빈 화면 안내용)
+EXAMPLE_QUESTIONS = [
+    "월급을 제때 못 받았어요",
+    "갑자기 해고 통보를 받았어요",
+    "연장근무 수당을 못 받았어요",
+    "육아휴직을 거부당했어요",
+    "최저임금보다 적게 받고 있어요",
+    "부당한 징계를 받았어요",
+]
+
 
 @st.cache_data(ttl=3600)  # 1시간 캐싱
 def _cached_get_laws():
@@ -203,6 +213,12 @@ def init_session():
         st.session_state.browse_article_title = ""
     if "chat_placeholder" not in st.session_state:
         st.session_state.chat_placeholder = None
+    # 새 대화 확인 다이얼로그 상태
+    if "confirm_new_chat" not in st.session_state:
+        st.session_state.confirm_new_chat = False
+    # AI 처리 단계 표시용
+    if "processing_step" not in st.session_state:
+        st.session_state.processing_step = 0
 
 
 def _set_sidebar_open(open: bool):
@@ -250,7 +266,27 @@ def _on_new_chat():
     st.session_state.browse_article_title = ""
     st.session_state.thread_id = str(uuid.uuid4())[:8]
     st.session_state.chat_placeholder = None
+    st.session_state.confirm_new_chat = False
+    st.session_state.processing_step = 0
     _set_sidebar_open(False)  # 새 대화 시 사이드바 닫기
+
+
+def _on_confirm_new_chat():
+    """새 대화 확인 버튼 콜백."""
+    _on_new_chat()
+
+
+def _on_cancel_new_chat():
+    """새 대화 취소 콜백."""
+    st.session_state.confirm_new_chat = False
+
+
+def _on_request_new_chat():
+    """새 대화 시작 버튼 콜백: 메시지가 있으면 확인 화면으로, 없으면 바로 실행."""
+    if st.session_state.get("messages"):
+        st.session_state.confirm_new_chat = True
+    else:
+        _on_new_chat()
 
 
 def _on_back_to_chat():
@@ -332,6 +368,52 @@ def _cached_update_date():
         return "알 수 없음"
 
 
+def _render_footer():
+    """페이지 하단 출처/면책 공고. 한 곳에서만 호출."""
+    update_date = _cached_update_date()
+    st.divider()
+    st.markdown(
+        f"""
+        <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
+            <p><strong>📚 데이터 출처</strong></p>
+            <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
+            <p style="margin-top: 0.5em; color: #888; font-size: 0.9em;">마지막 업데이트: {update_date}</p>
+            <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
+            <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
+            <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
+            <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+
+def _render_welcome_screen():
+    """초기 빈 화면: 환영 메시지 + 예시 질문 버튼."""
+    st.markdown(
+        """
+        <div style="text-align:center; padding: 2em 0 1.5em 0;">
+            <div style="font-size:3em;">⚖️</div>
+            <h2 style="margin: 0.3em 0 0.2em 0;">노동법 RAG 챗봇</h2>
+            <p style="color:#555; font-size:1.05em;">근로기준법 등 <strong>11개 노동 법령</strong>을 기반으로 상담해 드립니다.</p>
+            <p style="color:#888; font-size:0.9em;">AI 답변은 참고용이며 법적 조언을 대체하지 않습니다.</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.markdown("**💬 이런 상황을 도와드릴 수 있어요**")
+    cols = st.columns(2)
+    for idx, q in enumerate(EXAMPLE_QUESTIONS):
+        with cols[idx % 2]:
+            if st.button(q, key=f"example_q_{idx}", use_container_width=True):
+                st.session_state.messages.append(HumanMessage(content=q))
+                st.session_state.related_questions = []
+                _set_sidebar_open(False)
+                st.rerun()
+    st.markdown("")
+    st.info("💡 위 예시 외에도 직장에서 겪은 문제를 **아래 입력창에 자유롭게 입력**하시면 됩니다.", icon=None)
+
+
 def _render_chat_ui():
         graph = get_graph_safe()
         thread_id = st.session_state.thread_id
@@ -375,22 +457,26 @@ def _render_chat_ui():
                                 citations = extract_article_citations(msg.content or "")
                                 if citations:
                                     st.markdown("**📜 관련 조항:**")
-                                    cols = st.columns(min(len(citations), 4))
-                                    for idx, (law_name, article_number) in enumerate(citations[:4]):
-                                        with cols[idx % 4]:
-                                            article_info = find_article_info(law_name, article_number, col)
-                                            if article_info:
-                                                btn_label = f"{law_name}\n{article_number}"
+                                    n_cols = min(len(citations), 4)
+                                    valid_citations = []
+                                    for law_name, article_number in citations[:4]:
+                                        article_info = find_article_info(law_name, article_number, col)
+                                        if article_info:
+                                            valid_citations.append((law_name, article_number, article_info))
+                                    if valid_citations:
+                                        btn_cols = st.columns(min(len(valid_citations), 4))
+                                        for idx, (law_name, article_number, article_info) in enumerate(valid_citations):
+                                            with btn_cols[idx]:
+                                                # 법령명 줄이기 (괄호 이후 제거)
+                                                short_law = law_name.split("(")[0] if "(" in law_name else law_name
+                                                btn_label = f"{short_law}\n{article_number}"
                                                 if st.button(btn_label, key=f"article_btn_{i}_{idx}", use_container_width=True):
-                                                    # 조항 상세 페이지로 이동
                                                     st.session_state.browse_view = "article_detail"
                                                     st.session_state.browse_law_id = article_info.get("law_id", "")
                                                     st.session_state.browse_law_name = law_name
                                                     st.session_state.browse_law_source = article_info.get("source", "")
                                                     st.session_state.browse_article_number = article_number
                                                     st.session_state.browse_chapter_title = article_info.get("chapter", "")
-                                                    
-                                                    # 조항 상세 정보 가져오기 (API에서)
                                                     try:
                                                         from rag.api_chapters import get_article_by_number_from_api
                                                         law_id = article_info.get("law_id", "")
@@ -412,11 +498,31 @@ def _render_chat_ui():
                     # 체크리스트 표시 (마지막 메시지이고 체크리스트가 있을 때)
                     if is_last_and_checklist:
                         cb_submitted = st.session_state.get("cb_checklist_submitted", False)
-                        st.markdown("**체크리스트** (각 질문에 대해 버튼을 눌러 주세요)")
+                        total = len(cb_checklist)
+                        answered_count = sum(1 for k in range(total) if cb_answers.get(k, "").strip())
+                        # 진행 상황 안내
+                        st.markdown(f"**📋 체크리스트** — 각 질문에 버튼으로 답해주세요 ({answered_count}/{total} 완료)")
+                        if answered_count < total and not cb_submitted:
+                            st.progress(answered_count / total)
                         for j, item in enumerate(cb_checklist):
                             q = item.get("question") or item.get("item") or str(item)
                             cur = cb_answers.get(j, "").strip()
-                            st.write(f"**{j+1}.** {q}")
+                            is_unanswered = not cur
+                            # 미답변 항목은 배경 강조
+                            if is_unanswered and not cb_submitted:
+                                st.markdown(
+                                    f'<div style="background:#fff8e1; border-left:3px solid #f9a825; '
+                                    f'padding:0.4em 0.8em; border-radius:4px; margin:0.5em 0;">'
+                                    f'<strong>{j+1}.</strong> {q}</div>',
+                                    unsafe_allow_html=True
+                                )
+                            else:
+                                answered_icon = {"네": "✅", "아니요": "❌", "모르겠음": "❓"}.get(cur, "")
+                                st.markdown(
+                                    f'<div style="padding:0.4em 0.8em; margin:0.5em 0;">'
+                                    f'<strong>{j+1}.</strong> {q} {answered_icon}</div>',
+                                    unsafe_allow_html=True
+                                )
                             c1, c2, c3, _ = st.columns([1, 1, 1, 2])
                             with c1:
                                 st.button("네", key=f"cb_btn_{j}_0", type="primary" if cur == "네" else "secondary", disabled=cb_submitted, on_click=_make_checklist_cb(j, "네"))
@@ -425,10 +531,19 @@ def _render_chat_ui():
                             with c3:
                                 st.button("모르겠음", key=f"cb_btn_{j}_2", type="primary" if cur == "모르겠음" else "secondary", disabled=cb_submitted, on_click=_make_checklist_cb(j, "모르겠음"))
                         # 다음 버튼: 모든 답변이 완료되었을 때만 활성화
-                        all_answered = len(cb_answers) == len(cb_checklist) and all(cb_answers.get(i, "").strip() for i in range(len(cb_checklist)))
+                        all_answered = answered_count == total
                         if not cb_submitted:
                             st.divider()
-                            st.button("다음", type="primary", key="cb_next_btn", use_container_width=True, disabled=not all_answered, on_click=_on_checklist_next)
+                            if not all_answered:
+                                remaining = total - answered_count
+                                st.caption(f"⬆️ 아직 {remaining}개 질문에 답변이 필요합니다.")
+                            st.button(
+                                "다음 →" if all_answered else f"다음 ({answered_count}/{total} 완료)",
+                                type="primary", key="cb_next_btn",
+                                use_container_width=True,
+                                disabled=not all_answered,
+                                on_click=_on_checklist_next
+                            )
             except Exception as e:
                 # 메시지 렌더링 오류 시 건너뛰기
                 continue
@@ -541,19 +656,25 @@ def _render_chat_ui():
             for i, lbl in enumerate(pending_buttons[:4]):
                 with cols[i]:
                     st.button(lbl[:30] + ("..." if len(lbl) > 30 else ""), key=f"grp_btn_{i}", use_container_width=True, on_click=_make_pending_btn_cb(lbl))
-            if len(pending_buttons) >= 3:
+            if len(pending_buttons) >= 2:
                 st.button("둘 다 해당 없음", key="grp_btn_none", on_click=_on_pending_none)
     
-        # 관련 질문 버튼 표시 (결론 생성 후)
+        # 관련 질문 버튼 표시 (결론 생성 후) — 채팅 말풍선 아래, 입력창 위
         related_questions = st.session_state.get("related_questions", [])
         if related_questions:
-            st.markdown("**💡 관련 질문:**")
-            cols = st.columns(min(len(related_questions), 3))
-            for i, question in enumerate(related_questions[:3]):  # 최대 3개만 표시
-                with cols[i % 3]:
-                    st.button(question, key=f"related_q_{i}", use_container_width=True, on_click=_make_related_q_cb(question))
-            if len(related_questions) > 3:
-                st.caption(f"그 외 {len(related_questions) - 3}개의 관련 질문이 있습니다. 입력창에 직접 질문해 주세요.")
+            with st.container():
+                st.markdown(
+                    '<div style="background:#f0f4ff; border-radius:8px; padding:0.8em 1em 0.4em 1em; margin-bottom:0.5em;">',
+                    unsafe_allow_html=True
+                )
+                st.markdown("**💡 이런 것도 궁금하지 않으신가요?**")
+                q_cols = st.columns(min(len(related_questions[:3]), 3))
+                for i, question in enumerate(related_questions[:3]):
+                    with q_cols[i]:
+                        st.button(question, key=f"related_q_{i}", use_container_width=True, on_click=_make_related_q_cb(question))
+                if len(related_questions) > 3:
+                    st.caption(f"그 외 {len(related_questions) - 3}개의 관련 질문이 있습니다. 입력창에 직접 질문해 주세요.")
+                st.markdown('</div>', unsafe_allow_html=True)
         
         # 사용자 입력 (채팅창) — placeholder는 세션당 한 번만 선택 (리런 시 흔들림 방지)
         import random
@@ -602,25 +723,10 @@ def _render_chat_ui():
                 st.rerun()
                 return
             
-            # 페이지 하단 출처 표시 및 면책 공고 (채팅창이 비어있을 때만 표시)
+            # 채팅이 비어있을 때: 환영 화면 + footer
             if not messages or len(messages) == 0:
-                st.divider()
-                st.markdown("---")
-                update_date = _cached_update_date()
-                st.markdown(
-                    f"""
-                    <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
-                        <p><strong>📚 데이터 출처</strong></p>
-                        <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
-                        <p style="margin-top: 0.5em; color: #888; font-size: 0.9em;">마지막 업데이트: {update_date}</p>
-                        <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
-                        <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
-                        <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
-                        <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
+                _render_welcome_screen()
+                _render_footer()
             return
     
         # AI 처리 중인지 확인 (마지막 메시지가 HumanMessage면 AI 응답 생성 필요)
@@ -651,25 +757,10 @@ def _render_chat_ui():
     
         # 페이지 하단 출처/면책: 채팅 비어있을 때만, 처리 중·대기 중이 아닐 때만
         _messages = st.session_state.get("messages", [])
-        _show_footer = (not _messages or len(_messages) == 0) and not is_ai_processing and not is_processing_placeholder
-        if _show_footer:
-            st.divider()
-            st.markdown("---")
-            update_date = _cached_update_date()
-            st.markdown(
-                f"""
-                <div style="text-align: center; color: #666; font-size: 0.85em; padding: 1em 0;">
-                    <p><strong>📚 데이터 출처</strong></p>
-                    <p>본 콘텐츠는 법제처 국가법령정보센터의 공공데이터를 활용하여 작성되었습니다.</p>
-                    <p style="margin-top: 0.5em; color: #888; font-size: 0.9em;">마지막 업데이트: {update_date}</p>
-                    <p style="margin-top: 1em;"><strong>⚠️ 면책 공고</strong></p>
-                    <p>본 서비스는 AI 기반 법률 상담 챗봇으로, 제공되는 정보는 참고용이며 법적 조언을 대체하지 않습니다.</p>
-                    <p>실제 법률 문제가 있는 경우 반드시 전문 법률가와 상담하시기 바랍니다.</p>
-                    <p style="margin-top: 0.5em; font-size: 0.9em;">본 서비스의 정보로 인한 어떠한 손해에 대해서도 책임을 지지 않습니다.</p>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
+        _show_welcome = (not _messages or len(_messages) == 0) and not is_ai_processing and not is_processing_placeholder
+        if _show_welcome:
+            _render_welcome_screen()
+            _render_footer()
     
         request_id = st.session_state.get("_processing_request_id")
     
@@ -801,9 +892,17 @@ def _render_chat_ui():
                         st.session_state.pending_buttons = []
                 st.rerun()
                 return
-            # 결과 아직 없음: 스피너로 표시하고 짧게 대기 후 재실행 (run 타임아웃 방지, 1초 폴링으로 반응 빠르게)
+            # 결과 아직 없음: 단계 표시 스피너 + 짧게 대기 후 재실행 (run 타임아웃 방지)
+            st.session_state.processing_step = (st.session_state.get("processing_step", 0) + 1) % 4
+            step = st.session_state.processing_step
+            step_messages = [
+                "🔍 상황을 분석하고 관련 법령을 검색하고 있습니다...",
+                "📋 이슈를 분류하고 체크리스트를 생성하고 있습니다...",
+                "⚖️ 법령 조문을 검토하고 결론을 작성하고 있습니다...",
+                "✍️ 답변을 정리하고 있습니다...",
+            ]
             with st.chat_message("assistant"):
-                with st.spinner("처리 중입니다. 잠시만 기다려 주세요."):
+                with st.spinner(step_messages[step]):
                     time.sleep(1)
             st.rerun()
 
@@ -948,18 +1047,37 @@ def main():
 
     # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
     with st.sidebar:
-        st.header("설정")
+        st.markdown("### ⚖️ 노동법 챗봇")
+        st.divider()
+
+        # 에러 표시
         if st.session_state.get("graph_load_error"):
             st.error(st.session_state.graph_load_error)
-        st.button("🔄 새 대화 시작", on_click=_on_new_chat)
+
+        # 새 대화 시작 버튼 + 확인 다이얼로그
+        if st.session_state.get("confirm_new_chat", False):
+            st.warning("현재 대화 내용이 모두 삭제됩니다.\n\n정말 새 대화를 시작하시겠습니까?")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.button("✅ 확인", key="confirm_new_chat_yes", type="primary",
+                          use_container_width=True, on_click=_on_confirm_new_chat)
+            with c2:
+                st.button("❌ 취소", key="confirm_new_chat_no",
+                          use_container_width=True, on_click=_on_cancel_new_chat)
+        else:
+            st.button("🔄 새 대화 시작", on_click=_on_request_new_chat, use_container_width=True)
+
         st.divider()
+
         is_article_view = st.session_state.get("browse_view") == "article_detail"
         if is_article_view:
-            st.caption("조문 보기 중")
-            st.button("← 채팅으로", key="sidebar_back_chat", on_click=_on_back_to_chat)
+            st.caption("📄 조문 보기 중")
+            st.button("← 채팅으로 돌아가기", key="sidebar_back_chat",
+                      use_container_width=True, on_click=_on_back_to_chat)
         else:
             # 법률 둘러보기: 버튼 없이 트리만 표시
-            st.subheader("📚 법률 둘러보기")
+            st.markdown("**📚 법률 둘러보기**")
+            st.caption("조항을 클릭하면 상세 내용을 볼 수 있습니다.")
             laws = _cached_get_laws()
             for group in laws:
                 group_name = group.get("group_name", "") or "법령"
@@ -999,10 +1117,14 @@ def main():
             paragraphs = st.session_state.get("browse_article_paragraphs") or []
             display_title = st.session_state.get("browse_article_title") or ""
             st.subheader(f"📜 {art_num} {display_title}".strip())
+            # 메타 정보를 한 줄로 표시
+            meta_parts = []
             if law_name:
-                st.caption(f"**{law_name}**")
+                meta_parts.append(f"**{law_name}**")
             if ch_title:
-                st.caption(f"장: {ch_title}")
+                meta_parts.append(f"*{ch_title}*")
+            if meta_parts:
+                st.caption(" · ".join(meta_parts))
             st.divider()
             if paragraphs:
                 def _strip_paragraph_text(typ: str, raw: str) -> str:
@@ -1024,34 +1146,43 @@ def main():
                     if not text:
                         continue
                     if prev_type == "항" and p_type not in ("호", "목"):
-                        st.divider()
+                        st.markdown("---")
                     prev_type = p_type
                     display_text = _strip_paragraph_text(p_type, text)
                     if p_type == "본문":
-                        st.markdown("### 본문")
-                        st.markdown(display_text)
+                        st.markdown(
+                            f'<div style="background:#f8f9fa; border-left:3px solid #1f77b4; '
+                            f'padding:0.6em 1em; border-radius:4px; margin-bottom:0.8em;">'
+                            f'{display_text}</div>',
+                            unsafe_allow_html=True
+                        )
                     elif p_type == "항":
-                        if num:
-                            hang_num_map = {"①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
-                                            "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10"}
-                            hang_num = hang_num_map.get(num, num)
-                            hlabel = f"### 제{hang_num}항"
-                        else:
-                            hlabel = "### 항"
-                        st.markdown(hlabel)
-                        st.markdown(display_text)
+                        hang_num_map = {"①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
+                                        "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10"}
+                        hang_num = hang_num_map.get(num, num) if num else ""
+                        hlabel = f"제{hang_num}항" if hang_num else "항"
+                        st.markdown(
+                            f'<div style="margin-top:0.6em;">'
+                            f'<span style="font-weight:600; color:#1f77b4; font-size:0.9em;">[{hlabel}]</span> '
+                            f'{display_text}</div>',
+                            unsafe_allow_html=True
+                        )
                     elif p_type == "호":
-                        label = f"-{num.rstrip('.')}호" if num else "-호"
-                        st.markdown(f'<div style="margin-left: 2.5em; margin-top: 0.8em; margin-bottom: 0.3em; color: #666;">{label}</div>', unsafe_allow_html=True)
-                        st.markdown(f'<div style="margin-left: 2.5em; margin-bottom: 0.5em;">{display_text}</div>', unsafe_allow_html=True)
+                        label = f"{num.rstrip('.')}호" if num else "호"
+                        st.markdown(
+                            f'<div style="margin-left:2em; margin-top:0.4em; color:#444;">'
+                            f'<span style="color:#888; font-size:0.85em;">{label}</span> {display_text}</div>',
+                            unsafe_allow_html=True
+                        )
                     elif p_type == "목":
                         label = f"{num}목" if num else "목"
-                        st.markdown(f'<div style="margin-left: 4.5em; margin-top: 0.3em; margin-bottom: 0.2em; font-size: 0.95em; color: #888;">{label}</div>', unsafe_allow_html=True)
-                        st.markdown(f'<div style="margin-left: 4.5em; font-size: 0.95em;">{display_text}</div>', unsafe_allow_html=True)
+                        st.markdown(
+                            f'<div style="margin-left:4em; margin-top:0.3em; font-size:0.93em; color:#555;">'
+                            f'<span style="color:#aaa; font-size:0.85em;">{label}</span> {display_text}</div>',
+                            unsafe_allow_html=True
+                        )
                     else:
                         st.markdown(display_text)
-                if prev_type == "항":
-                    st.divider()
             else:
                 col = _cached_vector_store()
                 if col is not None:
