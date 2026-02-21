@@ -156,9 +156,19 @@ def _cached_get_graph():
 
 @st.cache_resource
 def _cached_vector_store():
-    """벡터 스토어 컬렉션 한 번만 로드 (조문 검색/결론 시 반복 로드 방지)."""
+    """벡터 스토어 컬렉션 한 번만 로드 (조문 검색/결론 시 반복 로드 방지).
+    graph._collection_cache도 동시에 채워 두 경로에서 build_vector_store()가
+    중복 실행되지 않도록 한다.
+    """
     try:
         col, _ = build_vector_store()
+        # graph.py _get_collection() 캐시 공유 → 중복 build 방지
+        try:
+            import rag.graph as _g
+            if _g._collection_cache is None:
+                _g._collection_cache = col
+        except Exception:
+            pass
         return col
     except Exception:
         return None
@@ -611,9 +621,23 @@ def _render_chat_ui():
                     st.session_state.cb_round = cb_round + 1
                     st.session_state.cb_checklist_rag_results = step2_res.get("rag_results") or []
                 else:
-                    res = step3_conclusion(cb_issue, all_qa, collection=col, narrow_answers=narrow_answers if narrow_answers else None)
-                    conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
-                    rel = res.get("related_articles", []) if isinstance(res, dict) else []
+                    # ── 결론: 스트리밍으로 실시간 표시 ──────────────────────
+                    from rag.pipeline import step3_conclusion_stream
+                    # "처리 중" 메시지 제거
+                    if st.session_state.messages and isinstance(st.session_state.messages[-1], AIMessage) and st.session_state.messages[-1].content == CHECKLIST_PROCESSING_MSG:
+                        st.session_state.messages.pop()
+
+                    with st.chat_message("assistant"):
+                        stream = step3_conclusion_stream(
+                            cb_issue, all_qa,
+                            collection=col,
+                            narrow_answers=narrow_answers if narrow_answers else None,
+                        )
+                        conclusion_text = st.write_stream(stream)
+
+                    conc = conclusion_text or ""
+                    # 관련 조문 힌트는 결론 텍스트에서 추출
+                    rel = re.findall(r"제\d+(?:의\d+)?조", conc)[:5]
                     tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
                     st.session_state.messages.append(AIMessage(content=f"**결론**\n\n{conc}{tail}"))
                     

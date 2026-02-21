@@ -7,17 +7,21 @@ from typing import Any, Dict, Generator, List, Optional
 
 from openai import OpenAI
 
-from config import CHAT_MODEL, OPENAI_API_KEY
+from config import CHAT_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
 
 # 프로덕션에서 stderr 노이즈 방지. LAW_DEBUG=1 일 때만 상세 출력
 _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
 
 # OpenAI 클라이언트 전역 재사용 (연결 재사용으로 속도 향상)
+# OPENAI_BASE_URL이 설정되면 해당 프록시 엔드포인트 사용 (예: Genspark AI proxy)
 _chat_client = None
 def _get_chat_client() -> OpenAI:
     global _chat_client
     if _chat_client is None:
-        _chat_client = OpenAI(api_key=OPENAI_API_KEY)
+        kwargs: dict = {"api_key": OPENAI_API_KEY}
+        if OPENAI_BASE_URL:
+            kwargs["base_url"] = OPENAI_BASE_URL
+        _chat_client = OpenAI(**kwargs)
     return _chat_client
 
 
@@ -27,13 +31,17 @@ def chat(
     model: str = CHAT_MODEL,
     temperature: float = 1.0,
     max_tokens: Optional[int] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> str:
     """
     단일 대화 턴. 응답 텍스트 반환. (gpt-5-nano는 temperature=1만 지원)
-    max_tokens: 생성 토큰 수 제한 (None이면 모델 기본값 사용). 제한 시 생성 시간 단축.
+    max_tokens: 생성 토큰 수 제한 (None이면 모델 기본값 사용).
+    reasoning_effort: 'low'|'medium'|'high'|None. reasoning 모델에서 None이면 'medium'(기본).
+                      'low'로 설정 시 reasoning 토큰 대폭 감소 → 응답 속도 3~6배 향상.
     """
     client = _get_chat_client()
-    kwargs = {
+    is_reasoning = "gpt-5" in model or "nano" in model.lower()
+    kwargs: Dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system},
@@ -41,21 +49,26 @@ def chat(
         ],
         "temperature": temperature,
     }
+    # reasoning_effort 적용 (reasoning 모델 전용)
+    if is_reasoning and reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+
     if max_tokens is not None:
-        # gpt-5-nano는 reasoning 모델 → reasoning_tokens 사용하므로 실제 출력을 위해 더 큰 값 필요
-        # reasoning 모델은 max_completion_tokens 사용하되, reasoning 토큰을 제외한 실제 출력을 위해 충분히 큰 값 필요
-        if "gpt-5" in model or "nano" in model.lower():
-            # reasoning 모델: reasoning_tokens가 대부분이므로 실제 출력을 위해 최소 1000 이상 필요
-            # max_tokens가 너무 작으면 reasoning만 하고 출력 없음
-            if max_tokens < 1000:
-                # 작은 값이면 None으로 설정하여 모델이 충분히 출력하도록 함
+        if is_reasoning:
+            # reasoning 모델: reasoning_effort=low 이면 reasoning 토큰이 적어 2000으로도 충분
+            # effort=None|medium|high 이면 reasoning 토큰이 많아 최소 3000 이상 필요
+            min_required = 2000 if reasoning_effort == "low" else 3000
+            if max_tokens < min_required:
                 if _DEBUG:
-                    print(f"[chat] reasoning 모델 감지, max_tokens({max_tokens})가 너무 작아 None으로 설정", file=sys.stderr)
-                max_tokens = None
-            if max_tokens is not None:
-                kwargs["max_completion_tokens"] = max_tokens
+                    print(f"[chat] reasoning 모델, max_tokens({max_tokens}) < {min_required} → {min_required}으로 보정", file=sys.stderr)
+                max_tokens = min_required
+            kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
+    elif is_reasoning and reasoning_effort == "low":
+        # effort=low일 때 상한 없으면 불필요하게 긴 응답 방지
+        kwargs["max_completion_tokens"] = 4000
+
     try:
         r = client.chat.completions.create(**kwargs)
         if not r.choices:
@@ -131,9 +144,14 @@ def extract_json(text: str) -> Optional[Any]:
         return None
 
 
-def chat_json(system: str, user: str, max_tokens: Optional[int] = None) -> Optional[Any]:
-    """채팅 후 응답에서 JSON 파싱. max_tokens로 생성 시간 단축 가능."""
-    raw = chat(system, user, max_tokens=max_tokens)
+def chat_json(
+    system: str,
+    user: str,
+    max_tokens: Optional[int] = None,
+    reasoning_effort: Optional[str] = None,
+) -> Optional[Any]:
+    """채팅 후 응답에서 JSON 파싱. reasoning_effort='low'로 설정 시 속도 향상."""
+    raw = chat(system, user, max_tokens=max_tokens, reasoning_effort=reasoning_effort)
     if not raw:
         if _DEBUG:
             print("[chat_json] LLM 응답이 비어있음", file=sys.stderr)
@@ -162,13 +180,16 @@ def chat_stream(
     user: str,
     model: str = CHAT_MODEL,
     max_tokens: Optional[int] = None,
+    reasoning_effort: Optional[str] = None,
 ) -> Generator[str, None, None]:
     """
     스트리밍 응답을 청크(str) 제너레이터로 반환.
     Streamlit에서 st.write_stream()과 함께 사용.
     gpt-5-nano reasoning 모델도 지원 (streaming=True).
+    reasoning_effort='low' 설정 시 첫 청크 도달까지 시간 대폭 단축.
     """
     client = _get_chat_client()
+    is_reasoning = "gpt-5" in model or "nano" in model.lower()
     kwargs: Dict[str, Any] = {
         "model": model,
         "messages": [
@@ -178,11 +199,13 @@ def chat_stream(
         "temperature": 1.0,
         "stream": True,
     }
+    if is_reasoning and reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+
     if max_tokens is not None:
-        is_reasoning = "gpt-5" in model or "nano" in model.lower()
         if is_reasoning:
-            if max_tokens >= 1000:
-                kwargs["max_completion_tokens"] = max_tokens
+            min_required = 2000 if reasoning_effort == "low" else 3000
+            kwargs["max_completion_tokens"] = max(max_tokens, min_required)
         else:
             kwargs["max_tokens"] = max_tokens
 

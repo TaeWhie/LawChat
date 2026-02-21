@@ -54,8 +54,14 @@ class ChatbotState(TypedDict):
     checklist_rag_results: list  # step2에서 사용한 조문 (2차 시 merge용)
 
 
+# 벡터스토어 컬렉션 캐싱 (프로세스 내 최초 1회만 build_vector_store 호출)
+_collection_cache = None
+
 def _get_collection():
-    return build_vector_store()[0]
+    global _collection_cache
+    if _collection_cache is None:
+        _collection_cache = build_vector_store()[0]
+    return _collection_cache
 
 
 def _knowledge_empty_fallback(user_text: str, rag_context: str) -> str:

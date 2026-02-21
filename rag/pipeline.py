@@ -381,6 +381,7 @@ def _classify_with_llm(
     out = chat_json(
         system_issue_classification(),
         user_issue_classification(situation, context, allowed_primaries=allowed),
+        reasoning_effort="low",  # 이슈 분류: 단순 판단 → low로 충분
     )
     _debug_print(f"[LLM 원시 응답] 타입={type(out).__name__}, 값={out}")
     
@@ -879,6 +880,7 @@ def step2_checklist(
         system_checklist(),
         user_checklist(issue, context, filtered_provisions_text, already_asked_text=already_asked),
         max_tokens=max_tok,
+        reasoning_effort="low",  # 체크리스트: low effort로 3~6배 속도 향상
     )
     _debug_print(f"[체크리스트 LLM 응답] 타입: {type(out).__name__}, 값: {out}")
     
@@ -893,6 +895,7 @@ def step2_checklist(
             system_checklist(),
             user_checklist(issue, context, filtered_provisions_text, already_asked_text=already_asked),
             max_tokens=3072,
+            reasoning_effort="low",
         )
         checklist = _parse_checklist_response(out_retry)
         checklist = _deduplicate_checklist(checklist or [])
@@ -1203,7 +1206,16 @@ def step3_conclusion(
     qa_text = "\n".join(f"Q: {x.get('q', x.get('question', ''))}\nA: {x.get('a', x.get('answer', ''))}" for x in qa_list)
     law_query = issue
     if narrow_answers:
-        law_query = " ".join(narrow_answers) + " " + law_query
+        # narrow_answers가 str 리스트 또는 dict 리스트 모두 처리
+        def _to_str(x):
+            if isinstance(x, str):
+                return x
+            if isinstance(x, dict):
+                return x.get('text', x.get('article', x.get('content', '')))
+            return str(x)
+        narrow_strs = [s for s in (_to_str(x) for x in narrow_answers) if s]
+        if narrow_strs:
+            law_query = " ".join(narrow_strs[:5]) + " " + law_query
     
     # 동적 검색 전략: 이슈별 관련 법률 우선 검색 (법률 2개 이상이면 법률별 검색 후 병합)
     law_results = []
@@ -1329,29 +1341,53 @@ def step3_conclusion(
             _debug_print(f"[결론 생성] 벌칙·부칙 조문 추가 실패: {e}")
     
     law_context = _rag_context(law_results, max_length=4000)
-    
-    # 3차: 시행령·시행규칙 검색
-    decree_rule_results = []
+
+    # ── 3차: 시행령·시행규칙 검색 + 판례·결정례 추가를 병렬 실행 ──────────
+    # LLM 결론 생성과 동시에 시작하면 좋지만, 컨텍스트가 필요하므로
+    # 시행령·판례 수집만 ThreadPoolExecutor로 동시 수행 후 합산
+    import concurrent.futures as _cf
+
     if narrow_answers:
-        decree_rule_query = " ".join(narrow_answers) + " " + issue
+        def _na_to_str(x):
+            if isinstance(x, str): return x
+            if isinstance(x, dict): return x.get('text', x.get('article', x.get('content', '')))
+            return str(x)
+        _na_strs = [s for s in (_na_to_str(x) for x in narrow_answers) if s]
+        decree_rule_query = (" ".join(_na_strs[:5]) + " " + issue) if _na_strs else issue
     else:
         decree_rule_query = issue
-    try:
-        decree_rule_results = search(
-            collection, decree_rule_query, top_k=8,
-            filter_sources=[SOURCE_DECREE, SOURCE_RULE],
-        )
-        _debug_print(f"[결론 생성] 시행령·시행규칙 {len(decree_rule_results)}개 검색")
-    except Exception as e:
-        _debug_print(f"[결론 생성] 시행령·시행규칙 검색 실패: {e}")
-    
+
+    decree_rule_results: list = []
+    precedents_context: str = ""
+
+    def _fetch_decree():
+        try:
+            return search(
+                collection, decree_rule_query, top_k=8,
+                filter_sources=[SOURCE_DECREE, SOURCE_RULE],
+            )
+        except Exception as e:
+            _debug_print(f"[결론 생성] 시행령·시행규칙 검색 실패: {e}")
+            return []
+
+    def _fetch_precedents():
+        try:
+            return _add_precedents_and_explanations(issue, qa_text, law_results)
+        except Exception as e:
+            _debug_print(f"[결론 생성] 판례·결정례 추가 실패: {e}")
+            return ""
+
+    with _cf.ThreadPoolExecutor(max_workers=2) as _ex:
+        _fut_decree = _ex.submit(_fetch_decree)
+        _fut_prec   = _ex.submit(_fetch_precedents)
+        decree_rule_results = _fut_decree.result()
+        precedents_context  = _fut_prec.result()
+
     decree_rule_context = ""
     if decree_rule_results:
         decree_rule_context = _rag_context(decree_rule_results, max_length=2000)
-    
-    # 판례, 결정례, 법령해석 추가
-    precedents_context = _add_precedents_and_explanations(issue, qa_text, law_results)
-    
+        _debug_print(f"[결론 생성] 시행령·시행규칙 {len(decree_rule_results)}개 검색")
+
     # 결론 생성
     full_context = law_context
     related_articles_hint = ""
@@ -1359,16 +1395,17 @@ def step3_conclusion(
         articles_list = [r.get("article", "") for r in law_results[:5] if r.get("article")]
         if articles_list:
             related_articles_hint = ", ".join(articles_list)
-    
+
     if decree_rule_context.strip():
         full_context = law_context + "\n\n[시행령·시행규칙]\n" + decree_rule_context
-    
+
     if precedents_context.strip():
         full_context = full_context + "\n\n" + precedents_context
-    
+
     conclusion = chat(
         system_conclusion(),
         user_conclusion(issue, qa_text, full_context, related_articles_hint=related_articles_hint),
+        reasoning_effort="low",  # 결론: low effort → 5~10배 속도 향상
     )
     
     # ── 결론 품질 검증 (강화: 개선된 _validate_conclusion 사용) ──────────
@@ -1439,6 +1476,140 @@ def step3_conclusion(
         "decree_rule_results": decree_rule_results,
         "validation": validation,
     }
+
+
+def step3_conclusion_stream(
+    issue: str,
+    qa_list: List[Dict[str, str]],
+    collection=None,
+    narrow_answers: Optional[List[str]] = None,
+):
+    """
+    step3_conclusion의 스트리밍 버전.
+    컨텍스트 조합(RAG 검색, 시행령, 판례)까지는 동기로 수행한 뒤
+    결론 생성만 chat_stream으로 청크(str) 단위로 yield.
+
+    Streamlit에서 st.write_stream()과 함께 사용:
+        stream = step3_conclusion_stream(issue, qa_list, col)
+        conclusion_text = st.write_stream(stream)
+    """
+    from rag.llm import chat_stream as _stream
+    from rag.prompts import system_conclusion, user_conclusion
+
+    if collection is None:
+        collection, _ = build_vector_store()
+
+    qa_text = "\n".join(
+        f"Q: {x.get('q', x.get('question', ''))}\nA: {x.get('a', x.get('answer', ''))}"
+        for x in qa_list
+    )
+    law_query = issue
+    if narrow_answers:
+        # narrow_answers가 str 리스트 또는 dict 리스트 모두 처리
+        def _to_str_s(x):
+            if isinstance(x, str):
+                return x
+            if isinstance(x, dict):
+                return x.get('text', x.get('article', x.get('content', '')))
+            return str(x)
+        narrow_strs_s = [s for s in (_to_str_s(x) for x in narrow_answers) if s]
+        if narrow_strs_s:
+            law_query = " ".join(narrow_strs_s[:5]) + " " + law_query
+
+    # ── 1차: 법률 조문 검색 ───────────────────────────────────────────────
+    law_results: List[Dict[str, Any]] = []
+    seen_keys: set = set()
+    try:
+        from rag.law_classification import classify_laws_for_issue
+        api_detected_sources = classify_laws_for_issue(issue, qa_text, collection)
+    except Exception:
+        api_detected_sources = []
+
+    preferred_sources = api_detected_sources or ISSUE_TO_LAW_MAPPING.get(issue)
+    if preferred_sources:
+        k_per = max(3, (18 + len(preferred_sources) - 1) // len(preferred_sources))
+        for src in preferred_sources:
+            for r in search(collection, law_query, top_k=k_per,
+                            filter_sources=[src],
+                            exclude_sections=EXCLUDE_SECTIONS_MAIN,
+                            exclude_chapters=EXCLUDE_CHAPTERS_MAIN):
+                key = (r.get("source", ""), r.get("article", ""))
+                if key not in seen_keys:
+                    law_results.append(r)
+                    seen_keys.add(key)
+    if len(law_results) < 5:
+        for r in search(collection, law_query, top_k=18,
+                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                        exclude_sections=EXCLUDE_SECTIONS_MAIN,
+                        exclude_chapters=EXCLUDE_CHAPTERS_MAIN):
+            key = (r.get("source", ""), r.get("article", ""))
+            if key not in seen_keys:
+                law_results.append(r)
+                seen_keys.add(key)
+
+    # 관련 조문 확장
+    existing = {r.get("article", "") for r in law_results}
+    try:
+        from rag.law_json import get_related_articles_for_list
+        rel_nums = get_related_articles_for_list(law_results)
+        if rel_nums:
+            for r in search_by_article_numbers(collection, rel_nums, ALL_LABOR_LAW_SOURCES):
+                if r.get("article", "") not in existing:
+                    law_results.append(r)
+                    existing.add(r.get("article", ""))
+    except Exception:
+        pass
+
+    law_context = _rag_context(law_results, max_length=4000)
+
+    # ── 2차: 시행령·판례를 병렬 수집 ─────────────────────────────────────
+    import concurrent.futures as _cf
+
+    if narrow_answers:
+        def _na_to_str_s(x):
+            if isinstance(x, str): return x
+            if isinstance(x, dict): return x.get('text', x.get('article', x.get('content', '')))
+            return str(x)
+        _na_strs_s = [s for s in (_na_to_str_s(x) for x in narrow_answers) if s]
+        decree_rule_query = (" ".join(_na_strs_s[:5]) + " " + issue) if _na_strs_s else issue
+    else:
+        decree_rule_query = issue
+
+    def _fetch_decree():
+        try:
+            return search(collection, decree_rule_query, top_k=8,
+                          filter_sources=[SOURCE_DECREE, SOURCE_RULE])
+        except Exception:
+            return []
+
+    def _fetch_prec():
+        try:
+            return _add_precedents_and_explanations(issue, qa_text, law_results)
+        except Exception:
+            return ""
+
+    with _cf.ThreadPoolExecutor(max_workers=2) as ex:
+        f_d = ex.submit(_fetch_decree)
+        f_p = ex.submit(_fetch_prec)
+        decree_results = f_d.result()
+        prec_ctx = f_p.result()
+
+    full_context = law_context
+    if decree_results:
+        full_context += "\n\n[시행령·시행규칙]\n" + _rag_context(decree_results, max_length=2000)
+    if prec_ctx and prec_ctx.strip():
+        full_context += "\n\n" + prec_ctx
+
+    related_articles_hint = ", ".join(
+        r.get("article", "") for r in law_results[:5] if r.get("article")
+    )
+
+    # ── 3차: 결론 스트리밍 ────────────────────────────────────────────────
+    yield from _stream(
+        system_conclusion(),
+        user_conclusion(issue, qa_text, full_context, related_articles_hint=related_articles_hint),
+        reasoning_effort="low",
+    )
 
 
 def get_penalty_and_supplementary(collection, conclusion: str, issue: str, qa_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
