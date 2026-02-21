@@ -620,11 +620,11 @@ def _render_chat_ui():
                     # 결론 생성 후 관련 질문 생성 (답변 가능한 유형만: 정보·계산·상황)
                     try:
                         from rag.prompts import system_related_questions, user_related_questions
-                        from rag.llm import chat_json
+                        from rag.llm import chat_json_fast
                         from rag.capabilities import get_related_question_capabilities, ALLOWED_RELATED_QUESTION_TYPES
                         from rag.question_classifier import classify_question_type
                         caps = get_related_question_capabilities()
-                        questions_result = chat_json(
+                        questions_result = chat_json_fast(
                             system_related_questions(caps),
                             user_related_questions(conc, cb_issue, caps),
                             max_tokens=300
@@ -864,13 +864,13 @@ def _render_chat_ui():
                                         break
                                 try:
                                     from rag.prompts import system_related_questions, user_related_questions
-                                    from rag.llm import chat_json
+                                    from rag.llm import chat_json_fast
                                     from rag.capabilities import get_related_question_capabilities, ALLOWED_RELATED_QUESTION_TYPES
                                     from rag.question_classifier import classify_question_type
                                     issue = result.get("selected_issue", "")
                                     if conclusion_content and issue:
                                         caps = get_related_question_capabilities()
-                                        qr = chat_json(
+                                        qr = chat_json_fast(
                                             system_related_questions(caps),
                                             user_related_questions(conclusion_content, issue, caps),
                                             max_tokens=300,

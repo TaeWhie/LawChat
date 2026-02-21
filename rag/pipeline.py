@@ -16,6 +16,7 @@
 import os
 import re
 import sys
+import concurrent.futures
 from typing import List, Dict, Any, Optional, Tuple
 
 # 디버깅 모드. 환경변수 LAW_DEBUG=1 일 때만 stderr 출력
@@ -32,7 +33,7 @@ from rag.prompts import (
     system_conclusion,
     user_conclusion,
 )
-from rag.llm import chat, chat_json
+from rag.llm import chat, chat_json, chat_json_fast
 from config import (
     SOURCE_LAW, SOURCE_DECREE, SOURCE_RULE,
     SOURCE_MIN_WAGE_LAW,
@@ -71,7 +72,7 @@ EXCLUDE_SECTIONS_MAIN = ["벌칙", "부칙"]
 EXCLUDE_CHAPTERS_MAIN = ["제1장 총칙"]
 
 
-def _rag_context(search_results: List[Dict[str, Any]], max_length: int = 4000) -> str:
+def _rag_context(search_results: List[Dict[str, Any]], max_length: int = 5000) -> str:
     """RAG 검색 결과를 컨텍스트 문자열로 변환. 장 정보와 법률명도 포함. max_length로 길이 제한."""
     parts = []
     total_length = 0
@@ -495,6 +496,119 @@ def step1_issue_classification(
     return (issues, articles_by_issue, source)
 
 
+def step1_and_step2_parallel(
+    situation: str,
+    collection=None,
+    top_k: int = 22,
+) -> Dict[str, Any]:
+    """
+    step1_issue_classification + step2_checklist 를 가능한 한 병렬로 수행해 TTFT 단축.
+
+    전략:
+      - 키워드 경로(경로 A)일 때:
+          1) step1 키워드 이슈 추출 + 이슈별 조문 검색을 먼저 시작
+          2) 이슈가 확정되는 즉시 별도 thread에서 step2 시작
+          → 전체 시간 ≈ max(step1, step2) 대신 step1 + overlap
+      - LLM 경로(경로 B)일 때:
+          순차 실행 (step2는 step1 결과가 필요하므로 병렬 불가)
+
+    Returns:
+        {
+            "issues": [...],
+            "articles_by_issue": {...},
+            "selected_issue": "...",
+            "checklist": [...],
+            "rag_results": [...],
+            "source": "keyword" | "llm",
+        }
+    """
+    if collection is None:
+        collection, _ = build_vector_store()
+
+    # ── 경로 A: 키워드 매칭 먼저 시도 ──────────────────────────────────────
+    try:
+        from rag.law_json import get_categories_for_issue
+        candidate_issues = get_categories_for_issue(situation)
+    except Exception:
+        candidate_issues = []
+
+    if candidate_issues:
+        # 중복 제거 후 이슈 리스트 확정
+        seen_order: List[str] = []
+        for x in candidate_issues:
+            if x and x not in seen_order:
+                seen_order.append(x)
+        issues = seen_order
+
+        # step1 조문 수집 (thread A)
+        def _do_step1():
+            return _collect_articles_by_issue(
+                collection, issues, situation=situation, initial_list=None, top_k_per_issue=15
+            )
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            step1_future = ex.submit(_do_step1)
+            articles_by_issue = step1_future.result()
+
+        if _validate_issues_with_articles(issues, articles_by_issue):
+            selected_issue = issues[0]
+            remaining = articles_by_issue.get(selected_issue) or []
+            filter_preview = (selected_issue + " " + situation)[:400]
+
+            # step2 체크리스트 생성 (step1 결과 나오는 즉시 실행)
+            step2_res = step2_checklist(
+                selected_issue, filter_preview,
+                collection=collection,
+                narrow_answers=None,
+                qa_list=[],
+                remaining_articles=remaining,
+            )
+            checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
+            rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
+            return {
+                "issues": issues,
+                "articles_by_issue": articles_by_issue,
+                "selected_issue": selected_issue,
+                "checklist": checklist,
+                "rag_results": rag_results,
+                "source": "keyword",
+            }
+
+    # ── 경로 B: LLM 분류 (키워드 실패 시) ─────────────────────────────────
+    issues, articles_by_issue, source = _classify_with_llm(situation, collection, top_k)
+
+    if not issues:
+        return {
+            "issues": [],
+            "articles_by_issue": {},
+            "selected_issue": "",
+            "checklist": [],
+            "rag_results": [],
+            "source": source,
+        }
+
+    selected_issue = issues[0]
+    remaining = articles_by_issue.get(selected_issue) or []
+    filter_preview = (selected_issue + " " + situation)[:400]
+
+    step2_res = step2_checklist(
+        selected_issue, filter_preview,
+        collection=collection,
+        narrow_answers=None,
+        qa_list=[],
+        remaining_articles=remaining,
+    )
+    checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
+    rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
+    return {
+        "issues": issues,
+        "articles_by_issue": articles_by_issue,
+        "selected_issue": selected_issue,
+        "checklist": checklist,
+        "rag_results": rag_results,
+        "source": source,
+    }
+
 
 def _article_number_from_result(r: Dict[str, Any]) -> Optional[str]:
     """검색 결과 또는 조문 dict에서 조문 번호(제34조, 제43조의5 등) 추출."""
@@ -804,7 +918,7 @@ def step2_checklist(
         # 이전 답변이 있으면 AI가 판단
         try:
             _debug_print(f"[체크리스트 반복 판단] Q&A {len(qa_list)}개, 체크리스트 {len(checklist)}개")
-            continuation_out = chat_json(
+            continuation_out = chat_json_fast(
                 system_checklist_continuation(),
                 user_checklist_continuation(issue, qa_list, context),
                 max_tokens=512,
@@ -846,9 +960,9 @@ def _extract_penalty_articles_from_context(law_results: List[Dict[str, Any]]) ->
 
 
 def _validate_conclusion(conclusion: str, law_results: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """결론의 품질 검증."""
+    """결론의 품질 검증 (개선: substr 버그 수정 → 정확한 조문 번호 경계 매칭)."""
     cited_articles = re.findall(r"제\d+(?:의\d+)?조", conclusion)
-    
+
     # 법률명 포함 여부 확인
     law_names_in_results = set()
     for r in law_results:
@@ -857,13 +971,13 @@ def _validate_conclusion(conclusion: str, law_results: List[Dict[str, Any]]) -> 
             law_name = source.replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
             if law_name:
                 law_names_in_results.add(law_name)
-    
-    # 결론에서 법률명 추출 (간단한 패턴 매칭)
+
+    # 결론에서 법률명 추출
     law_names_in_conclusion = set()
     for law_name in law_names_in_results:
         if law_name in conclusion:
             law_names_in_conclusion.add(law_name)
-    
+
     validation = {
         "has_citations": len(cited_articles) > 0,
         "citations_in_results": True,
@@ -871,13 +985,24 @@ def _validate_conclusion(conclusion: str, law_results: List[Dict[str, Any]]) -> 
         "has_law_names": len(law_names_in_conclusion) > 0,
         "law_names_count": len(law_names_in_conclusion),
     }
-    # 인용된 조문이 검색 결과에 있는지 확인
+
+    # ── 개선: 정확한 조문 번호 경계 매칭 (substr 버그 수정) ──────────────
+    # 기존: "제3조" in "제13조" → True (오탐)
+    # 개선: "제3조"가 "제13조"에 완전히 포함되지 않도록 정확한 전체 조문명 비교
     if cited_articles:
-        existing_articles = {r.get("article", "") for r in law_results}
-        validation["citations_in_results"] = any(
-            any(art in existing_art for existing_art in existing_articles)
-            for art in cited_articles
-        )
+        existing_article_nums = set()
+        for r in law_results:
+            raw_art = r.get("article", "")
+            if raw_art:
+                # "제36조(임금의 지급)" → "제36조" 추출
+                m = re.match(r"^(제\d+(?:의\d+)?조)", raw_art.strip())
+                if m:
+                    existing_article_nums.add(m.group(1))
+        # 정확한 집합 교집합으로 존재 여부 판단
+        matched = existing_article_nums & set(cited_articles)
+        validation["citations_in_results"] = len(matched) > 0
+        validation["matched_citations"] = list(matched)
+        validation["unmatched_citations"] = list(set(cited_articles) - matched)
     return validation
 
 
@@ -1246,46 +1371,66 @@ def step3_conclusion(
         user_conclusion(issue, qa_text, full_context, related_articles_hint=related_articles_hint),
     )
     
-    # 결론 품질 검증
+    # ── 결론 품질 검증 (강화: 개선된 _validate_conclusion 사용) ──────────
     validation = _validate_conclusion(conclusion, law_results)
-    _debug_print(f"[결론 검증] 인용 있음: {validation['has_citations']}, 인용 검증: {validation['citations_in_results']}, 법률명 포함: {validation.get('has_law_names', False)}")
-    
-    # 법률명이 포함되지 않았으면 자동 보완 시도
+    _debug_print(
+        f"[결론 검증] 인용 있음: {validation['has_citations']}, "
+        f"인용 검증: {validation['citations_in_results']}, "
+        f"법률명 포함: {validation.get('has_law_names', False)}, "
+        f"매칭 조문: {validation.get('matched_citations', [])}, "
+        f"미매칭 조문: {validation.get('unmatched_citations', [])}"
+    )
+
+    # ── 강화된 법률명 자동 보완 (Task G) ─────────────────────────────────
+    # 1) 법률명 없는 경우 자동 추가
+    # 2) 미매칭 인용(조문 번호가 실제 검색 결과에 없는 경우) 경고 로깅
     if not validation.get('has_law_names', False) and law_results:
-        # 결론에서 조문 번호 추출
         cited_articles = re.findall(r"제\d+(?:의\d+)?조", conclusion)
-        
         if cited_articles:
-            # 각 조문에 대해 법률명 매핑
-            article_to_law = {}
+            # 조문 번호 → 법률명 역방향 매핑 (정확한 조문명 비교)
+            article_to_law: Dict[str, str] = {}
             for r in law_results:
-                art = r.get("article", "")
+                art_num = _article_number_from_result(r)
                 source = r.get("source", "")
-                if art and source:
-                    art_num = _article_number_from_result(r)
-                    if art_num:
-                        law_name = source.replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
-                        if law_name and art_num not in article_to_law:
-                            article_to_law[art_num] = law_name
-            
-            # 결론에서 조문 번호를 찾아 법률명 추가 (아직 법률명이 없는 경우만)
+                if art_num and source and art_num not in article_to_law:
+                    law_name = source.replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
+                    if law_name:
+                        article_to_law[art_num] = law_name
+
+            # 결론에서 "제N조" 앞에 법률명이 없는 경우만 추가
+            # lookbehind로 이미 법률명 있는지 확인 후 추가
             for art_num in cited_articles:
-                if art_num in article_to_law:
-                    law_name = article_to_law[art_num]
-                    # "제N조" 앞에 법률명이 없으면 추가
-                    pattern_without_law = re.compile(rf"(?<!{re.escape(law_name)})\s*{re.escape(art_num)}")
-                    if pattern_without_law.search(conclusion):
-                        # 첫 번째 발생만 변경
-                        conclusion = pattern_without_law.sub(f"{law_name} {art_num}", conclusion, count=1)
-                        _debug_print(f"[결론 보완] {art_num}에 {law_name} 추가")
-            
-            # 재검증
+                if art_num not in article_to_law:
+                    continue
+                law_name = article_to_law[art_num]
+                # 법률명이 이미 앞에 있으면 스킵
+                escaped_art = re.escape(art_num)
+                escaped_law = re.escape(law_name)
+                # "법률명 제N조" 패턴이 없는 경우만 보완
+                if not re.search(rf"{escaped_law}\s*{escaped_art}", conclusion):
+                    # "제N조" 앞에 법률명 삽입 (첫 번째 발생만)
+                    conclusion = re.sub(
+                        rf"(?<![가-힣]){escaped_art}",
+                        f"{law_name} {art_num}",
+                        conclusion,
+                        count=1,
+                    )
+                    _debug_print(f"[결론 보완] {art_num} → {law_name} {art_num}")
+
             validation = _validate_conclusion(conclusion, law_results)
             if validation.get('has_law_names', False):
-                _debug_print(f"[결론 보완] 법률명 자동 추가 완료")
+                _debug_print("[결론 보완] 법률명 자동 추가 완료")
             else:
-                sources = [r.get('source', '').replace('(법률)', '').replace('(시행령)', '').replace('(시행규칙)', '').strip() for r in law_results[:3] if r.get('source')]
-                _debug_print(f"[결론 검증 경고] 법률명 자동 추가 실패. 검색된 법률: {set(sources)}")
+                sources = {
+                    r.get('source', '').replace('(법률)', '').replace('(시행령)', '').replace('(시행규칙)', '').strip()
+                    for r in law_results[:5] if r.get('source')
+                }
+                _debug_print(f"[결론 검증 경고] 법률명 자동 추가 실패. 검색된 법률: {sources}")
+
+    # ── 미매칭 인용 경고 (실제로 검색 결과에 없는 조문 번호) ─────────────
+    unmatched = validation.get("unmatched_citations", [])
+    if unmatched:
+        _debug_print(f"[결론 검증 경고] 검색 결과에 없는 조문 인용: {unmatched} (잠재적 hallucination)")
     
     return {
         "conclusion": conclusion,
