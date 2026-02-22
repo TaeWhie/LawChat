@@ -22,6 +22,14 @@ from pathlib import Path
 import streamlit as st
 from langchain_core.messages import HumanMessage, AIMessage
 
+def _safe_fragment_rerun():
+    """fragment 스코프 rerun을 시도하고, 전체 앱 rerun 컨텍스트라 실패하면 전체 rerun으로 폴백."""
+    try:
+        from streamlit.errors import StreamlitAPIException
+        st.rerun(scope="fragment")
+    except Exception:
+        st.rerun()
+
 try:
     from streamlit_session_browser_storage import SessionStorage
 except ImportError:
@@ -118,10 +126,21 @@ EXAMPLE_QUESTIONS = [
 
 
 @st.cache_data(ttl=3600)  # 1시간 캐싱
-def _cached_get_laws():
-    """법률 목록 캐싱"""
+def _cached_get_laws_v11():
+    """법률 목록 캐싱 및 2차 필터링 (동기화 보장용)"""
     try:
-        return get_laws()
+        from config import ALL_LABOR_LAW_SOURCES
+        allowed = set(s.split("(")[0].strip().replace("ㆍ", "·") for s in ALL_LABOR_LAW_SOURCES if s)
+        
+        laws = get_laws() # rag.law_json.get_laws -> rag.api_chapters.get_laws_from_api
+        
+        # 2차 필터링: 만약 backend(api_chapters)에서 필터링이 실패하더라도 UI에서 차단
+        filtered = []
+        for group in laws:
+            g_name = (group.get("group_name") or "").replace("ㆍ", "·")
+            if g_name in allowed:
+                filtered.append(group)
+        return filtered
     except Exception:
         return []
 
@@ -232,13 +251,11 @@ def init_session():
     # 백그라운드 처리 결과 도착 알림 (법률 탐색 중 결과 준비됐을 때 뱃지 표시)
     if "_result_just_arrived" not in st.session_state:
         st.session_state._result_just_arrived = False
-
-
-def _set_sidebar_open(open: bool):
-    """사이드바 열림 상태 설정. 브라우저 저장소 동기화용 플래그도 설정."""
-    st.session_state.sidebar_open = open
-    st.session_state._sidebar_browser_sync = "true" if open else "false"
-
+    
+    # ── 캐시 초기화 (필터링 로직 변경 반영용 - 1회성) ──────────────────────
+    if "_laws_filter_cleared_v10" not in st.session_state:
+        st.cache_data.clear()
+        st.session_state._laws_filter_cleared_v10 = True
 
 def get_graph_safe():
     """그래프 로드. 실패 시 None 반환하고 session_state.graph_load_error에 메시지 저장."""
@@ -281,7 +298,6 @@ def _on_new_chat():
     st.session_state.chat_placeholder = None
     st.session_state.confirm_new_chat = False
     st.session_state.processing_step = 0
-    _set_sidebar_open(False)  # 새 대화 시 사이드바 닫기
 
 
 def _on_confirm_new_chat():
@@ -312,16 +328,14 @@ def _on_back_to_chat():
     st.session_state.browse_chapter_title = ""
     st.session_state.browse_article_paragraphs = []
     st.session_state.browse_article_title = ""
-    _set_sidebar_open(False)
 
 
 def _make_checklist_cb(idx: int, answer: str):
     """체크리스트 네/아니요/모르겠음 버튼용 콜백 — fragment 내에서 부분 리런."""
     def _():
         st.session_state.cb_checklist_answers[idx] = answer
-        _set_sidebar_open(False)
         # fragment 내부에서 호출 시 채팅 영역만 리런 (scope 인자 없으면 fragment 기본 동작)
-        st.rerun()
+        # st.rerun() 제거: 콜백 함수 내에서는 자동으로 리런됨
     return _
 
 
@@ -329,8 +343,6 @@ def _on_checklist_next():
     """체크리스트 '다음' 버튼 콜백 — fragment 내에서 부분 리런."""
     st.session_state.cb_checklist_submitted = True
     st.session_state.messages.append(AIMessage(content=CHECKLIST_PROCESSING_MSG))
-    _set_sidebar_open(False)
-    st.rerun()
 
 
 def _make_related_q_cb(question: str):
@@ -338,8 +350,6 @@ def _make_related_q_cb(question: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=question))
         st.session_state.related_questions = []
-        _set_sidebar_open(False)
-        st.rerun()
     return _
 
 
@@ -348,8 +358,6 @@ def _make_pending_btn_cb(label: str):
     def _():
         st.session_state.messages.append(HumanMessage(content=label))
         st.session_state.pending_buttons = []
-        _set_sidebar_open(False)
-        st.rerun()
     return _
 
 
@@ -357,8 +365,6 @@ def _on_pending_none():
     """'둘 다 해당 없음' 버튼 콜백 — fragment 내에서 부분 리런."""
     st.session_state.messages.append(HumanMessage(content="둘 다 해당 없음"))
     st.session_state.pending_buttons = []
-    _set_sidebar_open(False)
-    st.rerun()
 
 
 @st.cache_data(ttl=60)
@@ -422,8 +428,7 @@ def _render_welcome_screen():
             if st.button(q, key=f"example_q_{idx}", use_container_width=True):
                 st.session_state.messages.append(HumanMessage(content=q))
                 st.session_state.related_questions = []
-                _set_sidebar_open(False)
-                st.rerun()
+                _safe_fragment_rerun()
     st.markdown("")
     st.info("💡 위 예시 외에도 직장에서 겪은 문제를 **아래 입력창에 자유롭게 입력**하시면 됩니다.", icon=None)
 
@@ -591,7 +596,7 @@ def _render_chat_ui():
                 col = _cached_vector_store()
                 if not col:
                     st.session_state.messages.append(AIMessage(content=USER_FACING_ERROR))
-                    st.rerun()
+                    _safe_fragment_rerun()
                     return
                 narrow_answers = [x.get("answer", "").strip() for x in all_qa if x.get("answer") and x.get("answer").strip() not in ("네", "아니요", "모르겠음", "(미입력)")]
                 filter_text = (cb_issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in all_qa))[:400]
@@ -678,7 +683,7 @@ def _render_chat_ui():
                     st.session_state.cb_all_qa = []
                     st.session_state.cb_round = 1
                     st.session_state.cb_checklist_rag_results = []
-                st.rerun()
+                _safe_fragment_rerun()
             except Exception:
                 st.error(USER_FACING_ERROR)
     
@@ -754,8 +759,7 @@ def _render_chat_ui():
                 if "messages" not in st.session_state:
                     st.session_state.messages = []
                 st.session_state.messages.append(HumanMessage(content=prompt))
-                _set_sidebar_open(False)
-                st.rerun()
+                _safe_fragment_rerun()
                 return
             
             # 채팅이 비어있을 때: 환영 화면 + footer
@@ -837,7 +841,7 @@ def _render_chat_ui():
                 daemon=True,
             )
             t.start()
-            st.rerun()
+            _safe_fragment_rerun()
             return
     
         # 2) 백그라운드 처리 대기 중: 결과 있으면 반영, 없으면 짧게 대기 후 재실행 (타임아웃 방지)
@@ -939,19 +943,85 @@ def _render_chat_ui():
             with st.chat_message("assistant"):
                 with st.spinner(step_messages[step]):
                     time.sleep(1)
-            st.rerun()  # fragment 내 폴링 → 채팅 영역만 재실행
+            _safe_fragment_rerun()  # fragment 내 폴링 → 채팅 영역만 재실행
+
+
+def _render_sidebar():
+    with st.sidebar:
+        st.markdown("### ⚖️ 노동법 챗봇")
+
+        # ── 백그라운드 처리 중 알림 ──────────────────────────────────────
+        _sb_req_id = st.session_state.get("_processing_request_id")
+        _sb_msgs   = st.session_state.get("messages") or []
+        _sb_last   = _sb_msgs[-1] if _sb_msgs else None
+        _sb_processing = (
+            _sb_req_id
+            and isinstance(_sb_last, AIMessage)
+            and getattr(_sb_last, "content", "") == CHECKLIST_PROCESSING_MSG
+        )
+        if _sb_processing:
+            st.info("⏳ 답변을 생성하고 있습니다...\n\n법률을 자유롭게 둘러보세요. 완료되면 자동으로 표시됩니다.", icon=None)
+            st.divider()
+
+        # 에러 표시
+        if st.session_state.get("graph_load_error"):
+            st.error(st.session_state.graph_load_error)
+
+        # 새 대화 시작 버튼 + 확인 다이얼로그
+        if st.session_state.get("confirm_new_chat", False):
+            st.warning("현재 대화 내용이 모두 삭제됩니다.\n\n정말 새 대화를 시작하시겠습니까?")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.button("✅ 확인", key="confirm_new_chat_yes", type="primary",
+                          use_container_width=True, on_click=_on_confirm_new_chat)
+            with c2:
+                st.button("❌ 취소", key="confirm_new_chat_no",
+                          use_container_width=True, on_click=_on_cancel_new_chat)
+        else:
+            st.button("🔄 새 대화 시작", on_click=_on_request_new_chat, use_container_width=True)
+
+        st.divider()
+
+        # 법률 둘러보기: 버튼 없이 트리만 표시
+        st.markdown("**📚 법률 둘러보기**")
+        st.caption("조항을 클릭하면 상세 내용을 볼 수 있습니다.")
+        laws = _cached_get_laws_v11()
+        for group in laws:
+                group_name = group.get("group_name", "") or "법령"
+                items = group.get("items") or []
+                with st.expander(group_name, expanded=False):
+                    for item in items:
+                        law_id = item.get("id", "")
+                        law_name = item.get("name", "")
+                        source = item.get("source")
+                        with st.expander(law_name or law_id, expanded=False):
+                            chapters = _cached_get_chapters(law_id, source)
+                            for ch in chapters:
+                                with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
+                                    articles = _cached_get_articles_by_chapter(ch["number"], law_id, source)
+                                    for i, a in enumerate(articles):
+                                        art_num = a.get("article_number", "")
+                                        title = a.get("title", "")
+                                        paras = a.get("paragraphs") or []
+                                        label = f"{art_num} {title}".strip() or art_num
+                                        if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
+                                            st.session_state.browse_view = "article_detail"
+                                            st.session_state.browse_law_id = law_id
+                                            st.session_state.browse_law_name = law_name
+                                            st.session_state.browse_law_source = source
+                                            st.session_state.browse_article_number = art_num
+                                            st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
+                                            st.session_state.browse_article_paragraphs = paras
+                                            st.session_state.browse_article_title = title
+                                            # 사이드바에서 조항 클릭: 전체 앱 리런 (조항 상세 페이지로 레이아웃 전환)
+                                            st.rerun(scope="app")
+
 
 
 def main():
-    # 브라우저 저장소에서 읽은 값으로 sidebar_open 초기화 (한 run 늦게 반영되므로 첫 로드엔 기본값)
-    if "browser_sidebar_open" in st.session_state and st.session_state.browser_sidebar_open not in (None, ""):
-        st.session_state.sidebar_open = (st.session_state.browser_sidebar_open == "true")
-    if "sidebar_open" not in st.session_state:
-        st.session_state.sidebar_open = False
-    # set_page_config는 첫 호출이어야 함. sidebar_open에 따라 사이드바 초기 상태 적용.
     st.set_page_config(
         page_title="노동법 챗봇", layout="wide",
-        initial_sidebar_state="expanded" if st.session_state.sidebar_open else "collapsed"
+        initial_sidebar_state="expanded"
     )
     init_session()
 
@@ -1029,209 +1099,6 @@ def main():
             st.session_state._result_just_arrived = False
     # ──────────────────────────────────────────────────────────────────────
 
-    # 브라우저 저장소(streamlit-browser-session-storage)와 동기화
-    if SessionStorage is not None:
-        try:
-            browser_storage = SessionStorage()
-            if "_sidebar_browser_sync" in st.session_state:
-                browser_storage.setItem("sidebar_open", st.session_state._sidebar_browser_sync)
-                del st.session_state._sidebar_browser_sync
-            browser_storage.getItem("sidebar_open", key="browser_sidebar_open")
-        except Exception:
-            pass
-
-    # 닫은 다음 액션: 버튼/채팅 전송 시 사이드바를 먼저 닫고, 닫힘이 확인된 뒤에만 액션 실행 (고정 대기 없음)
-    try:
-        st.components.v1.html(
-            """
-            <script>
-            (function(){
-                var d = window.parent.document;
-                var closeFirstLabels = ['새 대화 시작', '채팅으로', '챗봇으로 돌아가기'];
-                var programmaticClick = false;
-                var programmaticKey = false;
-
-                function closeSidebar(cb) {
-                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
-                    if (!sidebar || sidebar.getAttribute('aria-expanded') !== 'true') {
-                        if (cb) cb();
-                        return;
-                    }
-                    var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
-                    if (!btn) { if (cb) cb(); return; }
-                    if (cb) {
-                        var obs = new MutationObserver(function(mutations, observer) {
-                            if (sidebar.getAttribute('aria-expanded') === 'false') {
-                                observer.disconnect();
-                                cb();
-                            }
-                        });
-                        obs.observe(sidebar, { attributes: true, attributeFilter: ['aria-expanded'] });
-                    }
-                    btn.click();
-                }
-
-                function attach() {
-                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
-                    if (!sidebar) return false;
-                    var buttons = d.querySelectorAll('button');
-                    buttons.forEach(function(btn) {
-                        if (btn.dataset.closeFirstDone) return;
-                        var text = (btn.textContent || '').trim();
-                        if (!closeFirstLabels.some(function(l){ return text.indexOf(l) !== -1; })) return;
-                        btn.dataset.closeFirstDone = '1';
-                        btn.addEventListener('click', function(e) {
-                            if (programmaticClick) { programmaticClick = false; return; }
-                            if (sidebar.getAttribute('aria-expanded') !== 'true') return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            var self = btn;
-                            closeSidebar(function() {
-                                programmaticClick = true;
-                                self.click();
-                            });
-                        }, true);
-                    });
-                    var chatInput = d.querySelector('[data-testid="stChatInput"] textarea');
-                    if (chatInput && !chatInput.dataset.closeFirstDone) {
-                        chatInput.dataset.closeFirstDone = '1';
-                        chatInput.addEventListener('keydown', function(e) {
-                            if (e.key !== 'Enter' || e.shiftKey) return;
-                            if (programmaticKey) { programmaticKey = false; return; }
-                            if (sidebar.getAttribute('aria-expanded') !== 'true') return;
-                            e.preventDefault();
-                            e.stopPropagation();
-                            var ta = chatInput;
-                            closeSidebar(function() {
-                                programmaticKey = true;
-                                var ev = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true });
-                                ta.dispatchEvent(ev);
-                            });
-                        }, true);
-                    }
-                    return true;
-                }
-                function tryAttach() {
-                    if (attach()) return;
-                    setTimeout(tryAttach, 80);
-                }
-                if (window.parent.document.readyState === 'complete') tryAttach();
-                else window.parent.addEventListener('load', tryAttach);
-            })();
-            </script>
-            """,
-            height=0,
-        )
-    except Exception:
-        pass
-
-    # rerun 후에도 사이드바가 열려 있으면 JS로 한 번 닫기 (Streamlit은 initial_sidebar_state를 rerun에 반영 안 함, 버튼 추가 없이)
-    if not st.session_state.get("sidebar_open", False):
-        try:
-            st.components.v1.html(
-                """
-                <script>
-                (function(){
-                    var d = window.parent.document;
-                    var sidebar = d.querySelector('[data-testid="stSidebar"]');
-                    if (sidebar && sidebar.getAttribute('aria-expanded') === 'true') {
-                        var btn = sidebar.querySelector('button[aria-label]') || sidebar.querySelector('button');
-                        if (btn) btn.click();
-                    }
-                })();
-                </script>
-                """,
-                height=0,
-            )
-        except Exception:
-            pass
-
-    # 사이드바 (조항 상세 보기 중에는 경량화 — 법률 트리 미로드)
-    with st.sidebar:
-        st.markdown("### ⚖️ 노동법 챗봇")
-
-        # ── 백그라운드 처리 중 알림 ──────────────────────────────────────
-        _sb_req_id = st.session_state.get("_processing_request_id")
-        _sb_msgs   = st.session_state.get("messages") or []
-        _sb_last   = _sb_msgs[-1] if _sb_msgs else None
-        _sb_processing = (
-            _sb_req_id
-            and isinstance(_sb_last, AIMessage)
-            and getattr(_sb_last, "content", "") == CHECKLIST_PROCESSING_MSG
-        )
-        if _sb_processing:
-            st.info("⏳ 답변을 생성하고 있습니다...\n\n법률을 자유롭게 둘러보세요. 완료되면 자동으로 표시됩니다.", icon=None)
-            st.divider()
-
-        # 에러 표시
-        if st.session_state.get("graph_load_error"):
-            st.error(st.session_state.graph_load_error)
-
-        # 새 대화 시작 버튼 + 확인 다이얼로그
-        if st.session_state.get("confirm_new_chat", False):
-            st.warning("현재 대화 내용이 모두 삭제됩니다.\n\n정말 새 대화를 시작하시겠습니까?")
-            c1, c2 = st.columns(2)
-            with c1:
-                st.button("✅ 확인", key="confirm_new_chat_yes", type="primary",
-                          use_container_width=True, on_click=_on_confirm_new_chat)
-            with c2:
-                st.button("❌ 취소", key="confirm_new_chat_no",
-                          use_container_width=True, on_click=_on_cancel_new_chat)
-        else:
-            st.button("🔄 새 대화 시작", on_click=_on_request_new_chat, use_container_width=True)
-
-        st.divider()
-
-        is_article_view = st.session_state.get("browse_view") == "article_detail"
-        if is_article_view:
-            st.caption("📄 조문 보기 중")
-            # 처리 완료 여부 확인 후 버튼 레이블 변경
-            _back_req = st.session_state.get("_processing_request_id")
-            _back_msgs = st.session_state.get("messages") or []
-            _back_last = _back_msgs[-1] if _back_msgs else None
-            _back_done = (
-                _back_req is None
-                and isinstance(_back_last, AIMessage)
-                and getattr(_back_last, "content", "") != CHECKLIST_PROCESSING_MSG
-                and len(_back_msgs) > 1  # 실제 답변이 있을 때만
-            )
-            _back_label = "← 채팅으로 돌아가기 🔔" if _back_done and st.session_state.get("_result_just_arrived") else "← 채팅으로 돌아가기"
-            st.button(_back_label, key="sidebar_back_chat",
-                      use_container_width=True, on_click=_on_back_to_chat)
-        else:
-            # 법률 둘러보기: 버튼 없이 트리만 표시
-            st.markdown("**📚 법률 둘러보기**")
-            st.caption("조항을 클릭하면 상세 내용을 볼 수 있습니다.")
-            laws = _cached_get_laws()
-            for group in laws:
-                group_name = group.get("group_name", "") or "법령"
-                items = group.get("items") or []
-                with st.expander(group_name, expanded=False):
-                    for item in items:
-                        law_id = item.get("id", "")
-                        law_name = item.get("name", "")
-                        source = item.get("source")
-                        with st.expander(law_name or law_id, expanded=False):
-                            chapters = _cached_get_chapters(law_id, source)
-                            for ch in chapters:
-                                with st.expander(f"{ch.get('number','')} {ch.get('title','')}".strip(), expanded=False):
-                                    articles = _cached_get_articles_by_chapter(ch["number"], law_id, source)
-                                    for i, a in enumerate(articles):
-                                        art_num = a.get("article_number", "")
-                                        title = a.get("title", "")
-                                        paras = a.get("paragraphs") or []
-                                        label = f"{art_num} {title}".strip() or art_num
-                                        if st.button(label, key=f"browse_{law_id}_{ch.get('number','')}_{i}_{art_num}", use_container_width=True):
-                                            st.session_state.browse_view = "article_detail"
-                                            st.session_state.browse_law_id = law_id
-                                            st.session_state.browse_law_name = law_name
-                                            st.session_state.browse_law_source = source
-                                            st.session_state.browse_article_number = art_num
-                                            st.session_state.browse_chapter_title = f"{ch.get('number','')} {ch.get('title','')}".strip()
-                                            st.session_state.browse_article_paragraphs = paras
-                                            st.session_state.browse_article_title = title
-                                            # 사이드바에서 조항 클릭: 전체 앱 리런 (조항 상세 페이지로 레이아웃 전환)
-                                            st.rerun(scope="app")
 
     # ---------- 조항 상세 페이지 (법률 둘러보기에서 조항 클릭 시) ----------
     if st.session_state.get("browse_view") == "article_detail":
@@ -1329,9 +1196,23 @@ def main():
         else:
             st.info("조문을 선택해 주세요.")
         st.divider()
-        st.button("← 챗봇으로 돌아가기", type="primary", key="back_to_chat_from_article", on_click=_on_back_to_chat)
+        
+        # 처리 완료 여부 확인 후 버튼 레이블 변경 내용 반영
+        _back_req = st.session_state.get("_processing_request_id")
+        _back_msgs = st.session_state.get("messages") or []
+        _back_last = _back_msgs[-1] if _back_msgs else None
+        _back_done = (
+            _back_req is None
+            and isinstance(_back_last, AIMessage)
+            and getattr(_back_last, "content", "") != CHECKLIST_PROCESSING_MSG
+            and len(_back_msgs) > 1
+        )
+        _back_label = "← 챗봇으로 돌아가기 🔔" if _back_done and st.session_state.get("_result_just_arrived") else "← 챗봇으로 돌아가기"
+        st.button(_back_label, type="primary", key="back_to_chat_from_article", on_click=_on_back_to_chat)
         return
 
+    # 사이드바 렌더링 (fragment 외부)
+    _render_sidebar()
     # @st.fragment으로 선언된 함수 — 채팅 영역만 부분 리런
     _render_chat_ui()
 
