@@ -242,6 +242,7 @@ def _collect_articles_by_issue(
     situation: Optional[str] = None,
     initial_list: Optional[List[Dict[str, Any]]] = None,
     top_k_per_issue: int = 15,
+    openai_api_key: Optional[str] = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """이슈 리스트에 대해 각 이슈별로 조문 검색 후 수집. 이슈별 관련 법률 우선 검색.
     검색 후 품질 검증 및 동적 보완 단계를 거침."""
@@ -277,6 +278,7 @@ def _collect_articles_by_issue(
                         collection, query, top_k=k_per_law,
                         filter_sources=[src], exclude_sections=EXCLUDE_SECTIONS_MAIN,
                         exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                        openai_api_key=openai_api_key or openai_api_key_ctx.get()
                     )
                     for r in res_one:
                         art = r.get("article", "")
@@ -289,6 +291,7 @@ def _collect_articles_by_issue(
                     collection, query, top_k=top_k_per_issue,
                     filter_sources=preferred_sources, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                     exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                    openai_api_key=openai_api_key or openai_api_key_ctx.get()
                 )
                 for r in res_preferred:
                     art = r.get("article", "")
@@ -302,6 +305,7 @@ def _collect_articles_by_issue(
                     collection, query, top_k=top_k_per_issue - len(issue_list),
                     filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                     exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                    openai_api_key=openai_api_key or openai_api_key_ctx.get()
                 )
                 for r in res_all:
                     art = r.get("article", "")
@@ -315,6 +319,7 @@ def _collect_articles_by_issue(
                 collection, query, top_k=top_k_per_issue,
                 filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                 exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                openai_api_key=openai_api_key or openai_api_key_ctx.get()
             )
             for r in res:
                 art = r.get("article", "")
@@ -363,6 +368,7 @@ def _classify_with_llm(
         collection, expanded_query, top_k=5,
         filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
         exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+        openai_api_key=openai_api_key
     )
     context = _rag_context(results)
     
@@ -437,7 +443,8 @@ def _classify_with_llm(
         return ([], {}, "llm", debug_info)
     
     articles_by_issue = _collect_articles_by_issue(
-        collection, issues, situation=None, initial_list=results, top_k_per_issue=15
+        collection, issues, situation=None, initial_list=results, top_k_per_issue=15,
+        openai_api_key=openai_api_key
     )
     _debug_print(f"\n[이슈 분류 완료] 이슈 {len(issues)}개, 이슈별 조문 반환")
     return (issues, articles_by_issue, "llm", debug_info)
@@ -490,7 +497,8 @@ def step1_issue_classification(
         issues = seen_order
         _debug_print(f"[이슈 후보] 키워드 매칭 → {issues}")
         articles_by_issue = _collect_articles_by_issue(
-            collection, issues, situation=situation, initial_list=None, top_k_per_issue=15
+            collection, issues, situation=situation, initial_list=None, top_k_per_issue=15,
+            openai_api_key=openai_api_key
         )
         # 검증: 최소 1개 이슈에 조문이 있어야 함
         if _validate_issues_with_articles(issues, articles_by_issue):
@@ -518,7 +526,8 @@ def step1_issue_classification(
                 seen_order.append(x)
         issues = seen_order
         articles_by_issue = _collect_articles_by_issue(
-            collection, issues, situation=situation, initial_list=None, top_k_per_issue=15
+            collection, issues, situation=situation, initial_list=None, top_k_per_issue=15,
+            openai_api_key=openai_api_key
         )
         if _validate_issues_with_articles(issues, articles_by_issue):
             _debug_print("[이슈 분류 완료] 키워드 fallback → 이슈별 조문 반환")
@@ -713,7 +722,7 @@ def _deduplicate_checklist(checklist: List[Dict[str, str]]) -> List[Dict[str, st
     return deduplicated
 
 
-def _enhance_articles_with_api(issue: str, articles: List[Dict[str, Any]], collection: Any) -> List[Dict[str, Any]]:
+def _enhance_articles_with_api(issue: str, articles: List[Dict[str, Any]], collection: Any, openai_api_key: Optional[str] = None) -> List[Dict[str, Any]]:
     """API를 활용해 조문 목록을 확장. lstrmRltJo, joRltLstrm 사용."""
     enhanced = list(articles)
     seen_articles = {r.get("article", "") for r in articles if r.get("article")}
@@ -745,7 +754,7 @@ def _enhance_articles_with_api(issue: str, articles: List[Dict[str, Any]], colle
                     # 용어로 다시 조문 검색
                     for term in terms[:2]:  # 각 조문당 최대 2개 용어
                         try:
-                            results = search(collection, term, top_k=3, filter_sources=ALL_LABOR_LAW_SOURCES)
+                            results = search(collection, term, top_k=3, filter_sources=ALL_LABOR_LAW_SOURCES, openai_api_key=openai_api_key or openai_api_key_ctx.get())
                             for r in results:
                                 if r.get("article", "") and r.get("article", "") not in seen_articles:
                                     enhanced.append(r)
@@ -764,9 +773,9 @@ def step2_checklist(
     collection=None,
     top_k: int = 10,
     narrow_answers: Optional[List[str]] = None,
-    qa_list: Optional[List[Dict[str, Any]]] = None,
     remaining_articles: Optional[List[Dict[str, Any]]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
+    openai_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """걸러진 조항 기준 체크리스트 (법률만). remaining_articles가 있으면 해당 조문만 사용(이슈와 무관한 임금 등 조문 혼입 방지).
     반환: {"checklist": [...], "rag_results": [...], "error": "...", "debug_info": {...}}"""
@@ -788,7 +797,7 @@ def step2_checklist(
     
     # remaining_articles 우선 사용 (법률별 균형 유지, step1에서 온 source 보존)
     if remaining_articles:
-        enhanced_articles = _enhance_articles_with_api(issue, remaining_articles, collection)
+        enhanced_articles = _enhance_articles_with_api(issue, remaining_articles, collection, openai_api_key=openai_api_key)
         if len(enhanced_articles) > max_articles:
             enhanced_articles = _cap_articles_by_source_diversity(enhanced_articles, max_articles)
             _debug_print(f"[체크리스트] 참조 조문 상한 {max_articles}개로 제한 (법률별 균형)")
@@ -811,6 +820,7 @@ def step2_checklist(
                     collection, query, top_k=k_per_law,
                     filter_sources=[src], exclude_sections=EXCLUDE_SECTIONS_MAIN,
                     exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                    openai_api_key=openai_api_key or openai_api_key_ctx.get()
                 )
                 for r in res_one:
                     key = (r.get("source", ""), r.get("article", ""))
@@ -822,6 +832,7 @@ def step2_checklist(
                     collection, query, top_k=top_k - len(results),
                     filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                     exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                    openai_api_key=openai_api_key or openai_api_key_ctx.get()
                 )
                 for r in res_all:
                     key = (r.get("source", ""), r.get("article", ""))
@@ -834,23 +845,27 @@ def step2_checklist(
                 raw = src.replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
                 if raw and raw not in expanded_sources:
                     expanded_sources.append(raw)
-            results = search(
-                collection, query, top_k=top_k,
-                filter_sources=expanded_sources, exclude_sections=EXCLUDE_SECTIONS_MAIN,
-                exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
-            )
-            if len(results) < top_k // 2:
-                results_all = search(
-                    collection, query, top_k=top_k - len(results),
-                    filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
+                results = search(
+                    collection, query, top_k=top_k,
+                    filter_sources=expanded_sources, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                     exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                    openai_api_key=openai_api_key or openai_api_key_ctx.get()
                 )
-                results.extend(results_all)
+                if len(results) < top_k // 2:
+                    results_all = search(
+                        collection, query, top_k=top_k - len(results),
+                        filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
+                        exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                        openai_api_key=openai_api_key or openai_api_key_ctx.get()
+                    )
+                    results.extend(results_all)
         else:
+            # 매칭이 없으면 전체 법률에서 검색
             results = search(
                 collection, query, top_k=top_k,
                 filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                 exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                openai_api_key=openai_api_key or openai_api_key_ctx.get()
             )
         if len(results) > max_articles:
             results = _cap_articles_by_source_diversity(results, max_articles)
@@ -1249,6 +1264,7 @@ def step3_conclusion(
     top_k: int = 10,
     narrow_answers: Optional[List[str]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
+    openai_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     모든 질문·대답과 RAG 조문 기반 결론 (법조항 인용).
@@ -1302,6 +1318,7 @@ def step3_conclusion(
                 collection, law_query, top_k=k_per_law,
                 filter_sources=[src], exclude_sections=EXCLUDE_SECTIONS_MAIN,
                 exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                openai_api_key=openai_api_key or openai_api_key_ctx.get()
             )
             for r in res_one:
                 key = (r.get("source", ""), r.get("article", ""))
@@ -1314,6 +1331,7 @@ def step3_conclusion(
                 collection, law_query, top_k=top_k - len(law_results),
                 filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
                 exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+                openai_api_key=openai_api_key or openai_api_key_ctx.get()
             )
             for r in res_all:
                 key = (r.get("source", ""), r.get("article", ""))
@@ -1330,6 +1348,7 @@ def step3_conclusion(
             collection, law_query, top_k=top_k,
             filter_sources=expanded_sources, exclude_sections=EXCLUDE_SECTIONS_MAIN,
             exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+            openai_api_key=openai_api_key or openai_api_key_ctx.get()
         )
         for r in res_preferred:
             key = (r.get("source", ""), r.get("article", ""))
@@ -1352,6 +1371,7 @@ def step3_conclusion(
             collection, law_query, top_k=top_k,
             filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
             exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
+            openai_api_key=openai_api_key or openai_api_key_ctx.get()
         )
         for r in res_all:
             key = (r.get("source", ""), r.get("article", ""))
@@ -1558,6 +1578,7 @@ def step3_conclusion_stream(
     collection=None,
     narrow_answers: Optional[List[str]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
+    openai_api_key: Optional[str] = None,
 ):
     """
     step3_conclusion의 스트리밍 버전.
@@ -1604,19 +1625,31 @@ def step3_conclusion_stream(
     if preferred_sources:
         k_per = max(3, (18 + len(preferred_sources) - 1) // len(preferred_sources))
         for src in preferred_sources:
-            for r in search(collection, law_query, top_k=k_per,
-                            filter_sources=[src],
-                            exclude_sections=EXCLUDE_SECTIONS_MAIN,
-                            exclude_chapters=EXCLUDE_CHAPTERS_MAIN):
+            search_args = {
+                "collection": collection,
+                "query": law_query,
+                "top_k": k_per,
+                "filter_sources": [src],
+                "exclude_sections": EXCLUDE_SECTIONS_MAIN,
+                "exclude_chapters": EXCLUDE_CHAPTERS_MAIN,
+                "openai_api_key": openai_api_key or openai_api_key_ctx.get()
+            }
+            for r in search(**search_args):
                 key = (r.get("source", ""), r.get("article", ""))
                 if key not in seen_keys:
                     law_results.append(r)
                     seen_keys.add(key)
     if len(law_results) < 5:
-        for r in search(collection, law_query, top_k=18,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
-                        exclude_sections=EXCLUDE_SECTIONS_MAIN,
-                        exclude_chapters=EXCLUDE_CHAPTERS_MAIN):
+        search_args_all = {
+            "collection": collection,
+            "query": law_query,
+            "top_k": 18,
+            "filter_sources": ALL_LABOR_LAW_SOURCES,
+            "exclude_sections": EXCLUDE_SECTIONS_MAIN,
+            "exclude_chapters": EXCLUDE_CHAPTERS_MAIN,
+            "openai_api_key": openai_api_key or openai_api_key_ctx.get()
+        }
+        for r in search(**search_args_all):
             key = (r.get("source", ""), r.get("article", ""))
             if key not in seen_keys:
                 law_results.append(r)

@@ -135,7 +135,7 @@ async def context_middleware(request, call_next):
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint to verify deployment version."""
-    return {"status": "ok", "version": "1.0.7-deep-diagnostics", "context_supported": True}
+    return {"status": "ok", "version": "1.1.0-absolute-keys-v2", "context_supported": True}
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):

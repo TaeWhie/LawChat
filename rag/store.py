@@ -9,37 +9,46 @@ from openai import OpenAI
 
 from config import VECTOR_DIR, EMBEDDING_MODEL, RAG_TOP_K, OPENAI_API_KEY, OPENAI_BASE_URL, SOURCE_LAW
 from rag.load_laws import load_laws_auto
+from rag.context import openai_api_key_ctx
 
 # OpenAI 임베딩 클라이언트 전역 재사용 (연결 재사용으로 속도 향상)
 # 임베딩은 반드시 공식 OpenAI 엔드포인트를 사용해야 함
 # (OPENAI_BASE_URL은 gpt-5-nano 같은 LLM 전용 프록시 URL이라 임베딩 API 미지원 → 404)
 OPENAI_OFFICIAL_BASE_URL = "https://api.openai.com/v1"
 
-_embedding_client = None
-def _get_embedding_client() -> OpenAI:
-    global _embedding_client
-    if _embedding_client is None:
-        # 임베딩은 항상 공식 엔드포인트 사용 (OPENAI_BASE_URL 무시)
-        _embedding_client = OpenAI(
-            api_key=OPENAI_API_KEY,
+# OpenAI 임베딩 클라이언트 캐시 (API 키별로 구분)
+_embedding_clients: Dict[str, OpenAI] = {}
+
+def _get_embedding_client(api_key: Optional[str] = None) -> OpenAI:
+    """
+    임베딩용 클라이언트 반환.
+    1. 인자로 넘어온 키 (최우선)
+    2. 컨텍스트에서 키 가져오기 (차선)
+    3. 기본 키 사용 (최후)
+    """
+    actual_api_key = api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
+    
+    if actual_api_key not in _embedding_clients:
+        _embedding_clients[actual_api_key] = OpenAI(
+            api_key=actual_api_key,
             base_url=OPENAI_OFFICIAL_BASE_URL,
         )
-    return _embedding_client
+    return _embedding_clients[actual_api_key]
 
-# 임베딩 캐싱 (같은 텍스트는 재계산 없이 재사용)
-@lru_cache(maxsize=500)
-def get_embedding(text: str, model: str = EMBEDDING_MODEL) -> tuple:
-    """텍스트 임베딩 (OpenAI). 캐싱으로 같은 쿼리 재사용 시 속도 향상. tuple 반환(리스트는 해시 불가)."""
-    client = _get_embedding_client()
+# 임베딩 캐싱 (텍스트 + 키 조합으로 캐싱)
+@lru_cache(maxsize=1000)
+def get_embedding(text: str, model: str = EMBEDDING_MODEL, api_key: Optional[str] = None) -> tuple:
+    """텍스트 임베딩 (OpenAI)."""
+    client = _get_embedding_client(api_key)
     r = client.embeddings.create(input=[text], model=model)
-    return tuple(r.data[0].embedding)  # tuple로 변환 (lru_cache용)
+    return tuple(r.data[0].embedding)
 
 
-def get_embeddings_batch(texts: List[str], model: str = EMBEDDING_MODEL) -> List[List[float]]:
-    """여러 텍스트를 1회 API 호출로 배치 임베딩. 매핑으로 N회→1회 호출."""
+def get_embeddings_batch(texts: List[str], model: str = EMBEDDING_MODEL, api_key: Optional[str] = None) -> List[List[float]]:
+    """여러 텍스트를 배치 임베딩."""
     if not texts:
         return []
-    client = _get_embedding_client()
+    client = _get_embedding_client(api_key)
     r = client.embeddings.create(input=texts, model=model)
     return [list(e.embedding) for e in r.data]
 
@@ -198,17 +207,25 @@ def build_vector_store(force_rebuild: bool = False):
 
 
 def search(
-    collection: chromadb.Collection,
+    collection: Any,
     query: str,
     top_k: int = RAG_TOP_K,
     filter_sources: Optional[List[str]] = None,
     exclude_sections: Optional[List[str]] = None,
     filter_sections: Optional[List[str]] = None,
     exclude_chapters: Optional[List[str]] = None,
+    min_score: float = 0.0,
+    openai_api_key: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """쿼리와 유사한 조문 검색. exclude_sections면 본칙만(벌칙·부칙 제외), filter_sections면 해당 섹션만. exclude_chapters면 해당 장 제외."""
-    # 캐싱된 임베딩 사용 (tuple → list 변환)
-    query_embedding = list(get_embedding(query))
+    """
+    유사도 기반 조문 검색.
+    - openai_api_key가 제공되면 임베딩 시 해당 키 사용.
+    """
+    if not query or not query.strip():
+        return []
+
+    # 1. 쿼리 임베딩
+    query_vector = list(get_embedding(query, api_key=openai_api_key))
     where = None
     if filter_sources or exclude_sections or filter_sections or exclude_chapters:
         clauses = []
@@ -222,7 +239,7 @@ def search(
             clauses.append({"chapter": {"$nin": exclude_chapters}})
         where = {"$and": clauses} if len(clauses) > 1 else clauses[0]
     results = collection.query(
-        query_embeddings=[query_embedding],
+        query_embeddings=[query_vector],
         n_results=top_k,
         where=where,
         include=["documents", "metadatas", "distances", "embeddings"],
