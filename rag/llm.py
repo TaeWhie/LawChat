@@ -22,8 +22,12 @@ def _get_chat_client() -> OpenAI:
     API 키별로 클라이언트를 캐싱하여 성능 유지.
     """
     # 1. 컨텍스트에서 키 가져오기 (없으면 기본값)
-    api_key = openai_api_key_ctx.get() or OPENAI_API_KEY
+    ctx_key = openai_api_key_ctx.get()
+    api_key = ctx_key or OPENAI_API_KEY
     base_url = openai_base_url_ctx.get() or OPENAI_BASE_URL
+    
+    if _DEBUG:
+        print(f"[DEBUG] _get_chat_client: using key from context? {bool(ctx_key)}, key[:10]: {api_key[:10]}...", file=sys.stderr)
     
     # 2. 캐시 키 생성 (키와 베이스 URL 조합)
     cache_key = f"{api_key}|{base_url}"
