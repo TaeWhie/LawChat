@@ -15,12 +15,29 @@ print(f"DEBUG: Local Law Key exists: {bool(LAW_KEY)}")
 
 # 운영 서버 주소
 BASE_URL = "https://law-chat-api.onrender.com"
+# BASE_URL = "http://127.0.0.1:8001"
 
 def test_production_api():
     print(f"🚀 LawChat 운영 서버 테스트 시작: {BASE_URL}")
     print("="*60)
     
     with httpx.Client(timeout=60.0) as client:
+        # 0. Health Check (Version 확인)
+        print("\n[테스트 0] 서버 버전 확인")
+        try:
+            res = client.get(f"{BASE_URL}/api/v1/health")
+            if res.status_code == 200:
+                data = res.json()
+                print(f"✅ 서버 버전: {data.get('version')}")
+                if data.get('version') != "1.0.2-dynamic-keys":
+                    print("⚠️ 서버가 아직 예전 버전입니다. 잠시 후 다시 시도하세요.")
+                    # return # 일단 계속 진행
+            else:
+                print(f"❌ 헬스체크 실패: {res.status_code}")
+        except Exception as e:
+            print(f"❌ 서버 접속 실패: {e}")
+            return
+
         # 1. 문서(Docs) 확인
         print("\n[테스트 1] 서버 생존 확인 (Docs)")
         try:
