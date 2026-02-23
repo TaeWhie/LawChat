@@ -37,6 +37,7 @@ from rag.question_classifier import (
 )
 from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE
+from rag.context import openai_api_key_ctx, law_api_key_ctx, openai_base_url_ctx
 
 app = FastAPI(title="LawChat Backend API", version="1.0.0")
 
@@ -110,13 +111,23 @@ def _standardize(obj):
         return str(obj)
 
 def set_api_keys(keys: BaseRequest):
-    """Sets environment variables for API keys if provided in the request."""
+    """Sets ContextVar for API keys if provided in the request (thread-safe for FastAPI)."""
     if keys.openai_api_key:
-        os.environ["OPENAI_API_KEY"] = keys.openai_api_key
+        openai_api_key_ctx.set(keys.openai_api_key)
     if keys.law_api_key:
-        os.environ["LAW_API_KEY"] = keys.law_api_key
+        law_api_key_ctx.set(keys.law_api_key)
 
 # --- Endpoints ---
+
+@app.middleware("http")
+async def context_middleware(request, call_next):
+    """Middleware to reset context vars after each request to prevent contamination."""
+    # ContextVar are automatically scoped to the task, so we don't strictly need to clear them,
+    # but it's good practice for predictability.
+    # openai_api_key_ctx.set(None)
+    # law_api_key_ctx.set(None)
+    response = await call_next(request)
+    return response
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):

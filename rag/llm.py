@@ -8,21 +8,33 @@ from typing import Any, Dict, Generator, List, Optional
 from openai import OpenAI
 
 from config import CHAT_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
+from rag.context import openai_api_key_ctx, openai_base_url_ctx
 
 # 프로덕션에서 stderr 노이즈 방지. LAW_DEBUG=1 일 때만 상세 출력
 _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
 
-# OpenAI 클라이언트 전역 재사용 (연결 재사용으로 속도 향상)
-# OPENAI_BASE_URL이 설정되면 해당 프록시 엔드포인트 사용 (예: Genspark AI proxy)
-_chat_client = None
+# OpenAI 클라이언트 캐시 (API 키별로 구분)
+_clients: Dict[str, OpenAI] = {}
+
 def _get_chat_client() -> OpenAI:
-    global _chat_client
-    if _chat_client is None:
-        kwargs: dict = {"api_key": OPENAI_API_KEY}
-        if OPENAI_BASE_URL:
-            kwargs["base_url"] = OPENAI_BASE_URL
-        _chat_client = OpenAI(**kwargs)
-    return _chat_client
+    """
+    현재 컨텍스트(요청)의 API 키를 우선 사용하고, 없으면 기본 키 사용.
+    API 키별로 클라이언트를 캐싱하여 성능 유지.
+    """
+    # 1. 컨텍스트에서 키 가져오기 (없으면 기본값)
+    api_key = openai_api_key_ctx.get() or OPENAI_API_KEY
+    base_url = openai_base_url_ctx.get() or OPENAI_BASE_URL
+    
+    # 2. 캐시 키 생성 (키와 베이스 URL 조합)
+    cache_key = f"{api_key}|{base_url}"
+    
+    if cache_key not in _clients:
+        kwargs: dict = {"api_key": api_key}
+        if base_url:
+            kwargs["base_url"] = base_url
+        _clients[cache_key] = OpenAI(**kwargs)
+        
+    return _clients[cache_key]
 
 
 def chat(

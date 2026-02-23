@@ -14,6 +14,7 @@ import requests
 
 try:
     from config import LAW_API_OC, LAW_API_DELAY_SEC, LAW_API_TIMEOUT, LAW_EFFECTIVE_YEAR
+    from rag.context import law_api_key_ctx
 except ImportError:
     LAW_API_OC = ""
     LAW_API_DELAY_SEC = 1.0
@@ -61,6 +62,10 @@ def _get_session():
 def _ensure_oc(oc: Optional[str] = None) -> str:
     if oc is not None and oc:
         return oc
+    # 컨텍스트에서 키 가져오기 (없으면 기본값)
+    ctx_key = law_api_key_ctx.get()
+    if ctx_key:
+        return ctx_key
     if LAW_API_OC:
         return LAW_API_OC
     raise ValueError("LAW_API_OC가 설정되지 않았습니다. config 또는 환경변수 LAW_API_OC를 설정하세요.")
