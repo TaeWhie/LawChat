@@ -347,34 +347,32 @@ def _collect_articles_by_issue(
 
 
 def _classify_with_llm(
-    situation: str,
-    collection: Any,
-    top_k: int,
-    prompt_overrides: Optional[Dict[str, str]] = None,
+    situation: str, 
+    collection: Any, 
+    top_k: int, 
+    prompt_overrides: Dict[str, str],
+    openai_api_key: Optional[str] = None,
+    openai_base_url: Optional[str] = None,
 ) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str, Dict[str, Any]]:
-    """LLM을 사용한 이슈 분류 (경로 B)."""
+    """LLM을 사용하여 이슈를 분류하고 관련 조문을 수집."""
     debug_info = {}
-    if prompt_overrides is None:
-        prompt_overrides = {}
-    query = _expand_query_for_search(situation)
     
-    _debug_print(f"\n[조항 검색] 쿼리: {query}, top_k: {top_k}")
-    # 모든 노동법에서 검색 (개별적/집단적/노동시장 법률 모두 포함)
+    # 1. 쿼리 확장 및 1차 검색 (컨텍스트 확보)
+    expanded_query = _expand_query_for_search(situation)
     results = search(
-        collection, query, top_k=top_k,
+        collection, expanded_query, top_k=5,
         filter_sources=ALL_LABOR_LAW_SOURCES, exclude_sections=EXCLUDE_SECTIONS_MAIN,
         exclude_chapters=EXCLUDE_CHAPTERS_MAIN,
     )
-    _debug_print(f"[검색 결과] {len(results)}개 조항 발견")
+    context = _rag_context(results)
     
     if not results:
         _debug_print("[이슈 분류 완료] 검색 결과 없음")
-        return ([], {}, "llm")
+        return ([], {}, "llm", debug_info)
     
-    context = _rag_context(results)
     if not (context and context.strip()):
         _debug_print("[이슈 분류 완료] 컨텍스트 없음")
-        return ([], {}, "llm")
+        return ([], {}, "llm", debug_info)
     
     _debug_print(f"\n[LLM 이슈 분류] 컨텍스트 길이: {len(context)}자")
     try:
@@ -394,8 +392,9 @@ def _classify_with_llm(
     out, llm_debug = chat_json(
         sys_prompt,
         user_prompt,
-        reasoning_effort="low",  # 이슈 분류: 단순 판단 → low로 충분
-        return_metadata=True
+        return_metadata=True,
+        openai_api_key=openai_api_key,
+        openai_base_url=openai_base_url
     )
     debug_info["llm_classify"] = llm_debug
     
@@ -504,7 +503,11 @@ def step1_issue_classification(
             _debug_print("[키워드 경로] 조문 검증 실패 → LLM 경로로 전환")
     
     # ---------- 경로 B: LLM 분류 (키워드 실패 시 또는 강제 시) ----------
-    issues, articles_by_issue, source, debug_info = _classify_with_llm(situation, collection, top_k, prompt_overrides)
+    issues, articles_by_issue, source, debug_info = _classify_with_llm(
+        situation, collection, top_k, prompt_overrides,
+        openai_api_key=openai_api_key,
+        openai_base_url=law_api_key # law_api_key is for law API, not openai base url. use openai_base_url if needed.
+    )
     
     # LLM 경로도 실패 시 키워드 fallback 재시도
     if not issues and candidate_issues:

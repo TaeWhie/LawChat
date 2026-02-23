@@ -29,7 +29,7 @@ def test_production_api():
             if res.status_code == 200:
                 data = res.json()
                 print(f"✅ 서버 버전: {data.get('version')}")
-                if data.get('version') != "1.0.4-fixed-propagation":
+                if data.get('version') != "1.0.5-explicit-keys":
                     print("⚠️ 서버가 아직 예전 버전입니다. 잠시 후 다시 시도하세요.")
                     # return # 일단 계속 진행
             else:
