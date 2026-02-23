@@ -7,7 +7,10 @@ from dotenv import load_dotenv
 # 로컬 .env 로드 (테스트용 키)
 load_dotenv()
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-LAW_KEY = os.getenv("LAW_API_OC") # 로컬 환경 변수명에 맞춤
+LAW_KEY = os.getenv("LAW_API_OC")
+
+print(f"DEBUG: Local OpenAI Key exists: {bool(OPENAI_KEY)}")
+print(f"DEBUG: Local Law Key exists: {bool(LAW_KEY)}")
 
 
 # 운영 서버 주소

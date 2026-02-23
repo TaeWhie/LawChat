@@ -113,8 +113,10 @@ def _standardize(obj):
 def set_api_keys(keys: BaseRequest):
     """Sets ContextVar for API keys if provided in the request (thread-safe for FastAPI)."""
     if keys.openai_api_key:
+        print(f"DEBUG: Setting OpenAI API Key in context: {keys.openai_api_key[:10]}...")
         openai_api_key_ctx.set(keys.openai_api_key)
     if keys.law_api_key:
+        print(f"DEBUG: Setting Law API Key in context: {keys.law_api_key[:5]}...")
         law_api_key_ctx.set(keys.law_api_key)
 
 # --- Endpoints ---
@@ -128,6 +130,11 @@ async def context_middleware(request, call_next):
     # law_api_key_ctx.set(None)
     response = await call_next(request)
     return response
+
+@app.get("/api/v1/health")
+async def health_check():
+    """Health check endpoint to verify deployment version."""
+    return {"status": "ok", "version": "1.0.2-dynamic-keys", "context_supported": True}
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
