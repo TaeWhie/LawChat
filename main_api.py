@@ -176,8 +176,12 @@ async def classify_issue(request: ClassifyRequest):
         print("DEBUG: Standardized successfully. Returning JSONResponse.")
         return JSONResponse(status_code=200, content=standardized)
     except Exception as e:
+        ctx_val = openai_api_key_ctx.get()
         print(f"ERROR in classify_issue: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"이슈 분류 중 오류가 발생했습니다: {str(e)}")
+        detail = f"이슈 분류 중 오류가 발생했습니다: {str(e)} | Context OpenAI Key: {bool(ctx_val)}"
+        if ctx_val:
+            detail += f" ({ctx_val[:5]}...)"
+        raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/checklist")
 async def generate_checklist(request: ChecklistRequest):
