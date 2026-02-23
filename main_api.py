@@ -241,7 +241,8 @@ async def generate_conclusion(request: ConclusionRequest):
             def stream_generator():
                 try:
                     for chunk in step3_conclusion_stream(
-                        request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None
+                        request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
+                        openai_api_key=request.openai_api_key
                     ):
                         yield chunk
                 except Exception as e:
@@ -249,7 +250,8 @@ async def generate_conclusion(request: ConclusionRequest):
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
         else:
             res = await asyncio.to_thread(
-                step3_conclusion, request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None
+                step3_conclusion, request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
+                openai_api_key=request.openai_api_key
             )
             # Add penalty/supplementary info
             conclusion_text = res.get("conclusion", "")
@@ -265,7 +267,8 @@ async def generate_conclusion(request: ConclusionRequest):
                     chat_json_fast,
                     system_related_questions(caps),
                     user_related_questions(conclusion_text, request.issue, caps),
-                    max_tokens=300
+                    max_tokens=300,
+                    openai_api_key=request.openai_api_key
                 )
                 if isinstance(questions_result, list):
                     res["related_questions"] = questions_result[:5]
@@ -286,6 +289,7 @@ async def knowledge_qa(request: QARequest):
             search, collection, request.question, top_k=5,
             filter_sources=ALL_LABOR_LAW_SOURCES,
             exclude_sections=["벌칙", "부칙"],
+            openai_api_key=request.openai_api_key
         )
         from rag.pipeline import _rag_context
         context = _rag_context(search_results, max_length=2000)
@@ -293,7 +297,8 @@ async def knowledge_qa(request: QARequest):
             chat_with_metadata,
             system_knowledge_qa(),
             user_knowledge_qa(request.question, context),
-            max_tokens=1000
+            max_tokens=1000,
+            openai_api_key=request.openai_api_key
         )
         return JSONResponse(status_code=200, content=_standardize({
             "answer": res.get("content"),
@@ -311,13 +316,15 @@ async def calculation_qa(request: QARequest):
         search_results = search(
             collection, request.question, top_k=5,
             filter_sources=ALL_LABOR_LAW_SOURCES,
+            openai_api_key=request.openai_api_key
         )
         from rag.pipeline import _rag_context
         context = _rag_context(search_results, max_length=2000)
         res = chat_with_metadata(
             system_calculation_qa(),
             user_calculation_qa(request.question, context),
-            max_tokens=1500
+            max_tokens=1500,
+            openai_api_key=request.openai_api_key
         )
         return JSONResponse(status_code=200, content=_standardize({
             "answer": res.get("content"),
