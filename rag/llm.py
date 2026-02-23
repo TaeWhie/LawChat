@@ -11,7 +11,7 @@ from config import CHAT_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
 from rag.context import openai_api_key_ctx, openai_base_url_ctx
 
 # 프로덕션에서 stderr 노이즈 방지. LAW_DEBUG=1 일 때만 상세 출력
-_DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
+_DEBUG = True # os.getenv("LAW_DEBUG", "0") == "1"
 
 # OpenAI 클라이언트 캐시 (API 키별로 구분)
 _clients: Dict[str, OpenAI] = {}
