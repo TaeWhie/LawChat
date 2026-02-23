@@ -147,11 +147,12 @@ def _load_law_body(path: Path) -> Any:
 def _get_law_name_from_body(data: Any) -> str:
     if not isinstance(data, dict):
         return ""
-    for key in ("법령", "law", "LawService"):
+    for key in ("법령", "law", "LawService", "AdmRulService"):
         val = data.get(key)
         if isinstance(val, dict):
-            info = val.get("기본정보") or val.get("basicInfo") or val
-            name = (info.get("법령명_한글") or info.get("법령명한글") or info.get("법령명") or "").strip()
+            # LawService/AdmRulService common info
+            info = val.get("기본정보") or val.get("basicInfo") or val.get("행정규칙기본정보") or val
+            name = (info.get("법령명_한글") or info.get("법령명한글") or info.get("법령명") or info.get("행정규칙명") or "").strip()
             if name:
                 return name
     return ""
@@ -169,6 +170,45 @@ def _parse_jo_mun_unit(body: Any) -> List[Dict[str, Any]]:
                 units = jo.get("조문단위") or jo.get("article") or jo.get("list")
                 if isinstance(units, list) and units:
                     return units
+    adm = body.get("AdmRulService")
+    if isinstance(adm, dict):
+        lines = adm.get("조문내용")
+        if isinstance(lines, list):
+            units = []
+            current_unit = None
+            for line in lines:
+                line = str(line).strip()
+                if not line: continue
+                # Match Chapter: "제1장 총칙"
+                if _CHAPTER_HEADER_RE.match(line):
+                    units.append({"조문여부": "전문", "조문내용": line})
+                    current_unit = None
+                # Match Article: "제1조(목적) 이 규칙은..."
+                elif line.startswith("제") and "조" in line:
+                    m = re.match(r"제(\d+)(?:의(\d+))?조", line)
+                    if m:
+                        jo_no = m.group(1)
+                        jo_gaji = m.group(2) or ""
+                        # Title often follows: 제1조(목적)
+                        title_match = re.search(r"제\d+(?:의\d+)?조\(([^)]+)\)", line)
+                        title = title_match.group(1) if title_match else ""
+                        current_unit = {
+                            "조문여부": "조문",
+                            "조문내용": [line],
+                            "조문번호": jo_no,
+                            "조문가지번호": jo_gaji,
+                            "조문제목": title
+                        }
+                        units.append(current_unit)
+                    else:
+                        current_unit = {"조문여부": "조문", "조문내용": [line]}
+                        units.append(current_unit)
+                else:
+                    if current_unit and current_unit["조문여부"] == "조문":
+                        current_unit["조문내용"].append(line)
+                    else:
+                        units.append({"조문여부": "내용", "조문내용": line})
+            return units
     return []
 
 
@@ -190,8 +230,23 @@ def _base_law_name(full_name: str) -> str:
 
 
 def get_laws_from_api() -> List[Dict[str, Any]]:
-    """법률 둘러보기용: law/ + admrul/ 수집 후, 동일 법률명은 하나로 묶어서 반환."""
+    """법률 둘러보기용: law/ + admrul/ 수집 후, 동일 법률명은 하나로 묶어서 반환.
+    사용자 요청에 따라 ALL_LABOR_LAW_SOURCES에 정의된 11개 주요 노동법 및 그 시행령/시행규칙만 필터링한다.
+    """
+    try:
+        from config import ALL_LABOR_LAW_SOURCES
+        # ALL_LABOR_LAW_SOURCES: ["근로기준법(법률)", "최저임금법(법률)", ...]
+        # 괄호 제거 및 정규화된 기본 이름 집합 생성
+        allowed_bases = set()
+        for s in ALL_LABOR_LAW_SOURCES:
+            name = s.split("(")[0].strip().replace("ㆍ", "·")
+            if name:
+                allowed_bases.add(name)
+    except ImportError:
+        allowed_bases = set()
+
     flat = []
+    # 사용자 요청: admrul(행정규칙) 등 관련 없는 것은 제외.
     for source, dir_path in [("law", _find_law_body_dir()), ("admrul", _find_admrul_body_dir())]:
         if not dir_path.exists():
             continue
@@ -201,21 +256,35 @@ def get_laws_from_api() -> List[Dict[str, Any]]:
             data = _load_law_body(path)
             if not data:
                 continue
-            name = _get_law_name_from_body(data)
-            if name:
-                flat.append({"id": path.stem, "name": name, "source": source})
+            full_name = _get_law_name_from_body(data)
+            if not full_name:
+                continue
+            
+            base = _base_law_name(full_name).replace("ㆍ", "·")
+
+            # 필터링: 허용된 기본 법률명 그룹에 속하는 경우만 포함 (대소문자/공백 무관하게 정규화하여 비교)
+            # base: "근로기준법", allowed_bases: {"근로기준법", ...}
+            if allowed_bases and base not in allowed_bases:
+                continue
+                
+            flat.append({"id": path.stem, "name": full_name, "source": source})
+
     # 그룹: base_name 기준으로 묶고, 순서는 법률 -> 시행령 -> 시행규칙
     order_key = lambda n: (0 if "시행" not in n else (1 if "시행령" in n else 2))
     by_base: Dict[str, List[Dict[str, Any]]] = {}
     for item in flat:
-        base = _base_law_name(item["name"])
+        base = _base_law_name(item["name"]).replace("ㆍ", "·")
         by_base.setdefault(base, []).append(item)
-    for base in by_base:
-        by_base[base].sort(key=lambda x: (order_key(x["name"]), x["name"]))
-    return [
-        {"group_name": base, "items": items}
-        for base, items in sorted(by_base.items(), key=lambda x: x[0])
-    ]
+    
+    # 각 그룹 내 정렬 및 최종 리스트 생성
+    result = []
+    # 정렬 순서도 allowed_bases(ALL_LABOR_LAW_SOURCES 순서)를 존중하도록 처리 가능하지만, 가나다순 유지
+    for base in sorted(by_base.keys()):
+        items = by_base[base]
+        items.sort(key=lambda x: (order_key(x["name"]), x["name"]))
+        result.append({"group_name": base, "items": items})
+        
+    return result
 
 
 def get_laws_flat_from_api() -> List[Dict[str, Any]]:
@@ -268,6 +337,10 @@ def get_chapters_from_api(law_id: Optional[str] = None, source: Optional[str] = 
         print(f"[get_chapters_from_api] {path}에서 조문단위를 추출할 수 없습니다. JSON 구조를 확인하세요.", file=sys.stderr)
         return []
     parsed = _parse_chapters_from_units(units)
+    if not parsed and units:
+        # Fallback for documents without chapters
+        parsed = [("", "본문", 1, 9999)]
+
     return [
         {"number": num, "title": title, "order": order}
         for order, (num, title, _start, _end) in enumerate(parsed, 1)
@@ -295,6 +368,9 @@ def get_articles_by_chapter_from_api(chapter_number: str, law_id: Optional[str] 
         return None
 
     parsed = _parse_chapters_from_units(units)
+    if not parsed and units:
+        # Fallback for documents without chapters
+        parsed = [("", "본문", 1, 9999)]
     chapter_ranges = {num: (s, e) for num, _title, s, e in parsed}
     chapter_keys = [num for num, _, _, _ in parsed]
     start, end = chapter_ranges.get(chapter_number, (-1, -1))
