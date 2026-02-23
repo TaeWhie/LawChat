@@ -455,9 +455,10 @@ def step1_issue_classification(
     *,
     collection: Any,
     top_k: int = 22,
+    prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
     law_api_key: Optional[str] = None,
-) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], str]:
+) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str, Dict[str, Any]]:
     """1단계: 상황 → 이슈 분류 및 관련 조문 수집.
     
     openai_api_key, law_api_key가 제공되면 현재 스레드의 컨텍스트에 설정 (to_thread 대응).
@@ -466,6 +467,8 @@ def step1_issue_classification(
         openai_api_key_ctx.set(openai_api_key)
     if law_api_key:
         law_api_key_ctx.set(law_api_key)
+        
+    prompt_overrides = prompt_overrides or {}
         
     _debug_print(f"[Step 1] 이슈 분류 시작: {situation[:50]}...")
     _debug_print("\n" + "="*80)

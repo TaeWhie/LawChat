@@ -44,6 +44,7 @@ def chat(
     model: str = CHAT_MODEL,
     temperature: float = 0.0,
     max_tokens: int = 2000,
+    reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> str:
@@ -68,6 +69,9 @@ def chat(
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
+
+    if is_reasoning and reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
 
     try:
         r = client.chat.completions.create(**kwargs)
@@ -119,6 +123,7 @@ def chat_json(
     model: str = CHAT_MODEL,
     temperature: float = 0.0,
     max_tokens: int = 2000,
+    reasoning_effort: Optional[str] = None,
     return_metadata: bool = False,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
@@ -130,6 +135,7 @@ def chat_json(
         model=model, 
         temperature=temperature, 
         max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url
     )
@@ -149,6 +155,7 @@ def chat_json_fast(
     model: str = "gpt-4o-mini",
     temperature: float = 0.0,
     max_tokens: int = 1000,
+    reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Any:
@@ -159,6 +166,7 @@ def chat_json_fast(
         model=model,
         temperature=temperature,
         max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url
     )
@@ -171,6 +179,7 @@ def chat_stream(
     model: str = CHAT_MODEL,
     temperature: float = 0.0,
     max_tokens: int = 2000,
+    reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Generator[str, None, None]:
@@ -195,6 +204,9 @@ def chat_stream(
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
+            
+    if is_reasoning and reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
 
     try:
         stream = client.chat.completions.create(**kwargs)
@@ -216,6 +228,7 @@ def chat_with_metadata(
     model: str = CHAT_MODEL,
     temperature: float = 0.0,
     max_tokens: int = 2000,
+    reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -226,6 +239,7 @@ def chat_with_metadata(
         model=model, 
         temperature=temperature, 
         max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort,
         openai_api_key=openai_api_key,
         openai_base_url=openai_base_url
     )
