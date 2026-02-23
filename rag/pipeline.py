@@ -23,6 +23,7 @@ from typing import List, Dict, Any, Optional, Tuple
 DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
 
 from rag.store import build_vector_store, search, search_by_article_numbers
+from rag.context import openai_api_key_ctx, law_api_key_ctx
 from rag.prompts import (
     system_issue_classification,
     user_issue_classification,
@@ -445,12 +446,22 @@ def _classify_with_llm(
 
 def step1_issue_classification(
     situation: str,
-    collection=None,
+    *,
+    collection: Any,
     top_k: int = 22,
-    prompt_overrides: Optional[Dict[str, str]] = None,
-) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str, Dict[str, Any]]:
-    """사용자 상황 → 이슈 후보(키워드 매칭) 또는 1차검색+LLM 분류 → 이슈별 조문 수집.
-    반환: (issues, articles_by_issue, source, debug_info). source는 "keyword" 또는 "llm"."""
+    openai_api_key: Optional[str] = None,
+    law_api_key: Optional[str] = None,
+) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], List[Dict[str, Any]], str]:
+    """1단계: 상황 → 이슈 분류 및 관련 조문 수집.
+    
+    openai_api_key, law_api_key가 제공되면 현재 스레드의 컨텍스트에 설정 (to_thread 대응).
+    """
+    if openai_api_key:
+        openai_api_key_ctx.set(openai_api_key)
+    if law_api_key:
+        law_api_key_ctx.set(law_api_key)
+        
+    _debug_print(f"[Step 1] 이슈 분류 시작: {situation[:50]}...")
     _debug_print("\n" + "="*80)
     _debug_print(f"[이슈 분류 시작] 상황: {situation}")
     _debug_print("="*80)

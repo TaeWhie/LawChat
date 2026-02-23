@@ -135,7 +135,7 @@ async def context_middleware(request, call_next):
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint to verify deployment version."""
-    return {"status": "ok", "version": "1.0.4-fixed-propagation", "context_supported": True}
+    return {"status": "ok", "version": "1.0.5-explicit-keys", "context_supported": True}
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
@@ -150,10 +150,14 @@ async def classify_issue(request: ClassifyRequest):
         set_api_keys(request)
         print(f"DEBUG: Classifying situation: {request.situation[:50]}...")
         
-        # Explicitly propagate context to worker thread
-        ctx = contextvars.copy_context()
+        # Explicitly pass keys and run in thread
         issues, articles_by_issue, _, _ = await asyncio.to_thread(
-            ctx.run, step1_issue_classification, request.situation, collection=collection, top_k=request.top_k
+            step1_issue_classification, 
+            request.situation, 
+            collection=collection, 
+            top_k=request.top_k,
+            openai_api_key=request.openai_api_key,
+            law_api_key=request.law_api_key
         )
         print(f"DEBUG: Issues found: {issues}")
         
