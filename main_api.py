@@ -2,6 +2,7 @@ import os
 import re
 import json
 import asyncio
+import contextvars
 from typing import List, Dict, Any, Optional, Generator
 from fastapi import FastAPI, Header, HTTPException, Body, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -134,7 +135,7 @@ async def context_middleware(request, call_next):
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint to verify deployment version."""
-    return {"status": "ok", "version": "1.0.3-debug-context", "context_supported": True}
+    return {"status": "ok", "version": "1.0.4-fixed-propagation", "context_supported": True}
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
@@ -149,9 +150,10 @@ async def classify_issue(request: ClassifyRequest):
         set_api_keys(request)
         print(f"DEBUG: Classifying situation: {request.situation[:50]}...")
         
-        # Run synchronous RAG in a separate thread to prevent blocking the event loop
+        # Explicitly propagate context to worker thread
+        ctx = contextvars.copy_context()
         issues, articles_by_issue, _, _ = await asyncio.to_thread(
-            step1_issue_classification, request.situation, collection=collection, top_k=request.top_k
+            ctx.run, step1_issue_classification, request.situation, collection=collection, top_k=request.top_k
         )
         print(f"DEBUG: Issues found: {issues}")
         
