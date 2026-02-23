@@ -49,7 +49,8 @@ def chat(
 ) -> str:
     """기본 채팅 응답."""
     client = _get_chat_client(openai_api_key, openai_base_url)
-    is_reasoning = "gpt-5" in model or "nano" in model.lower()
+    m_lower = model.lower()
+    is_reasoning = "gpt-5" in m_lower or "nano" in m_lower or m_lower.startswith("o1") or m_lower.startswith("o3")
     
     kwargs: Dict[str, Any] = {
         "model": model,
@@ -57,12 +58,13 @@ def chat(
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": temperature,
     }
+    
+    if not is_reasoning:
+        kwargs["temperature"] = temperature
 
     if max_tokens is not None:
-        m_lower = model.lower()
-        if m_lower.startswith("o1") or m_lower.startswith("o3") or "gpt-5" in m_lower or "nano" in m_lower:
+        if is_reasoning:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
@@ -174,18 +176,22 @@ def chat_stream(
 ) -> Generator[str, None, None]:
     """스트리밍 응답 제너레이터."""
     client = _get_chat_client(openai_api_key, openai_base_url)
+    m_lower = model.lower()
+    is_reasoning = "gpt-5" in m_lower or "nano" in m_lower or m_lower.startswith("o1") or m_lower.startswith("o3")
+    
     kwargs: Dict[str, Any] = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        "temperature": temperature,
         "stream": True,
     }
+    if not is_reasoning:
+        kwargs["temperature"] = temperature
+
     if max_tokens:
-        m_lower = model.lower()
-        if m_lower.startswith("o1") or m_lower.startswith("o3") or "gpt-5" in m_lower or "nano" in m_lower:
+        if is_reasoning:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
