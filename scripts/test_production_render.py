@@ -29,7 +29,7 @@ def test_production_api():
             if res.status_code == 200:
                 data = res.json()
                 print(f"✅ 서버 버전: {data.get('version')}")
-                if data.get('version') != "1.1.0-absolute-keys-v2":
+                if data.get('version') != "1.1.0-absolute-keys-v3":
                     print("⚠️ 서버가 아직 예전 버전입니다. 잠시 후 다시 시도하세요.")
                     # return # 일단 계속 진행
             else:
@@ -83,7 +83,7 @@ def test_production_api():
                 answer = data.get("answer", "")
                 print(f"✅ QA 성공! 답변 요약: {answer[:100]}...")
             else:
-                print(f"❌ QA 실패: {res.status_code}")
+                print(f"❌ QA 실패: {res.status_code} - {res.text}")
         except Exception as e:
             print(f"❌ API 호출 오류: {e}")
 

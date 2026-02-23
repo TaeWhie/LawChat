@@ -61,7 +61,10 @@ def chat(
     }
 
     if max_tokens is not None:
-        kwargs["max_tokens"] = max_tokens
+        if model.startswith("o1") or model.startswith("o3"):
+            kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = max_tokens
 
     try:
         r = client.chat.completions.create(**kwargs)
@@ -180,7 +183,10 @@ def chat_stream(
         "stream": True,
     }
     if max_tokens:
-        kwargs["max_tokens"] = max_tokens
+        if model.startswith("o1") or model.startswith("o3"):
+            kwargs["max_completion_tokens"] = max_tokens
+        else:
+            kwargs["max_tokens"] = max_tokens
 
     try:
         stream = client.chat.completions.create(**kwargs)
