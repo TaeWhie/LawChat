@@ -61,7 +61,8 @@ def chat(
     }
 
     if max_tokens is not None:
-        if model.startswith("o1") or model.startswith("o3"):
+        m_lower = model.lower()
+        if m_lower.startswith("o1") or m_lower.startswith("o3") or "gpt-5" in m_lower or "nano" in m_lower:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
@@ -183,7 +184,8 @@ def chat_stream(
         "stream": True,
     }
     if max_tokens:
-        if model.startswith("o1") or model.startswith("o3"):
+        m_lower = model.lower()
+        if m_lower.startswith("o1") or m_lower.startswith("o3") or "gpt-5" in m_lower or "nano" in m_lower:
             kwargs["max_completion_tokens"] = max_tokens
         else:
             kwargs["max_tokens"] = max_tokens
