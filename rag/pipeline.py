@@ -506,7 +506,7 @@ def step1_issue_classification(
     issues, articles_by_issue, source, debug_info = _classify_with_llm(
         situation, collection, top_k, prompt_overrides,
         openai_api_key=openai_api_key,
-        openai_base_url=law_api_key # law_api_key is for law API, not openai base url. use openai_base_url if needed.
+        openai_base_url=None # law_api_key is for law API, not openai base url.
     )
     
     # LLM 경로도 실패 시 키워드 fallback 재시도

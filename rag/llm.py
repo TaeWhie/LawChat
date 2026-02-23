@@ -70,9 +70,12 @@ def chat(
         content = r.choices[0].message.content
         return content.strip() if content else ""
     except Exception as e:
+        actual_api_key = openai_api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
+        key_info = f"Used Key: {actual_api_key[:7]}...{actual_api_key[-4:]}" if actual_api_key else "None"
+        new_msg = f"{str(e)} | [{key_info}]"
         if _DEBUG:
-            print(f"[chat] API 호출 오류: {type(e).__name__}: {str(e)}", file=sys.stderr)
-        raise
+            print(f"[chat] API 호출 오류: {new_msg}", file=sys.stderr)
+        raise Exception(new_msg)
 
 
 def extract_json(text: str) -> Optional[Any]:
