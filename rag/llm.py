@@ -144,34 +144,71 @@ def extract_json(text: str) -> Optional[Any]:
         return None
 
 
+def chat_with_metadata(
+    system: str,
+    user: str,
+    model: str = CHAT_MODEL,
+    temperature: float = 1.0,
+    max_tokens: Optional[int] = None,
+    reasoning_effort: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    단일 대화 턴. 단순 텍스트가 아닌 메타데이터(프롬프트 전문, raw_response, 모델명 등)를 포함한 딕셔너리 반환.
+    """
+    content = chat(
+        system=system,
+        user=user,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort
+    )
+    return {
+        "content": content,
+        "system_prompt": system,
+        "user_prompt": user,
+        "model": model,
+        "reasoning_effort": reasoning_effort
+    }
+
 def chat_json(
     system: str,
     user: str,
     max_tokens: Optional[int] = None,
     reasoning_effort: Optional[str] = None,
-) -> Optional[Any]:
-    """채팅 후 응답에서 JSON 파싱. reasoning_effort='low'로 설정 시 속도 향상."""
+    return_metadata: bool = False,
+) -> Any:
+    """
+    채팅 후 응답에서 JSON 파싱. 
+    return_metadata=True 이면 (parsed_json, debug_info_dict) 형태의 튜플 반환.
+    """
     raw = chat(system, user, max_tokens=max_tokens, reasoning_effort=reasoning_effort)
     if not raw:
         if _DEBUG:
             print("[chat_json] LLM 응답이 비어있음", file=sys.stderr)
-        return None
+        return (None, {}) if return_metadata else None
+        
     parsed = extract_json(raw)
     if parsed is None:
         if _DEBUG:
             print(f"[chat_json] JSON 파싱 실패. 원본 응답 (처음 1000자):\n{raw[:1000]}", file=sys.stderr)
-        # 잘린 응답일 경우 마지막 부분에서 JSON 시도
         if raw.strip().endswith("]"):
             try:
-                # 마지막 ] 앞에서 [ 찾기
                 last_bracket = raw.rfind("[")
                 if last_bracket >= 0:
                     partial_json = raw[last_bracket:] + "]"
                     parsed = json.loads(partial_json)
-                    if _DEBUG:
-                        print(f"[chat_json] 잘린 응답에서 부분 JSON 파싱 성공", file=sys.stderr)
             except Exception:
                 pass
+                
+    if return_metadata:
+        debug_info = {
+            "system_prompt": system,
+            "user_prompt": user,
+            "raw_response": raw,
+            "parsed_success": parsed is not None
+        }
+        return (parsed, debug_info)
     return parsed
 
 
@@ -228,11 +265,13 @@ def chat_json_fast(
     system: str,
     user: str,
     max_tokens: int = 200,
-) -> Optional[Any]:
+    return_metadata: bool = False,
+) -> Any:
     """
     단순 판단(off-topic, checklist_continuation 등) 전용 빠른 JSON 호출.
     reasoning_effort='low'를 지원하는 모델에서는 reasoning 오버헤드 최소화.
     지원 안 하면 일반 chat_json으로 폴백.
+    return_metadata=True 이면 (parsed_json, debug_info_dict) 형태의 튜플 반환.
     """
     client = _get_chat_client()
     model = CHAT_MODEL
@@ -257,16 +296,28 @@ def chat_json_fast(
     try:
         r = client.chat.completions.create(**kwargs)
         if not r.choices:
-            return None
+            return (None, {}) if return_metadata else None
+        
         content = (r.choices[0].message.content or "").strip()
         if not content:
-            return None
+            return (None, {}) if return_metadata else None
+            
         parsed = extract_json(content)
         if _DEBUG and parsed is None:
             print(f"[chat_json_fast] JSON 파싱 실패: {content[:300]}", file=sys.stderr)
+            
+        if return_metadata:
+            debug_info = {
+                "system_prompt": system,
+                "user_prompt": user,
+                "raw_response": content,
+                "parsed_success": parsed is not None
+            }
+            return (parsed, debug_info)
+            
         return parsed
     except Exception as e:
         # reasoning_effort 미지원 API → 일반 chat_json으로 폴백
         if _DEBUG:
             print(f"[chat_json_fast] 폴백 (reasoning_effort 미지원): {e}", file=sys.stderr)
-        return chat_json(system, user, max_tokens=max_tokens)
+        return chat_json(system, user, max_tokens=max_tokens, return_metadata=return_metadata)

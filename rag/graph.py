@@ -18,7 +18,7 @@ from rag.pipeline import (
     step1_and_step2_parallel,
 )
 from rag.prompts import system_off_topic_detection, user_off_topic_detection
-from rag.llm import chat_json, chat, chat_stream
+from rag.llm import chat_json, chat, chat_stream, chat_with_metadata
 from rag.labor_keywords import is_labor_law_related_fast
 from rag.question_classifier import (
     classify_question_type,
@@ -225,14 +225,17 @@ def process_turn(state: ChatbotState) -> dict:
                 )
                 if search_results:
                     rag_context = _rag_context(search_results, max_length=2000)
-                    answer = chat(
+                    res_meta = chat_with_metadata(
                         system_knowledge_qa(),
                         user_knowledge_qa(user_text, rag_context),
                         max_tokens=1000
                     )
+                    answer = res_meta["content"]
                     if not (answer and str(answer).strip()):
                         # RAG 조문만으로 재요청 후, 그래도 없으면 검색된 조문 본문 그대로 노출
                         answer = _knowledge_empty_fallback(user_text, rag_context)
+                    
+                    debug_info = {"knowledge_qa": res_meta}
                     return {
                         "messages": [AIMessage(content=answer)],
                         "situation": "",
@@ -245,6 +248,7 @@ def process_turn(state: ChatbotState) -> dict:
                         "phase": "input",
                         "pending_question": "",
                         "checklist_rag_results": [],
+                        "debug_info": debug_info
                     }
             except Exception:
                 # 지식 질문인데 오류 발생 → 체크리스트 없이 바로 답변만 반환
@@ -401,18 +405,22 @@ def process_turn(state: ChatbotState) -> dict:
                         )
                         if search_results:
                             rag_context = _rag_context(search_results, max_length=2000)
-                            answer = chat(
+                            res_meta = chat_with_metadata(
                                 system_calculation_qa(),
                                 user_calculation_qa(user_text, rag_context),
                                 max_tokens=1500  # 충분한 토큰 수 확보
                             )
+                            answer = res_meta["content"]
                             if not answer or not answer.strip():
                                 answer = _calculation_empty_fallback(user_text, rag_context)
+                            
+                            debug_info = {"calculation_qa": res_meta}
                             return {
                                 "messages": [AIMessage(content=answer)],
                                 "situation": "",
                                 "issues": [],
                                 "phase": "input",
+                                "debug_info": debug_info
                             }
                         else:
                             # 검색 결과 없으면 넓게 한 번 더 검색
@@ -508,16 +516,18 @@ def process_turn(state: ChatbotState) -> dict:
                     )
                     rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
                     
-                    answer = chat(
+                    res_meta = chat_with_metadata(
                         system_exception_qa(),
                         user_exception_qa(user_text, rag_context),
                         max_tokens=None  # reasoning 모델이 충분히 답변하도록 제한 없음
                     )
+                    answer = res_meta["content"]
                     
                     # 최신성 확인 질문인 경우 데이터 연도 추가
                     if any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
                         answer += "\n\n📅 **데이터 참고사항:** 제공된 법령 데이터는 동기화 시점의 법령을 기준으로 합니다. 법령은 개정될 수 있으므로, 최신 법령 확인이 필요하시면 국가법령정보센터(www.law.go.kr)를 참고하시기 바랍니다."
                 
+                debug_info = {"exception_qa": res_meta}
                 return {
                     "messages": [AIMessage(content=answer)],
                     "situation": "",
@@ -530,6 +540,7 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                     "pending_question": "",
                     "checklist_rag_results": [],
+                    "debug_info": debug_info
                 }
             except Exception as e:
                 # 예외 질문인데 오류 발생 → 에러 메시지 (체크리스트 없이)

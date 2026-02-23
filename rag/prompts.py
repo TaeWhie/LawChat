@@ -124,13 +124,21 @@ def user_off_topic_detection(user_message: str) -> str:
 Is this question related to Korean labor law? Return ONLY JSON: {{"is_labor_law_related": true/false}}"""
 
 
-def user_issue_classification(situation: str, rag_context: str, allowed_primaries=None):
+def user_issue_classification(situation: str, rag_context: str, allowed_primaries=None, override_template: str = None):
     allowed_block = ""
     if allowed_primaries:
         allowed_block = f"""
 **Allowed issue labels (choose only from this list):**
 {", ".join(allowed_primaries)}
 """
+    if override_template:
+        # Use custom template
+        return override_template.format(
+            situation=situation, 
+            rag_context=rag_context, 
+            allowed_block=allowed_block
+        )
+        
     return f"""User situation:
 {situation}
 
@@ -179,7 +187,7 @@ Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = shor
     )
 
 
-def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = ""):
+def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = "", override_template: str = None):
     already_block = ""
     if already_asked_text:
         already_block = f"""
@@ -192,6 +200,16 @@ Do NOT repeat these questions. Ask NEW questions only.
 Round 1: Generate initial checklist (max 7 items).
 Round 2+: Generate follow-up questions only for items answered "네" in previous rounds (max 5 items).
 """
+    
+    if override_template:
+        return override_template.format(
+            issue=issue,
+            already_block=already_block,
+            filtered_provisions=filtered_provisions,
+            rag_context=rag_context,
+            tail=tail
+        )
+        
     return f"""Issue: {issue}
 {already_block}
 [Filtered provisions summary]
@@ -278,7 +296,7 @@ def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_c
 Need more questions? Return JSON only: {{"should_continue": true/false, "reason": "한 문장"}}"""
 
 
-def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles_hint: str = ""):
+def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles_hint: str = "", override_template: str = None):
     hint = ""
     if related_articles_hint:
         hint = f"""
@@ -302,6 +320,15 @@ def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles
     if "[남녀고용평등" in rag_context or "남녀고용평등과 일·가정 양립 지원에 관한 법률" in rag_context:
         law_names_hint += "\n- When citing articles from [남녀고용평등과 일·가정 양립 지원에 관한 법률], use format: '남녀고용평등과 일·가정 양립 지원에 관한 법률 제N조' or '남녀고용평등법 제N조'"
     
+    if override_template:
+        return override_template.format(
+            issue=issue,
+            qa_list=qa_list,
+            rag_context=rag_context,
+            hint=hint,
+            law_names_hint=law_names_hint
+        )
+        
     return f"""Issue: {issue}
 
 [User's Q&A - Their Specific Situation]

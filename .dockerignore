@@ -1,0 +1,14 @@
+.git
+.github
+__pycache__
+*.pyc
+.env
+.ipynb_checkpoints
+.vscode
+.streamlit
+docs/
+scripts/
+*.md
+!requirements.txt
+Dockerfile
+docker-compose.yml

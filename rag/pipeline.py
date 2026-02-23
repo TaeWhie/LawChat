@@ -33,7 +33,7 @@ from rag.prompts import (
     system_conclusion,
     user_conclusion,
 )
-from rag.llm import chat, chat_json, chat_json_fast
+from rag.llm import chat, chat_json, chat_json_fast, chat_with_metadata
 from config import (
     SOURCE_LAW, SOURCE_DECREE, SOURCE_RULE,
     SOURCE_MIN_WAGE_LAW,
@@ -349,8 +349,12 @@ def _classify_with_llm(
     situation: str,
     collection: Any,
     top_k: int,
-) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str]:
+    prompt_overrides: Optional[Dict[str, str]] = None,
+) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str, Dict[str, Any]]:
     """LLM을 사용한 이슈 분류 (경로 B)."""
+    debug_info = {}
+    if prompt_overrides is None:
+        prompt_overrides = {}
     query = _expand_query_for_search(situation)
     
     _debug_print(f"\n[조항 검색] 쿼리: {query}, top_k: {top_k}")
@@ -378,11 +382,22 @@ def _classify_with_llm(
     except Exception:
         allowed = None
     
-    out = chat_json(
-        system_issue_classification(),
-        user_issue_classification(situation, context, allowed_primaries=allowed),
-        reasoning_effort="low",  # 이슈 분류: 단순 판단 → low로 충분
+    sys_prompt = prompt_overrides.get("system_issue_classification") or system_issue_classification()
+    user_prompt = user_issue_classification(
+        situation, 
+        context, 
+        allowed_primaries=allowed,
+        override_template=prompt_overrides.get("user_issue_classification")
     )
+    
+    out, llm_debug = chat_json(
+        sys_prompt,
+        user_prompt,
+        reasoning_effort="low",  # 이슈 분류: 단순 판단 → low로 충분
+        return_metadata=True
+    )
+    debug_info["llm_classify"] = llm_debug
+    
     _debug_print(f"[LLM 원시 응답] 타입={type(out).__name__}, 값={out}")
     
     raw_issues = []
@@ -419,22 +434,23 @@ def _classify_with_llm(
     _debug_print(f"[이슈 분류 결과] 최종 {len(issues)}개 이슈: {issues}")
     
     if not issues:
-        return ([], {}, "llm")
+        return ([], {}, "llm", debug_info)
     
     articles_by_issue = _collect_articles_by_issue(
         collection, issues, situation=None, initial_list=results, top_k_per_issue=15
     )
     _debug_print(f"\n[이슈 분류 완료] 이슈 {len(issues)}개, 이슈별 조문 반환")
-    return (issues, articles_by_issue, "llm")
+    return (issues, articles_by_issue, "llm", debug_info)
 
 
 def step1_issue_classification(
     situation: str,
     collection=None,
     top_k: int = 22,
-) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str]:
+    prompt_overrides: Optional[Dict[str, str]] = None,
+) -> Tuple[List[str], Dict[str, List[Dict[str, Any]]], str, Dict[str, Any]]:
     """사용자 상황 → 이슈 후보(키워드 매칭) 또는 1차검색+LLM 분류 → 이슈별 조문 수집.
-    반환: (issues, articles_by_issue, source). source는 "keyword" 또는 "llm"."""
+    반환: (issues, articles_by_issue, source, debug_info). source는 "keyword" 또는 "llm"."""
     _debug_print("\n" + "="*80)
     _debug_print(f"[이슈 분류 시작] 상황: {situation}")
     _debug_print("="*80)
@@ -472,12 +488,12 @@ def step1_issue_classification(
                 n = len(articles_by_issue.get(issue, []))
                 _debug_print(f"  이슈 '{issue}' 조문 수: {n}")
             _debug_print("[이슈 분류 완료] 키워드 경로 → 이슈별 조문 반환")
-            return (issues, articles_by_issue, "keyword")
+            return (issues, articles_by_issue, "keyword", {})
         else:
             _debug_print("[키워드 경로] 조문 검증 실패 → LLM 경로로 전환")
     
     # ---------- 경로 B: LLM 분류 (키워드 실패 시 또는 강제 시) ----------
-    issues, articles_by_issue, source = _classify_with_llm(situation, collection, top_k)
+    issues, articles_by_issue, source, debug_info = _classify_with_llm(situation, collection, top_k, prompt_overrides)
     
     # LLM 경로도 실패 시 키워드 fallback 재시도
     if not issues and candidate_issues:
@@ -492,15 +508,16 @@ def step1_issue_classification(
         )
         if _validate_issues_with_articles(issues, articles_by_issue):
             _debug_print("[이슈 분류 완료] 키워드 fallback → 이슈별 조문 반환")
-            return (issues, articles_by_issue, "keyword")
+            return (issues, articles_by_issue, "keyword", debug_info)
     
-    return (issues, articles_by_issue, source)
+    return (issues, articles_by_issue, source, debug_info)
 
 
 def step1_and_step2_parallel(
     situation: str,
     collection=None,
     top_k: int = 22,
+    prompt_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     step1_issue_classification + step2_checklist 를 가능한 한 병렬로 수행해 TTFT 단축.
@@ -521,6 +538,7 @@ def step1_and_step2_parallel(
             "checklist": [...],
             "rag_results": [...],
             "source": "keyword" | "llm",
+            "debug_info": {...}
         }
     """
     if collection is None:
@@ -563,6 +581,7 @@ def step1_and_step2_parallel(
                 narrow_answers=None,
                 qa_list=[],
                 remaining_articles=remaining,
+                prompt_overrides=prompt_overrides,
             )
             checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
             rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
@@ -573,10 +592,11 @@ def step1_and_step2_parallel(
                 "checklist": checklist,
                 "rag_results": rag_results,
                 "source": "keyword",
+                "debug_info": step2_res.get("debug_info", {}) if isinstance(step2_res, dict) else {},
             }
-
+    
     # ── 경로 B: LLM 분류 (키워드 실패 시) ─────────────────────────────────
-    issues, articles_by_issue, source = _classify_with_llm(situation, collection, top_k)
+    issues, articles_by_issue, source, step1_debug = _classify_with_llm(situation, collection, top_k, prompt_overrides)
 
     if not issues:
         return {
@@ -586,6 +606,7 @@ def step1_and_step2_parallel(
             "checklist": [],
             "rag_results": [],
             "source": source,
+            "debug_info": {"step1": step1_debug}
         }
 
     selected_issue = issues[0]
@@ -598,6 +619,7 @@ def step1_and_step2_parallel(
         narrow_answers=None,
         qa_list=[],
         remaining_articles=remaining,
+        prompt_overrides=prompt_overrides,
     )
     checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
     rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
@@ -608,6 +630,7 @@ def step1_and_step2_parallel(
         "checklist": checklist,
         "rag_results": rag_results,
         "source": source,
+        "debug_info": {"step1": step1_debug, "step2": step2_res.get("debug_info", {}) if isinstance(step2_res, dict) else {}}
     }
 
 
@@ -729,9 +752,13 @@ def step2_checklist(
     narrow_answers: Optional[List[str]] = None,
     qa_list: Optional[List[Dict[str, Any]]] = None,
     remaining_articles: Optional[List[Dict[str, Any]]] = None,
+    prompt_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """걸러진 조항 기준 체크리스트 (법률만). remaining_articles가 있으면 해당 조문만 사용(이슈와 무관한 임금 등 조문 혼입 방지).
-    반환: {"checklist": [...], "rag_results": [...], "error": "..."} — UI에서 '참조한 법령 조문'으로 실제 사용한 검색 결과를 표시할 수 있음."""
+    반환: {"checklist": [...], "rag_results": [...], "error": "...", "debug_info": {...}}"""
+    debug_info = {}
+    if prompt_overrides is None:
+        prompt_overrides = {}
     if collection is None:
         collection, _ = build_vector_store()
     
@@ -852,7 +879,7 @@ def step2_checklist(
         # 여전히 없으면 에러 반환
         if not (context and context.strip()):
             _debug_print("[체크리스트] 최종 실패: 컨텍스트 없음")
-            return {"checklist": [], "rag_results": [], "error": "컨텍스트 없음"}
+            return {"checklist": [], "rag_results": [], "error": "컨텍스트 없음", "debug_info": debug_info}
     
     already_asked = ""
     if qa_list:
@@ -876,12 +903,23 @@ def step2_checklist(
     _debug_print(f"[체크리스트 생성] 컨텍스트 길이: {len(context)}자")
     _debug_print(f"[체크리스트 생성] max_tokens: {max_tok}")
     
-    out = chat_json(
-        system_checklist(),
-        user_checklist(issue, context, filtered_provisions_text, already_asked_text=already_asked),
+    sys_prompt = prompt_overrides.get("system_checklist") or system_checklist()
+    user_prompt = user_checklist(
+        issue, 
+        context, 
+        filtered_provisions_text, 
+        already_asked_text=already_asked,
+        override_template=prompt_overrides.get("user_checklist")
+    )
+    
+    out, llm_debug = chat_json(
+        sys_prompt,
+        user_prompt,
         max_tokens=max_tok,
         reasoning_effort="low",  # 체크리스트: low effort로 3~6배 속도 향상
+        return_metadata=True
     )
+    debug_info["llm_checklist"] = llm_debug
     _debug_print(f"[체크리스트 LLM 응답] 타입: {type(out).__name__}, 값: {out}")
     
     # 파싱 및 정규화
@@ -891,12 +929,14 @@ def step2_checklist(
     # 체크리스트가 비었을 때 한 번만 재시도 (reasoning 모델이 본문 대신 생각만 채운 경우 등)
     if not checklist:
         _debug_print("[체크리스트] 항목 0개 → max_tokens=3072으로 재시도")
-        out_retry = chat_json(
-            system_checklist(),
-            user_checklist(issue, context, filtered_provisions_text, already_asked_text=already_asked),
+        out_retry, retry_debug = chat_json(
+            sys_prompt,
+            user_prompt,
             max_tokens=3072,
             reasoning_effort="low",
+            return_metadata=True
         )
+        debug_info["llm_checklist_retry"] = retry_debug
         checklist = _parse_checklist_response(out_retry)
         checklist = _deduplicate_checklist(checklist or [])
     
@@ -921,11 +961,13 @@ def step2_checklist(
         # 이전 답변이 있으면 AI가 판단
         try:
             _debug_print(f"[체크리스트 반복 판단] Q&A {len(qa_list)}개, 체크리스트 {len(checklist)}개")
-            continuation_out = chat_json_fast(
-                system_checklist_continuation(),
+            continuation_out, cont_debug = chat_json_fast(
+                prompt_overrides.get("system_checklist_continuation") or system_checklist_continuation(),
                 user_checklist_continuation(issue, qa_list, context),
                 max_tokens=512,
+                return_metadata=True
             )
+            debug_info["llm_continuation"] = cont_debug
             if isinstance(continuation_out, dict):
                 should_continue = continuation_out.get("should_continue", False)
                 continuation_reason = continuation_out.get("reason", "")
@@ -945,6 +987,7 @@ def step2_checklist(
         "rag_results": results,
         "should_continue": should_continue,
         "continuation_reason": continuation_reason,
+        "debug_info": debug_info,
     }
 
 
@@ -1191,6 +1234,7 @@ def step3_conclusion(
     collection=None,
     top_k: int = 10,
     narrow_answers: Optional[List[str]] = None,
+    prompt_overrides: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     모든 질문·대답과 RAG 조문 기반 결론 (법조항 인용).
@@ -1200,6 +1244,10 @@ def step3_conclusion(
     - 4차: 판례, 노동위원회 결정례, 고용노동부 법령해석 추가
     narrow_answers: 그룹 선택 답변으로 쿼리 확장.
     """
+    debug_info = {}
+    if prompt_overrides is None:
+        prompt_overrides = {}
+        
     if collection is None:
         collection, _ = build_vector_store()
     
@@ -1402,11 +1450,22 @@ def step3_conclusion(
     if precedents_context.strip():
         full_context = full_context + "\n\n" + precedents_context
 
-    conclusion = chat(
-        system_conclusion(),
-        user_conclusion(issue, qa_text, full_context, related_articles_hint=related_articles_hint),
+    sys_prompt = prompt_overrides.get("system_conclusion") or system_conclusion()
+    user_prompt = user_conclusion(
+        issue, 
+        qa_text, 
+        full_context, 
+        related_articles_hint=related_articles_hint,
+        override_template=prompt_overrides.get("user_conclusion")
+    )
+    
+    conclusion_dict = chat_with_metadata(
+        sys_prompt,
+        user_prompt,
         reasoning_effort="low",  # 결론: low effort → 5~10배 속도 향상
     )
+    conclusion = conclusion_dict["content"]
+    debug_info["llm_conclusion"] = conclusion_dict
     
     # ── 결론 품질 검증 (강화: 개선된 _validate_conclusion 사용) ──────────
     validation = _validate_conclusion(conclusion, law_results)
@@ -1475,6 +1534,7 @@ def step3_conclusion(
         "law_results": law_results,
         "decree_rule_results": decree_rule_results,
         "validation": validation,
+        "debug_info": debug_info,
     }
 
 
@@ -1483,6 +1543,7 @@ def step3_conclusion_stream(
     qa_list: List[Dict[str, str]],
     collection=None,
     narrow_answers: Optional[List[str]] = None,
+    prompt_overrides: Optional[Dict[str, str]] = None,
 ):
     """
     step3_conclusion의 스트리밍 버전.
@@ -1604,10 +1665,19 @@ def step3_conclusion_stream(
         r.get("article", "") for r in law_results[:5] if r.get("article")
     )
 
+    sys_prompt = prompt_overrides.get("system_conclusion") or system_conclusion()
+    user_prompt = user_conclusion(
+        issue, 
+        qa_text, 
+        full_context, 
+        related_articles_hint=related_articles_hint,
+        override_template=prompt_overrides.get("user_conclusion")
+    )
+
     # ── 3차: 결론 스트리밍 ────────────────────────────────────────────────
     yield from _stream(
-        system_conclusion(),
-        user_conclusion(issue, qa_text, full_context, related_articles_hint=related_articles_hint),
+        sys_prompt,
+        user_prompt,
         reasoning_effort="low",
     )
 
