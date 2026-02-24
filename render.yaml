@@ -1,0 +1,15 @@
+# Render Blueprint - LawChat API 서버
+# https://docs.render.com/blueprint-spec
+services:
+  - type: web
+    runtime: docker
+    name: lawchat-api
+    # Dockerfile은 저장소 루트에 있음
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: LAW_API_OC
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: "*"

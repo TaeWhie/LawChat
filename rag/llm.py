@@ -8,7 +8,7 @@ from typing import Any, Dict, Generator, List, Optional
 from openai import OpenAI
 
 from config import CHAT_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
-from rag.context import openai_api_key_ctx, openai_base_url_ctx
+from rag.context import openai_api_key_ctx, openai_base_url_ctx, chat_model_ctx
 
 # 프로덕션에서 stderr 노이즈 방지. LAW_DEBUG=1 일 때만 상세 출력
 _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
@@ -41,20 +41,21 @@ def chat(
     system_prompt: str,
     user_prompt: str,
     *,
-    model: str = CHAT_MODEL,
+    model: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 2000,
     reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> str:
-    """기본 채팅 응답."""
+    """기본 채팅 응답. model 미지정 시 chat_model_ctx → CHAT_MODEL 순으로 사용."""
+    actual_model = model or chat_model_ctx.get() or CHAT_MODEL
     client = _get_chat_client(openai_api_key, openai_base_url)
-    m_lower = model.lower()
+    m_lower = actual_model.lower()
     is_reasoning = "gpt-5" in m_lower or "nano" in m_lower or m_lower.startswith("o1") or m_lower.startswith("o3")
     
     kwargs: Dict[str, Any] = {
-        "model": model,
+        "model": actual_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -120,7 +121,7 @@ def chat_json(
     system_prompt: str,
     user_prompt: str,
     *,
-    model: str = CHAT_MODEL,
+    model: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 2000,
     reasoning_effort: Optional[str] = None,
@@ -128,11 +129,12 @@ def chat_json(
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Any:
-    """JSON 모드 응답."""
+    """JSON 모드 응답. model 미지정 시 chat_model_ctx → CHAT_MODEL 순으로 사용."""
+    actual_model = model or chat_model_ctx.get() or CHAT_MODEL
     raw = chat(
         system_prompt, 
         user_prompt, 
-        model=model, 
+        model=actual_model, 
         temperature=temperature, 
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
@@ -152,18 +154,19 @@ def chat_json_fast(
     system_prompt: str,
     user_prompt: str,
     *,
-    model: str = "gpt-4o-mini",
+    model: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 1000,
     reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Any:
-    """빠르고 저렴한 모델을 사용한 JSON 응답."""
+    """빠르고 저렴한 모델을 사용한 JSON 응답. model 미지정 시 chat_model_ctx → gpt-4o-mini 순으로 사용."""
+    actual_model = model or chat_model_ctx.get() or "gpt-4o-mini"
     return chat_json(
         system_prompt,
         user_prompt,
-        model=model,
+        model=actual_model,
         temperature=temperature,
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
@@ -176,20 +179,21 @@ def chat_stream(
     system_prompt: str,
     user_prompt: str,
     *,
-    model: str = CHAT_MODEL,
+    model: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 2000,
     reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Generator[str, None, None]:
-    """스트리밍 응답 제너레이터."""
+    """스트리밍 응답 제너레이터. model 미지정 시 chat_model_ctx → CHAT_MODEL 순으로 사용."""
+    actual_model = model or chat_model_ctx.get() or CHAT_MODEL
     client = _get_chat_client(openai_api_key, openai_base_url)
-    m_lower = model.lower()
+    m_lower = actual_model.lower()
     is_reasoning = "gpt-5" in m_lower or "nano" in m_lower or m_lower.startswith("o1") or m_lower.startswith("o3")
     
     kwargs: Dict[str, Any] = {
-        "model": model,
+        "model": actual_model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -225,18 +229,19 @@ def chat_with_metadata(
     system_prompt: str,
     user_prompt: str,
     *,
-    model: str = CHAT_MODEL,
+    model: Optional[str] = None,
     temperature: float = 0.0,
     max_tokens: int = 2000,
     reasoning_effort: Optional[str] = None,
     openai_api_key: Optional[str] = None,
     openai_base_url: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """메타데이터를 포함한 상세 응답."""
+    """메타데이터를 포함한 상세 응답. model 미지정 시 chat_model_ctx → CHAT_MODEL 순으로 사용."""
+    actual_model = model or chat_model_ctx.get() or CHAT_MODEL
     content = chat(
         system_prompt, 
         user_prompt, 
-        model=model, 
+        model=actual_model, 
         temperature=temperature, 
         max_tokens=max_tokens,
         reasoning_effort=reasoning_effort,
@@ -247,5 +252,5 @@ def chat_with_metadata(
         "content": content,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
-        "model": model
+        "model": actual_model
     }
