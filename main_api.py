@@ -41,7 +41,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE
 from rag.context import openai_api_key_ctx, law_api_key_ctx, openai_base_url_ctx, chat_model_ctx
 
-app = FastAPI(title="LawChat Backend API", version="1.0.0")
+app = FastAPI(title="LawChat Backend API", version=os.getenv("LAW_API_VERSION", "1.2.0"))
 
 # CORS Configuration
 # CORS settings

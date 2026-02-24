@@ -27,13 +27,16 @@ Render는 **에피소드 디스크**를 사용하므로, 다음 디렉터리가 
 | `OPENAI_API_KEY` | OpenAI(또는 호환) API 키 | ✅ |
 | `LAW_API_OC` | 국가법령정보 API OC 키 (서류·법령 검색 등) | 서류/법령 API 사용 시 |
 | `ALLOWED_ORIGINS` | CORS 허용 오리진 (쉼표 구분, 기본 `*`) | 선택 |
+| `LAW_API_VERSION` | 헬스·앱 버전 표시 (기본 `1.2.0`) | 선택 |
+| `LAW_DEBUG` | `1`이면 오류 상세·DEBUG 로그 노출 (운영 시 비권장) | 선택 |
 
 `render.yaml`에서 `OPENAI_API_KEY`, `LAW_API_OC`는 `sync: false`로 두었으므로 **Render 대시보드에서 값을 입력**해야 합니다.
 
-### 3. 기동 시간
+### 3. 기동 시간·헬스체크
 
 - `build_vector_store()`가 기동 시 한 번 실행되며, `vector_store/` 크기에 따라 수십 초 걸릴 수 있습니다.
 - Render 무료 플랜은 기동 타임아웃이 짧을 수 있으므로, **vector_store를 미리 구축해 커밋**하는 것을 권장합니다.
+- `render.yaml`에 `healthCheckPath: /api/v1/health`가 설정되어 있어, 기동 후 해당 엔드포인트가 2xx를 반환할 때까지 Render가 트래픽을 보내지 않습니다. 기동이 오래 걸리면 Render 대시보드에서 헬스체크 타임아웃을 넉넉히 두거나, 벡터 스토어를 미리 커밋해 두세요.
 
 ## 챗봇과 동일한 동작 (API)
 

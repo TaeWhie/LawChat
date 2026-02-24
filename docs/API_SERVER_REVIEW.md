@@ -12,13 +12,11 @@
   - **단계별**: `classify` → `checklist` → `conclusion` (3회 호출, 상태는 클라이언트 관리)
 - **권장**: 프론트엔드는 **invoke 한 종류만** 사용하는 것을 권장. 단계별 API는 디버깅·커스텀 UI용으로만 사용.
 
-### 1.2 API 스펙 문서 부족
-- **현상**: `docs/API_USAGE.md`에 `invoke`, `model`, `openai_base_url` 등이 반영되지 않음.
-- **권장**: OpenAPI(Swagger)는 FastAPI 기본 제공(`/docs`). API_USAGE.md를 invoke·공통 파라미터 기준으로 최신화.
+### 1.2 ✅ API 스펙 문서 (반영 완료)
+- **조치**: `docs/API_USAGE.md`를 invoke·공통 파라미터(`openai_base_url`, `model`)·health 버전·documents QA·법률 둘러보기 기준으로 최신화함.
 
-### 1.3 버전·헬스 정보
-- **현상**: `/api/v1/health`의 `version`이 하드코딩(`"1.1.0-absolute-keys-v5"`).
-- **권장**: `config` 또는 패키지 버전에서 읽어오거나, 배포 시 환경변수로 주입.
+### 1.3 ✅ 버전·헬스 정보 (반영 완료)
+- **조치**: `/api/v1/health`의 `version`을 환경변수 `LAW_API_VERSION`(기본 `1.2.0`)에서 읽도록 함. FastAPI 앱 `version`도 동일하게 통일함.
 
 ### 1.4 인증·속도 제한 없음
 - **현상**: API 키를 요청 body로 받을 뿐, 서비스 수준 인증(API Key 헤더·JWT)이나 Rate Limit 없음.
@@ -60,15 +58,15 @@
 
 ---
 
-## 4. 배포·운영 관점
+## 4. 배포·운영 관점 (문서·설정 반영 완료)
 
-### 4.1 기동 시 벡터 스토어/데이터
-- **필수**: Render 등에서 `vector_store/`, `api_data/`(laws, terms 등)가 포함되거나 마운트되어 있어야 함. 없으면 기동 실패.
-- **참고**: `docs/RENDER_DEPLOY.md`에 정리됨.
+### 4.1 ✅ 기동 시 벡터 스토어/데이터
+- **조치**: `docs/RENDER_DEPLOY.md`에 “데이터 디렉터리(필수)”로 정리됨. `vector_store/`, `api_data/`(laws, terms 등) 포함·커밋 안내.
+- **설정**: `render.yaml`에 서비스 정의·환경변수 안내 있음.
 
-### 4.2 기동 시간
-- **현상**: `build_vector_store()`가 기동 시 한 번 실행되며, 데이터 양에 따라 수십 초 걸릴 수 있음.
-- **권장**: Render 무료 플랜 등 타임아웃이 짧으면, 벡터 스토어를 미리 구축해 저장소에 포함하거나, 헬스체크 타임아웃을 넉넉히 설정.
+### 4.2 ✅ 기동 시간·헬스체크
+- **조치**: `docs/RENDER_DEPLOY.md`에 “기동 시간·헬스체크” 섹션 추가. 벡터 스토어 미리 구축 권장, `healthCheckPath: /api/v1/health` 동작·타임아웃 안내.
+- **설정**: `render.yaml`에 `healthCheckPath: /api/v1/health` 설정됨.
 
 ---
 
@@ -84,3 +82,6 @@
 | 미사용 import | re, json, contextvars, jsonable_encoder, Body, Depends, Header, Generator 제거 |
 | route_question | `asyncio.to_thread(classify_type, request.text)` 적용 |
 | health 버전 | `LAW_API_VERSION` 환경변수 사용 (기본 "1.2.0") |
+| FastAPI app version | `LAW_API_VERSION`과 동일하게 통일 |
+| API_USAGE.md | invoke·model·openai_base_url·health·documents·법률 둘러보기 반영 |
+| 4. 배포·운영 | RENDER_DEPLOY.md에 4.1·4.2 반영, render.yaml healthCheckPath·env 안내, LAW_API_VERSION·LAW_DEBUG 문서화 |
