@@ -2,7 +2,7 @@
 
 본 문서는 Render에 배포된 LawChat API의 주요 엔드포인트와 사용 방법을 안내합니다.
 
-**서버 Base URL:** `https://law-chat-api.onrender.com` (배포 시 실제 URL로 교체)
+**서버 Base URL:** Render에 배포한 뒤 **Render 대시보드 → 해당 Web Service → 상단에 표시되는 URL**을 사용합니다. 예: `https://lawchat-api.onrender.com` (서비스 이름에 따라 `https://<서비스이름>.onrender.com` 형태)
 
 모든 POST API 요청은 JSON 요청 바디(`application/json`)를 사용합니다.
 
@@ -18,6 +18,25 @@
 | `openai_base_url` | string | OpenAI Base URL (Azure·프록시 등, Render 단일 배포 시 보통 생략) |
 | `law_api_key` | string | 국가법령정보 API OC 키 (서류·법령 검색 시) |
 | `model` | string | 채팅 모델 오버라이드 (예: `gpt-4o`, `gpt-4o-mini`. 미설정 시 서버 LAW_CHAT_MODEL 사용) |
+
+---
+
+## 0. 루트(/) 접속
+
+브라우저에서 **Base URL만** 열면(예: `https://law-chat-api.onrender.com/`) API 안내 JSON이 반환됩니다.
+
+- **URL:** `GET /`
+- **응답 예시:**
+  ```json
+  {
+    "service": "LawChat Backend API",
+    "docs": "/docs",
+    "health": "/api/v1/health",
+    "message": "API 사용법은 GET /docs 에서 확인하세요."
+  }
+  ```
+  - `docs`: Swagger UI 경로 (`/docs` 에서 API 명세·테스트)
+  - `health`: 서버 상태 확인 경로 (`/api/v1/health`)
 
 ---
 
@@ -207,4 +226,4 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 1. **권장 플로우:** 상담은 **`POST /api/v1/chat/invoke` 한 종류만** 사용. `message`와 `thread_id`로 체크리스트·다음 턴까지 처리.
 2. **상태 관리:** API 키·모델을 상태(State)나 브라우저 스토리지에 저장해 두고, 모든 POST 요청 Body에 `openai_api_key`, `model` 등을 선택적으로 주입.
 3. **스트리밍 결론:** 단계별 결론(`/api/v1/chat/conclusion`)에서 `stream: true` 시 SSE(`text/event-stream`)로 수신 가능.
-4. **API 명세서:** Swagger UI는 `https://[배포URL]/docs` 에서 확인.
+4. **API 명세서:** Swagger UI는 **서버 Base URL + `/docs`** (예: `https://lawchat-api.onrender.com/docs`)에서 확인.

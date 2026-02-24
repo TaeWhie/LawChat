@@ -169,6 +169,17 @@ async def context_middleware(request, call_next):
     response = await call_next(request)
     return response
 
+@app.get("/")
+async def root():
+    """루트 접속 시 API 안내. 브라우저에서 base URL만 열었을 때 Not Found 대신 표시."""
+    return {
+        "service": "LawChat Backend API",
+        "docs": "/docs",
+        "health": "/api/v1/health",
+        "message": "API 사용법은 GET /docs 에서 확인하세요.",
+    }
+
+
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint to verify deployment version."""
