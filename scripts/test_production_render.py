@@ -7,10 +7,9 @@ from dotenv import load_dotenv
 # 로컬 .env 로드 (테스트용 키)
 load_dotenv()
 OPENAI_KEY = os.getenv("OPENAI_API_KEY")
-LAW_KEY = os.getenv("LAW_API_OC")
+# 법령 API 키(LAW_API_OC)는 요청으로 보내지 않음. 서버 Secret으로만 사용.
 
 print(f"DEBUG: Local OpenAI Key exists: {bool(OPENAI_KEY)}")
-print(f"DEBUG: Local Law Key exists: {bool(LAW_KEY)}")
 
 
 # 운영 서버 주소
@@ -56,7 +55,6 @@ def test_production_api():
             "situation": "임금체불 때문에 퇴직을 고민 중입니다.",
             "top_k": 3,
             "openai_api_key": OPENAI_KEY,
-            "law_api_key": LAW_KEY
         }
         try:
             res = client.post(f"{BASE_URL}/api/v1/chat/classify", json=payload)
@@ -74,7 +72,6 @@ def test_production_api():
             "question": "퇴직금은 언제까지 지급해야 하나요?",
             "top_k": 3,
             "openai_api_key": OPENAI_KEY,
-            "law_api_key": LAW_KEY
         }
         try:
             res = client.post(f"{BASE_URL}/api/v1/chat/qa/knowledge", json=payload)

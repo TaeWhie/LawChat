@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """LangGraph 기반 노동법 RAG 챗봇 그래프. app.py와 동일한 step1/step2/step3·출력으로 자동 진행 후 말풍선에 표시."""
-from typing import TypedDict, Annotated, Literal
+from typing import TypedDict, Annotated, Literal, Optional, Dict, Any
 
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -50,8 +50,27 @@ class ChatbotState(TypedDict):
     checklist: list
     checklist_index: int
     phase: str  # "input" | "checklist" | "conclusion"
-    pending_question: str  # 사용자 답변 대기 중인 질문
-    checklist_rag_results: list  # step2에서 사용한 조문 (2차 시 merge용)
+    pending_question: str
+    checklist_rag_results: list
+    prompt_overrides: Optional[Dict[str, str]]  # API 요청 시 커스텀 프롬프트 (선택)
+    response_format: Optional[str]  # "markdown" | "plain"
+    max_length: Optional[int]  # 응답 최대 문자 수
+    language: Optional[str]  # "ko" | "en"
+    tone: Optional[str]  # "formal" | "casual"
+    top_k: Optional[int]  # 이슈 분류·검색 조문 수
+    filter_sources: Optional[list]  # 검색 대상 법령 목록
+    usage: Optional[Dict[str, int]]  # 토큰 사용량 누적 (prompt_tokens, completion_tokens, total_tokens)
+
+
+def _merge_usage(prev: Optional[Dict], new: Optional[Dict]) -> Dict[str, int]:
+    """두 usage 딕셔너리를 합산. API 응답용."""
+    p = prev or {}
+    n = new or {}
+    return {
+        "prompt_tokens": (p.get("prompt_tokens") or 0) + (n.get("prompt_tokens") or 0),
+        "completion_tokens": (p.get("completion_tokens") or 0) + (n.get("completion_tokens") or 0),
+        "total_tokens": (p.get("total_tokens") or 0) + (n.get("total_tokens") or 0),
+    }
 
 
 # 벡터스토어 컬렉션 캐싱 (프로세스 내 최초 1회만 build_vector_store 호출)
@@ -109,8 +128,9 @@ def _calculation_empty_fallback(user_text: str, rag_context: str) -> str:
     return "**검색된 조문**\n\n" + shown + "\n\n위 조문을 참고해 주세요. 구체적인 **금액**을 계산해 드리려면 입사일, 퇴사일, 월급(또는 시급·근무시간)을 적어 주시면 계산해 드립니다."
 
 
-def _prepend_rag_for_calculation(col, user_text: str, calc_result_section: str, query: str) -> str:
+def _prepend_rag_for_calculation(col, user_text: str, calc_result_section: str, query: str, filter_sources=None):
     """계산 결과 앞에 RAG에서 가져온 해당 조문을 붙여 반환. 관련 조항이 없으면 폴백 검색."""
+    fs = filter_sources if (filter_sources and isinstance(filter_sources, list)) else ALL_LABOR_LAW_SOURCES
     fallback_queries = {
         "퇴직금": ["퇴직금 평균임금 재직일수 제34조", "퇴직금 지급 근로기준법", "퇴직금"],
         "연장근로": ["연장근로 수당 가산 제56조", "연장근로 가산근로기준법", "연장근로 수당"],
@@ -128,7 +148,7 @@ def _prepend_rag_for_calculation(col, user_text: str, calc_result_section: str, 
             try:
                 search_results = search(
                     col, q, top_k=3,
-                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                    filter_sources=fs,
                     exclude_sections=["벌칙", "부칙"],
                 )
                 if search_results:
@@ -156,14 +176,16 @@ def process_turn(state: ChatbotState) -> dict:
     사용자 메시지 처리 → 다음 AI 응답 생성
     """
     messages = state.get("messages", [])
+    _u = state.get("usage")
+    accumulated_usage = dict(_u) if _u else {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     if not messages:
-        return {"messages": [AIMessage(content="상황을 말씀해 주세요. 예: 월급을 못 받았어요")]}
+        return {"messages": [AIMessage(content="상황을 말씀해 주세요. 예: 월급을 못 받았어요")], "usage": accumulated_usage}
     last_msg = messages[-1]
     if not isinstance(last_msg, HumanMessage):
         return {}
     user_text = (last_msg.content or "").strip()
     if not user_text:
-        return {"messages": [AIMessage(content="메시지를 입력해 주세요.")]}
+        return {"messages": [AIMessage(content="메시지를 입력해 주세요.")], "usage": accumulated_usage}
 
     col = _get_collection()
     phase = state.get("phase", "input")
@@ -174,6 +196,8 @@ def process_turn(state: ChatbotState) -> dict:
     articles_by_issue = dict(state.get("articles_by_issue", {}))
     checklist = list(state.get("checklist") or [])
     checklist_index = state.get("checklist_index", 0)
+    _fs = state.get("filter_sources")
+    filter_sources = _fs if (_fs and isinstance(_fs, list)) else ALL_LABOR_LAW_SOURCES
 
     # 새 상황 입력
     if phase == "input" or (not situation and user_text):
@@ -206,6 +230,7 @@ def process_turn(state: ChatbotState) -> dict:
                     "situation": "",
                     "issues": [],
                     "phase": "input",
+                    "usage": accumulated_usage,
                 }
         except Exception:
             # 오류 발생 시 기존 로직 계속 진행 (안전장치)
@@ -220,21 +245,20 @@ def process_turn(state: ChatbotState) -> dict:
                 # 관련 조문 검색
                 search_results = search(
                     col, user_text, top_k=5,
-                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                    filter_sources=filter_sources,
                     exclude_sections=["벌칙", "부칙"],
                 )
                 if search_results:
                     rag_context = _rag_context(search_results, max_length=2000)
-                    res_meta = chat_with_metadata(
-                        system_knowledge_qa(),
-                        user_knowledge_qa(user_text, rag_context),
-                        max_tokens=1000
-                    )
+                    overrides = state.get("prompt_overrides") or {}
+                    sys_k = overrides.get("system_knowledge_qa") or system_knowledge_qa()
+                    user_k = overrides.get("user_knowledge_qa") or user_knowledge_qa(user_text, rag_context)
+                    res_meta = chat_with_metadata(sys_k, user_k, max_tokens=1000)
                     answer = res_meta["content"]
                     if not (answer and str(answer).strip()):
                         # RAG 조문만으로 재요청 후, 그래도 없으면 검색된 조문 본문 그대로 노출
                         answer = _knowledge_empty_fallback(user_text, rag_context)
-                    
+                    accumulated_usage = _merge_usage(accumulated_usage, res_meta.get("usage"))
                     debug_info = {"knowledge_qa": res_meta}
                     return {
                         "messages": [AIMessage(content=answer)],
@@ -248,7 +272,8 @@ def process_turn(state: ChatbotState) -> dict:
                         "phase": "input",
                         "pending_question": "",
                         "checklist_rag_results": [],
-                        "debug_info": debug_info
+                        "debug_info": debug_info,
+                        "usage": accumulated_usage,
                     }
             except Exception:
                 # 지식 질문인데 오류 발생 → 체크리스트 없이 바로 답변만 반환
@@ -257,6 +282,7 @@ def process_turn(state: ChatbotState) -> dict:
                     "situation": "",
                     "issues": [],
                     "phase": "input",
+                    "usage": accumulated_usage,
                 }
         
         # 1.5 서류·서식 질문 (국가법령정보 licbyl/admbyl API)
@@ -287,12 +313,14 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                     "pending_question": "",
                     "checklist_rag_results": [],
+                    "usage": accumulated_usage,
                 }
             except Exception:
                 return {
                     "messages": [AIMessage(content="서류·서식 조회 중 오류가 발생했습니다. 국가법령정보센터(www.law.go.kr)에서 검색해 보시거나, 다른 질문을 해 주세요.")],
                     "situation": "",
                     "phase": "input",
+                    "usage": accumulated_usage,
                 }
         
         # 2. 계산 질문 (퇴직금, 연장근로 수당 등)
@@ -343,7 +371,7 @@ def process_turn(state: ChatbotState) -> dict:
 
 ⚠️ {calc_result['note']}
 정확한 계산을 위해서는 최근 3개월간의 임금 총액과 각종 수당을 포함한 평균임금이 필요합니다."""
-                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조")
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조", filter_sources)
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -365,7 +393,7 @@ def process_turn(state: ChatbotState) -> dict:
 📋 계산식: {calc_result['formula']}
 
 💡 {calc_result['note']}"""
-                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "연장근로 수당 가산 제56조")
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "연장근로 수당 가산 제56조", filter_sources)
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -375,7 +403,12 @@ def process_turn(state: ChatbotState) -> dict:
                 else:
                     # 계산 질문이지만 패턴 매칭 실패 → 상황 경로 시도(수습/최저임금 등)
                     try:
-                        issues_fb, step1_articles_fb, _ = step1_issue_classification(user_text, collection=col)
+                        from rag.context import openai_api_key_ctx, law_api_key_ctx
+                        curr_okey = openai_api_key_ctx.get()
+                        curr_lkey = law_api_key_ctx.get()
+                        issues_fb, step1_articles_fb, _ = step1_issue_classification(
+                            user_text, collection=col, openai_api_key=curr_okey, law_api_key=curr_lkey
+                        )
                         if issues_fb:
                             sel_issue = issues_fb[0]
                             articles_fb = dict(step1_articles_fb) if step1_articles_fb else {}
@@ -383,6 +416,7 @@ def process_turn(state: ChatbotState) -> dict:
                             step2_fb = step2_checklist(
                                 sel_issue, (user_text[:400] if isinstance(user_text, str) else ""),
                                 collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb,
+                                openai_api_key=curr_okey
                             )
                             checklist_fb = step2_fb.get("checklist", []) if isinstance(step2_fb, dict) else []
                             if checklist_fb:
@@ -401,32 +435,32 @@ def process_turn(state: ChatbotState) -> dict:
                     try:
                         search_results = search(
                             col, user_text, top_k=5,
-                            filter_sources=ALL_LABOR_LAW_SOURCES,
+                            filter_sources=filter_sources,
                         )
                         if search_results:
                             rag_context = _rag_context(search_results, max_length=2000)
-                            res_meta = chat_with_metadata(
-                                system_calculation_qa(),
-                                user_calculation_qa(user_text, rag_context),
-                                max_tokens=1500  # 충분한 토큰 수 확보
-                            )
+                            overrides = state.get("prompt_overrides") or {}
+                            sys_c = overrides.get("system_calculation_qa") or system_calculation_qa()
+                            user_c = overrides.get("user_calculation_qa") or user_calculation_qa(user_text, rag_context)
+                            res_meta = chat_with_metadata(sys_c, user_c, max_tokens=1500)
                             answer = res_meta["content"]
                             if not answer or not answer.strip():
                                 answer = _calculation_empty_fallback(user_text, rag_context)
-                            
+                            accumulated_usage = _merge_usage(accumulated_usage, res_meta.get("usage"))
                             debug_info = {"calculation_qa": res_meta}
                             return {
                                 "messages": [AIMessage(content=answer)],
                                 "situation": "",
                                 "issues": [],
                                 "phase": "input",
-                                "debug_info": debug_info
+                                "debug_info": debug_info,
+                                "usage": accumulated_usage,
                             }
                         else:
                             # 검색 결과 없으면 넓게 한 번 더 검색
                             search_results2 = search(
                                 col, "퇴직금 연장근로 수당 평균임금", top_k=3,
-                                filter_sources=ALL_LABOR_LAW_SOURCES,
+                                filter_sources=filter_sources,
                             )
                             if search_results2:
                                 rag_context2 = _rag_context(search_results2, max_length=2000)
@@ -469,14 +503,17 @@ def process_turn(state: ChatbotState) -> dict:
                     search_query = "해고 사유 정당한 해고 퇴직금 계약 위반 근로계약"
                     search_results = search(
                         col, search_query, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                        filter_sources=filter_sources,
                     )
                     rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
                     
                     # RAG 기반 답변 생성
+                    overrides = state.get("prompt_overrides") or {}
+                    sys_e = overrides.get("system_exception_qa") or system_exception_qa()
+                    user_e = overrides.get("user_exception_qa") or user_exception_qa(user_text, rag_context)
                     answer = chat(
-                        system_exception_qa(),
-                        user_exception_qa(user_text, rag_context),
+                        sys_e,
+                        user_e,
                         max_tokens=None  # reasoning 모델이 충분히 답변하도록 제한 없음
                     )
                     
@@ -512,13 +549,15 @@ def process_turn(state: ChatbotState) -> dict:
                     
                     search_results = search(
                         col, search_query, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                        filter_sources=filter_sources,
                     )
                     rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
-                    
+                    overrides = state.get("prompt_overrides") or {}
+                    sys_e = overrides.get("system_exception_qa") or system_exception_qa()
+                    user_e = overrides.get("user_exception_qa") or user_exception_qa(user_text, rag_context)
                     res_meta = chat_with_metadata(
-                        system_exception_qa(),
-                        user_exception_qa(user_text, rag_context),
+                        sys_e,
+                        user_e,
                         max_tokens=None  # reasoning 모델이 충분히 답변하도록 제한 없음
                     )
                     answer = res_meta["content"]
@@ -526,7 +565,7 @@ def process_turn(state: ChatbotState) -> dict:
                     # 최신성 확인 질문인 경우 데이터 연도 추가
                     if any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
                         answer += "\n\n📅 **데이터 참고사항:** 제공된 법령 데이터는 동기화 시점의 법령을 기준으로 합니다. 법령은 개정될 수 있으므로, 최신 법령 확인이 필요하시면 국가법령정보센터(www.law.go.kr)를 참고하시기 바랍니다."
-                
+                    accumulated_usage = _merge_usage(accumulated_usage, res_meta.get("usage"))
                 debug_info = {"exception_qa": res_meta}
                 return {
                     "messages": [AIMessage(content=answer)],
@@ -540,7 +579,8 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                     "pending_question": "",
                     "checklist_rag_results": [],
-                    "debug_info": debug_info
+                    "debug_info": debug_info,
+                    "usage": accumulated_usage,
                 }
             except Exception as e:
                 # 예외 질문인데 오류 발생 → 에러 메시지 (체크리스트 없이)
@@ -562,7 +602,16 @@ def process_turn(state: ChatbotState) -> dict:
         # 지식/계산/예외 질문은 위에서 모두 return했으므로 여기 도달하지 않음
         # ★ step1 + step2 병렬 실행으로 TTFT 단축 (keyword 경로에서 효과 큼)
         situation = user_text
-        parallel_result = step1_and_step2_parallel(situation, collection=col)
+        from rag.context import openai_api_key_ctx, law_api_key_ctx
+        curr_okey = openai_api_key_ctx.get()
+        curr_lkey = law_api_key_ctx.get()
+        overrides = state.get("prompt_overrides") or {}
+        search_top_k = state.get("top_k") or 22
+        parallel_result = step1_and_step2_parallel(
+            situation, collection=col, top_k=search_top_k,
+            openai_api_key=curr_okey, law_api_key=curr_lkey,
+            prompt_overrides=overrides,
+        )
         issues = parallel_result.get("issues", [])
         if not issues:
             return {
@@ -570,6 +619,7 @@ def process_turn(state: ChatbotState) -> dict:
                 "situation": situation,
                 "issues": [],
                 "phase": "input",
+                "usage": accumulated_usage,
             }
         selected_issue = parallel_result.get("selected_issue", issues[0])
         articles_by_issue = parallel_result.get("articles_by_issue", {})
@@ -585,23 +635,73 @@ def process_turn(state: ChatbotState) -> dict:
                 "checklist": checklist, "checklist_index": 0,
                 "phase": "checklist", "pending_question": "",
                 "checklist_rag_results": parallel_result.get("rag_results", []),
+                "usage": accumulated_usage,
             }
         narrow_answers = []
-        res = step3_conclusion(selected_issue, qa_list, collection=col, narrow_answers=None)
+        overrides = state.get("prompt_overrides") or {}
+        res = step3_conclusion(
+            selected_issue, qa_list, collection=col, narrow_answers=None,
+            prompt_overrides=overrides,
+            language=state.get("language"), tone=state.get("tone"),
+        )
         conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
         rel = res.get("related_articles", []) if isinstance(res, dict) else []
         tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
+        llm_usage = (res.get("debug_info") or {}).get("llm_conclusion") or {}
+        if isinstance(llm_usage, dict) and llm_usage.get("usage"):
+            accumulated_usage = _merge_usage(accumulated_usage, llm_usage["usage"])
         return {
             "messages": [AIMessage(content=f"감지된 이슈: {', '.join(issues)}\n\n**결론**\n\n{conc}{tail}")],
             "situation": situation, "issues": issues, "selected_issue": selected_issue,
             "qa_list": qa_list, "phase": "conclusion", "pending_question": "",
+            "usage": accumulated_usage,
         }
 
     # checklist 답변은 앱에서 버튼(네/아니요/모르겠음)으로 수집 후 step3/step2 호출하므로 그래프에서는 처리하지 않음
     
-    # 체크리스트 단계에서 새로운 텍스트 입력이 들어온 경우 → 새 상담으로 처리
-    # (phase == "checklist"이고 버튼이 아닌 텍스트 입력)
+    # checklist 단계 처리
     if phase == "checklist":
+        # 인텐트 판별 (새 질문인지, 체크리스트 답변인지)
+        intent = _detect_intent(user_text, state)
+        
+        if intent == "answer_checklist":
+            # 앱에서 보낸 멀티라인 답변 파싱 ("질문: 답변")
+            new_qa = []
+            for line in user_text.split('\n'):
+                if ':' in line:
+                    parts = line.split(':', 1)
+                    new_qa.append({"question": parts[0].strip(), "answer": parts[1].strip()})
+            
+            if new_qa:
+                qa_list = new_qa
+                from rag.context import openai_api_key_ctx
+                curr_okey = openai_api_key_ctx.get()
+                
+                # 결론 도출 (Step 3)
+                overrides = state.get("prompt_overrides") or {}
+                res = step3_conclusion(
+                    selected_issue, qa_list, 
+                    collection=col, 
+                    narrow_answers=None,
+                    prompt_overrides=overrides,
+                    openai_api_key=curr_okey,
+                    language=state.get("language"), tone=state.get("tone"),
+                )
+                conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
+                rel = res.get("related_articles", []) if isinstance(res, dict) else []
+                tail = "\n\n📎 함께 확인해 보세요: " + ", ".join(rel) if rel else ""
+                llm_usage = (res.get("debug_info") or {}).get("llm_conclusion") or {}
+                if isinstance(llm_usage, dict) and llm_usage.get("usage"):
+                    accumulated_usage = _merge_usage(accumulated_usage, llm_usage["usage"])
+                return {
+                    "messages": [AIMessage(content=f"감지된 이슈: {', '.join(issues)}\n\n**결론**\n\n{conc}{tail}")],
+                    "situation": situation, "issues": issues, "selected_issue": selected_issue,
+                    "qa_list": qa_list, "phase": "conclusion", "pending_question": "",
+                    "articles_by_issue": articles_by_issue,
+                    "usage": accumulated_usage,
+                }
+
+        # 답변이 아닌 경우 (새로운 노동법 질문 등) -> 기존 로직 (Restart)
         # 노동법과 무관한 질문인지 빠르게 확인 (키워드 기반, LLM 호출 없음 → TTFT 단축)
         try:
             _is_labor, _reason = is_labor_law_related_fast(user_text)
@@ -645,7 +745,7 @@ def process_turn(state: ChatbotState) -> dict:
             try:
                 search_results = search(
                     col, user_text, top_k=5,
-                    filter_sources=ALL_LABOR_LAW_SOURCES,
+                    filter_sources=filter_sources,
                     exclude_sections=["벌칙", "부칙"],
                 )
                 if search_results:
@@ -698,6 +798,7 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                     "pending_question": "",
                     "checklist_rag_results": [],
+                    "usage": accumulated_usage,
                 }
             except Exception:
                 pass
@@ -741,7 +842,7 @@ def process_turn(state: ChatbotState) -> dict:
 
 ⚠️ {calc_result['note']}
 정확한 계산을 위해서는 최근 3개월간의 임금 총액과 각종 수당을 포함한 평균임금이 필요합니다."""
-                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조")
+                        answer = _prepend_rag_for_calculation(col, user_text, calc_section, "퇴직금 평균임금 재직일수 제34조", filter_sources)
                         return {
                             "messages": [AIMessage(content=answer)],
                             "situation": "",
@@ -773,7 +874,12 @@ def process_turn(state: ChatbotState) -> dict:
                 else:
                     # 계산 질문이지만 패턴 매칭 실패 → 상황 경로 시도(수습/최저임금 등)
                     try:
-                        issues_fb2, step1_articles_fb2, _ = step1_issue_classification(user_text, collection=col)
+                        from rag.context import openai_api_key_ctx, law_api_key_ctx
+                        curr_okey = openai_api_key_ctx.get()
+                        curr_lkey = law_api_key_ctx.get()
+                        issues_fb2, step1_articles_fb2, _ = step1_issue_classification(
+                            user_text, collection=col, openai_api_key=curr_okey, law_api_key=curr_lkey
+                        )
                         if issues_fb2:
                             sel_issue2 = issues_fb2[0]
                             articles_fb2 = dict(step1_articles_fb2) if step1_articles_fb2 else {}
@@ -781,6 +887,7 @@ def process_turn(state: ChatbotState) -> dict:
                             step2_fb2 = step2_checklist(
                                 sel_issue2, (user_text[:400] if isinstance(user_text, str) else ""),
                                 collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb2,
+                                openai_api_key=curr_okey
                             )
                             checklist_fb2 = step2_fb2.get("checklist", []) if isinstance(step2_fb2, dict) else []
                             if checklist_fb2:
@@ -798,15 +905,14 @@ def process_turn(state: ChatbotState) -> dict:
                     try:
                         search_results = search(
                             col, user_text, top_k=5,
-                            filter_sources=ALL_LABOR_LAW_SOURCES,
+                            filter_sources=filter_sources,
                         )
                         if search_results:
                             rag_context = _rag_context(search_results, max_length=2000)
-                            answer = chat(
-                                system_calculation_qa(),
-                                user_calculation_qa(user_text, rag_context),
-                                max_tokens=1500  # 충분한 토큰 수 확보
-                            )
+                            overrides = state.get("prompt_overrides") or {}
+                            sys_c = overrides.get("system_calculation_qa") or system_calculation_qa()
+                            user_c = overrides.get("user_calculation_qa") or user_calculation_qa(user_text, rag_context)
+                            answer = chat(sys_c, user_c, max_tokens=1500)
                             if not answer or not answer.strip():
                                 answer = _calculation_empty_fallback(user_text, rag_context)
                             return {
@@ -818,7 +924,7 @@ def process_turn(state: ChatbotState) -> dict:
                         else:
                             search_results2 = search(
                                 col, "퇴직금 연장근로 수당 평균임금", top_k=3,
-                                filter_sources=ALL_LABOR_LAW_SOURCES,
+                                filter_sources=filter_sources,
                             )
                             if search_results2:
                                 rag_context2 = _rag_context(search_results2, max_length=2000)
@@ -849,16 +955,19 @@ def process_turn(state: ChatbotState) -> dict:
         
         elif question_type == "exception":
             try:
+                overrides = state.get("prompt_overrides") or {}
                 if any(kw in user_text for kw in ["몰래", "기밀", "빼돌려"]):
                     search_query = "해고 사유 정당한 해고 퇴직금 계약 위반 근로계약"
                     search_results = search(
                         col, search_query, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                        filter_sources=filter_sources,
                     )
                     rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
+                    sys_e = overrides.get("system_exception_qa") or system_exception_qa()
+                    user_e = overrides.get("user_exception_qa") or user_exception_qa(user_text, rag_context)
                     answer = chat(
-                        system_exception_qa(),
-                        user_exception_qa(user_text, rag_context),
+                        sys_e,
+                        user_e,
                         max_tokens=None
                     )
                     if not rag_context or len(answer.strip()) < 100:
@@ -889,12 +998,14 @@ def process_turn(state: ChatbotState) -> dict:
                     
                     search_results = search(
                         col, search_query, top_k=5,
-                        filter_sources=ALL_LABOR_LAW_SOURCES,
+                        filter_sources=filter_sources,
                     )
                     rag_context = _rag_context(search_results, max_length=2000) if search_results else ""
+                    sys_e = overrides.get("system_exception_qa") or system_exception_qa()
+                    user_e = overrides.get("user_exception_qa") or user_exception_qa(user_text, rag_context)
                     answer = chat(
-                        system_exception_qa(),
-                        user_exception_qa(user_text, rag_context),
+                        sys_e,
+                        user_e,
                         max_tokens=None
                     )
                     if any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
@@ -912,6 +1023,7 @@ def process_turn(state: ChatbotState) -> dict:
                     "phase": "input",
                     "pending_question": "",
                     "checklist_rag_results": [],
+                    "usage": accumulated_usage,
                 }
             except Exception:
                 pass

@@ -544,6 +544,8 @@ def step1_and_step2_parallel(
     collection=None,
     top_k: int = 22,
     prompt_overrides: Optional[Dict[str, str]] = None,
+    openai_api_key: Optional[str] = None,
+    law_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     step1_issue_classification + step2_checklist 를 가능한 한 병렬로 수행해 TTFT 단축.
@@ -567,6 +569,11 @@ def step1_and_step2_parallel(
             "debug_info": {...}
         }
     """
+    if openai_api_key:
+        openai_api_key_ctx.set(openai_api_key)
+    if law_api_key:
+        law_api_key_ctx.set(law_api_key)
+
     if collection is None:
         collection, _ = build_vector_store()
 
@@ -587,8 +594,14 @@ def step1_and_step2_parallel(
 
         # step1 조문 수집 (thread A)
         def _do_step1():
+            # 워커 스레드에서도 컨텍스트 설정 필요
+            if openai_api_key:
+                openai_api_key_ctx.set(openai_api_key)
+            if law_api_key:
+                law_api_key_ctx.set(law_api_key)
             return _collect_articles_by_issue(
-                collection, issues, situation=situation, initial_list=None, top_k_per_issue=15
+                collection, issues, situation=situation, initial_list=None, top_k_per_issue=15,
+                openai_api_key=openai_api_key
             )
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
@@ -608,6 +621,7 @@ def step1_and_step2_parallel(
                 qa_list=[],
                 remaining_articles=remaining,
                 prompt_overrides=prompt_overrides,
+                openai_api_key=openai_api_key,
             )
             checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
             rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
@@ -622,7 +636,10 @@ def step1_and_step2_parallel(
             }
     
     # ── 경로 B: LLM 분류 (키워드 실패 시) ─────────────────────────────────
-    issues, articles_by_issue, source, step1_debug = _classify_with_llm(situation, collection, top_k, prompt_overrides)
+    issues, articles_by_issue, source, step1_debug = _classify_with_llm(
+        situation, collection, top_k, prompt_overrides,
+        openai_api_key=openai_api_key
+    )
 
     if not issues:
         return {
@@ -646,6 +663,7 @@ def step1_and_step2_parallel(
         qa_list=[],
         remaining_articles=remaining,
         prompt_overrides=prompt_overrides,
+        openai_api_key=openai_api_key,
     )
     checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
     rag_results = step2_res.get("rag_results", []) if isinstance(step2_res, dict) else []
@@ -999,7 +1017,10 @@ def step2_checklist(
             _debug_print(f"[체크리스트 반복 판단] Q&A {len(qa_list)}개, 체크리스트 {len(checklist)}개")
             continuation_out, cont_debug = chat_json_fast(
                 prompt_overrides.get("system_checklist_continuation") or system_checklist_continuation(),
-                user_checklist_continuation(issue, qa_list, context),
+                user_checklist_continuation(
+                    issue, qa_list, context,
+                    override_template=prompt_overrides.get("user_checklist_continuation"),
+                ),
                 max_tokens=512,
                 return_metadata=True
             )
@@ -1272,6 +1293,8 @@ def step3_conclusion(
     narrow_answers: Optional[List[str]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
+    language: Optional[str] = None,
+    tone: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     모든 질문·대답과 RAG 조문 기반 결론 (법조항 인용).
@@ -1492,6 +1515,14 @@ def step3_conclusion(
         full_context = full_context + "\n\n" + precedents_context
 
     sys_prompt = prompt_overrides.get("system_conclusion") or system_conclusion()
+    if language == "en":
+        sys_prompt += "\n\nRespond in English only."
+    elif language == "ko":
+        sys_prompt += "\n\nRespond in Korean only."
+    if tone == "casual":
+        sys_prompt += "\n\nUse a casual, friendly tone."
+    elif tone == "formal":
+        sys_prompt += "\n\nUse a formal, professional tone."
     user_prompt = user_conclusion(
         issue, 
         qa_text, 
@@ -1586,6 +1617,8 @@ def step3_conclusion_stream(
     narrow_answers: Optional[List[str]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
+    language: Optional[str] = None,
+    tone: Optional[str] = None,
 ):
     """
     step3_conclusion의 스트리밍 버전.
@@ -1720,6 +1753,14 @@ def step3_conclusion_stream(
     )
 
     sys_prompt = prompt_overrides.get("system_conclusion") or system_conclusion()
+    if language == "en":
+        sys_prompt += "\n\nRespond in English only."
+    elif language == "ko":
+        sys_prompt += "\n\nRespond in Korean only."
+    if tone == "casual":
+        sys_prompt += "\n\nUse a casual, friendly tone."
+    elif tone == "formal":
+        sys_prompt += "\n\nUse a formal, professional tone."
     user_prompt = user_conclusion(
         issue, 
         qa_text, 

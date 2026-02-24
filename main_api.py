@@ -1,5 +1,6 @@
 import os
 import asyncio
+import uuid
 from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,10 @@ import uvicorn
 
 # LAW_DEBUG=1 일 때만 클라이언트에 예외 상세 노출
 _LAW_DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
+# Rate limit: 분당 최대 요청 수 (0이면 비활성화)
+_RATE_LIMIT_PER_MIN = int(os.getenv("RATE_LIMIT_PER_MINUTE", "0"))
+_RATE_LIMIT_WINDOW = 60.0  # seconds
+_rate_limit_store: Dict[str, List[float]] = {}
 
 # LawChat RAG components
 from rag.store import build_vector_store, search
@@ -38,10 +43,23 @@ from rag.question_classifier import (
 from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from rag.graph import get_graph
 from langchain_core.messages import HumanMessage, AIMessage
-from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE, OPENAI_API_KEY
-from rag.context import openai_api_key_ctx, law_api_key_ctx, openai_base_url_ctx, chat_model_ctx
+from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE, OPENAI_API_KEY, LAW_API_OC
+from rag.context import (
+    openai_api_key_ctx,
+    law_api_key_ctx,
+    openai_base_url_ctx,
+    chat_model_ctx,
+    temperature_ctx,
+    max_tokens_ctx,
+    reasoning_effort_ctx,
+    top_p_ctx,
+)
 
-app = FastAPI(title="LawChat Backend API", version=os.getenv("LAW_API_VERSION", "1.2.0"))
+app = FastAPI(
+    title="LawChat Backend API",
+    version=os.getenv("LAW_API_VERSION", "1.2.0"),
+    description="노동법 RAG 오케스트레이션 백엔드. 이슈 분류·체크리스트·결론 파이프라인과 벡터 검색을 제공하며, LLM 호출은 요청 시 클라이언트가 보낸 API 키·모델·파라미터로 실행합니다(BYOK).",
+)
 
 # CORS Configuration
 # CORS settings
@@ -78,8 +96,11 @@ async def startup_event():
 class BaseRequest(BaseModel):
     openai_api_key: Optional[str] = Field(None, description="Custom OpenAI API Key")
     openai_base_url: Optional[str] = Field(None, description="Custom OpenAI API Base URL (e.g. Azure, proxy)")
-    law_api_key: Optional[str] = Field(None, description="Custom Law (LIDB) API Key")
     model: Optional[str] = Field(None, description="Chat model override (e.g. gpt-4o, gpt-4o-mini)")
+    temperature: Optional[float] = Field(None, description="LLM temperature (0.0~2.0). 미지정 시 기본값 사용")
+    max_tokens: Optional[int] = Field(None, description="LLM 최대 출력 토큰 수. 미지정 시 기본값 사용")
+    reasoning_effort: Optional[str] = Field(None, description="추론 모델(o1/o3 등)용: low | medium | high. 미지정 시 기본값")
+    top_p: Optional[float] = Field(None, description="LLM top_p (0.0~1.0). 미지정 시 기본값. 추론 모델에는 미적용")
 
 class RouteRequest(BaseRequest):
     text: str
@@ -87,6 +108,7 @@ class RouteRequest(BaseRequest):
 class ClassifyRequest(BaseRequest):
     situation: str
     top_k: int = 22
+    prompt_overrides: Optional[Dict[str, str]] = Field(None, description="system_issue_classification, user_issue_classification 등")
 
 class ChecklistRequest(BaseRequest):
     issue: str
@@ -94,21 +116,45 @@ class ChecklistRequest(BaseRequest):
     all_qa: List[Dict[str, str]] = []
     round: int = 1
     previous_rag_results: List[Dict[str, Any]] = []
+    prompt_overrides: Optional[Dict[str, str]] = Field(None, description="system_checklist, user_checklist, system_checklist_continuation 등")
 
 class ConclusionRequest(BaseRequest):
     issue: str
     all_qa: List[Dict[str, str]]
     stream: bool = False
+    prompt_overrides: Optional[Dict[str, str]] = Field(None, description="system_conclusion, user_conclusion 등")
 
 class QARequest(BaseRequest):
     question: str
     context: Optional[str] = None
 
 
+class BatchInvokeItem(BaseModel):
+    message: str = Field(..., description="사용자 메시지")
+    thread_id: Optional[str] = Field("default", description="대화 스레드 ID")
+    temperature: Optional[float] = Field(None, description="해당 항목만 적용. 미지정 시 상위 요청 값 사용")
+    max_tokens: Optional[int] = Field(None, description="해당 항목만 적용")
+    reasoning_effort: Optional[str] = Field(None, description="해당 항목만 적용")
+    top_p: Optional[float] = Field(None, description="해당 항목만 적용")
+
+
+class BatchInvokeRequest(BaseRequest):
+    """배치 invoke: 여러 메시지를 한 번에 처리."""
+    requests: List[BatchInvokeItem] = Field(..., description="최대 10개 권장. 각 항목에 message, thread_id")
+
+
 class InvokeRequest(BaseRequest):
     """챗봇과 동일한 1회 graph.invoke 요청 (app_chatbot과 동일 성능)."""
     message: str = Field(..., description="사용자 입력 메시지")
     thread_id: Optional[str] = Field("default", description="대화 스레드 ID (체크포인터 구분용)")
+    prompt_overrides: Optional[Dict[str, str]] = Field(None, description="단계별 프롬프트 덮어쓰기")
+    response_format: Optional[str] = Field(None, description="출력 형식: markdown | plain. 기본 markdown")
+    max_length: Optional[int] = Field(None, description="응답 메시지 최대 문자 수. 초과 시 잘림")
+    language: Optional[str] = Field(None, description="응답 언어: ko | en. 기본 ko")
+    tone: Optional[str] = Field(None, description="톤: formal | casual. 기본 formal")
+    top_k: Optional[int] = Field(None, description="이슈 분류·검색 시 가져올 조문 수 (기본 22)")
+    filter_sources: Optional[List[str]] = Field(None, description="검색 대상 법령 목록. 비우면 전체 노동법")
+    stream: Optional[bool] = Field(False, description="true 시 응답을 SSE로 스트리밍(마지막 AI 메시지). false면 일반 JSON")
 
 # --- Helper Functions ---
 
@@ -135,7 +181,10 @@ def _require_openai_key(request: BaseRequest) -> None:
     if not key:
         raise HTTPException(
             status_code=400,
-            detail="이 API는 LLM을 사용합니다. 요청 바디에 openai_api_key(필수)를 넣어 주세요. model(선택)으로 모델을 지정할 수 있습니다.",
+            detail={
+                "code": "MISSING_API_KEY",
+                "message": "이 API는 LLM을 사용합니다. 요청 바디에 openai_api_key(필수)를 넣어 주세요. model(선택)으로 모델을 지정할 수 있습니다.",
+            },
         )
 
 def _standardize(obj):
@@ -153,15 +202,22 @@ def _standardize(obj):
         return str(obj)
 
 
-def _serialize_invoke_result(r: dict) -> dict:
-    """graph.invoke() 결과를 app_chatbot과 동일한 JSON 구조로 변환."""
+def _serialize_invoke_result(r: dict, max_length: Optional[int] = None, response_format: Optional[str] = None) -> dict:
+    """graph.invoke() 결과를 app_chatbot과 동일한 JSON 구조로 변환. max_length/response_format 적용."""
+    import re
     msgs = r.get("messages") or []
     msg_list = []
     for m in msgs:
         c = getattr(m, "content", None) or str(m)
+        if response_format == "plain" and c:
+            c = re.sub(r"\*+([^*]+)\*+", r"\1", c)
+            c = re.sub(r"#{1,6}\s*", "", c)
+            c = re.sub(r"\n+", "\n", c).strip()
+        if max_length and len(c) > max_length:
+            c = c[:max_length] + "..."
         kind = "AIMessage" if isinstance(m, AIMessage) else "HumanMessage"
         msg_list.append({"t": kind, "c": c})
-    return {
+    out = {
         "status": "ok",
         "messages": msg_list,
         "phase": r.get("phase"),
@@ -171,17 +227,27 @@ def _serialize_invoke_result(r: dict) -> dict:
         "articles_by_issue": r.get("articles_by_issue"),
         "checklist_rag_results": r.get("checklist_rag_results"),
     }
+    if r.get("usage"):
+        out["usage"] = r["usage"]
+    return out
 
 def set_api_keys(keys: BaseRequest):
-    """Sets ContextVar for API keys / base URL / model if provided (thread-safe; asyncio.to_thread 시 컨텍스트 복사됨)."""
+    """Sets ContextVar for API keys / base URL / model / model params. 법령 API 키는 요청에서 받지 않고 서버 Secret(LAW_API_OC)만 사용."""
     if keys.openai_api_key and keys.openai_api_key.strip():
         openai_api_key_ctx.set(keys.openai_api_key.strip())
     if keys.openai_base_url is not None and keys.openai_base_url.strip():
         openai_base_url_ctx.set(keys.openai_base_url.strip())
-    if keys.law_api_key and keys.law_api_key.strip():
-        law_api_key_ctx.set(keys.law_api_key.strip())
+    law_api_key_ctx.set(LAW_API_OC or "")
     if keys.model is not None and keys.model.strip():
         chat_model_ctx.set(keys.model.strip())
+    if getattr(keys, "temperature", None) is not None:
+        temperature_ctx.set(keys.temperature)
+    if getattr(keys, "max_tokens", None) is not None:
+        max_tokens_ctx.set(keys.max_tokens)
+    if getattr(keys, "reasoning_effort", None) is not None and str(keys.reasoning_effort).strip():
+        reasoning_effort_ctx.set(keys.reasoning_effort.strip())
+    if getattr(keys, "top_p", None) is not None:
+        top_p_ctx.set(keys.top_p)
 
 
 def _invoke_graph_with_request_keys(
@@ -190,35 +256,74 @@ def _invoke_graph_with_request_keys(
     thread_id: str,
     effective_base_url: Optional[str] = None,
     effective_model: Optional[str] = None,
-    effective_law_key: Optional[str] = None,
+    prompt_overrides: Optional[Dict[str, str]] = None,
+    response_format: Optional[str] = None,
+    max_length: Optional[int] = None,
+    language: Optional[str] = None,
+    tone: Optional[str] = None,
+    top_k: Optional[int] = None,
+    filter_sources: Optional[List[str]] = None,
+    effective_temperature: Optional[float] = None,
+    effective_max_tokens: Optional[int] = None,
+    effective_reasoning_effort: Optional[str] = None,
+    effective_top_p: Optional[float] = None,
 ):
     """
-    워커 스레드 내부에서 요청 바디의 키를 ContextVar에 설정한 뒤 graph.invoke 실행.
-    asyncio.to_thread 시 ContextVar가 워커로 복사되지 않는 환경(Render 등)에서 500 방지.
+    워커 스레드 내부에서 요청 바디의 키·모델 파라미터를 ContextVar에 설정한 뒤 graph.invoke 실행.
+    서버는 OpenAI API 키를 제공하지 않음. 클라이언트가 요청 바디에 openai_api_key를 반드시 넣어야 함.
     """
-    openai_api_key_ctx.set(effective_key)
+    openai_api_key_ctx.set((effective_key or "").strip() or "")
     if effective_base_url:
         openai_base_url_ctx.set(effective_base_url)
     if effective_model:
         chat_model_ctx.set(effective_model)
-    if effective_law_key:
-        law_api_key_ctx.set(effective_law_key)
+    law_api_key_ctx.set(LAW_API_OC or "")
+    if effective_temperature is not None:
+        temperature_ctx.set(effective_temperature)
+    if effective_max_tokens is not None:
+        max_tokens_ctx.set(effective_max_tokens)
+    if effective_reasoning_effort:
+        reasoning_effort_ctx.set(effective_reasoning_effort)
+    if effective_top_p is not None:
+        top_p_ctx.set(effective_top_p)
     graph = get_graph()
+    initial_state = {
+        "messages": [HumanMessage(content=message or " ")],
+        "prompt_overrides": prompt_overrides or {},
+        "response_format": response_format,
+        "max_length": max_length,
+        "language": language,
+        "tone": tone,
+        "top_k": top_k,
+        "filter_sources": filter_sources,
+    }
     return graph.invoke(
-        {"messages": [HumanMessage(content=message or " ")]},
+        initial_state,
         config={"configurable": {"thread_id": thread_id}},
     )
 
 # --- Endpoints ---
 
 @app.middleware("http")
-async def context_middleware(request, call_next):
-    """Middleware to reset context vars after each request to prevent contamination."""
-    # ContextVar are automatically scoped to the task, so we don't strictly need to clear them,
-    # but it's good practice for predictability.
-    # openai_api_key_ctx.set(None)
-    # law_api_key_ctx.set(None)
+async def context_middleware(request: Request, call_next):
+    """trace_id(X-Request-Id) 부여, 선택 시 rate limit 적용."""
+    import time
+    request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
+    if _RATE_LIMIT_PER_MIN > 0:
+        client = request.client.host if request.client else "unknown"
+        now = time.time()
+        if client not in _rate_limit_store:
+            _rate_limit_store[client] = []
+        times = _rate_limit_store[client]
+        times[:] = [t for t in times if now - t < _RATE_LIMIT_WINDOW]
+        if len(times) >= _RATE_LIMIT_PER_MIN:
+            return JSONResponse(
+                status_code=429,
+                content={"code": "RATE_LIMITED", "detail": "요청 한도 초과. 잠시 후 다시 시도해 주세요."},
+            )
+        times.append(now)
     response = await call_next(request)
+    response.headers["X-Request-Id"] = request_id
     return response
 
 @app.get("/")
@@ -234,9 +339,22 @@ async def root():
 
 @app.get("/api/v1/health")
 async def health_check():
-    """Health check endpoint to verify deployment version."""
+    """Health check: 버전, 벡터스토어·의존성 상태."""
     version = os.getenv("LAW_API_VERSION", "1.2.0")
-    return {"status": "ok", "version": version, "context_supported": True}
+    vector_store_ready = collection is not None
+    try:
+        from pathlib import Path
+        from config import VECTOR_DIR
+        vector_dir_exists = Path(VECTOR_DIR).exists() if VECTOR_DIR else False
+    except Exception:
+        vector_dir_exists = False
+    return {
+        "status": "ok",
+        "version": version,
+        "context_supported": True,
+        "vector_store_ready": vector_store_ready,
+        "vector_dir_exists": vector_dir_exists,
+    }
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
@@ -257,7 +375,7 @@ async def chat_invoke(request: InvokeRequest, raw_request: Request):
         message = request.message.strip() or " "
         effective_base = (request.openai_base_url or openai_base_url_ctx.get() or "").strip() or None
         effective_model = (getattr(request, "model", None) or chat_model_ctx.get() or "").strip() or None
-        effective_law = (request.law_api_key or law_api_key_ctx.get() or "").strip() or None
+        overrides = getattr(request, "prompt_overrides", None) or None
         result = await asyncio.to_thread(
             _invoke_graph_with_request_keys,
             effective_key,
@@ -265,14 +383,84 @@ async def chat_invoke(request: InvokeRequest, raw_request: Request):
             thread_id,
             effective_base,
             effective_model,
-            effective_law,
+            overrides,
+            getattr(request, "response_format", None),
+            getattr(request, "max_length", None),
+            getattr(request, "language", None),
+            getattr(request, "tone", None),
+            getattr(request, "top_k", None),
+            getattr(request, "filter_sources", None),
+            getattr(request, "temperature", None),
+            getattr(request, "max_tokens", None),
+            getattr(request, "reasoning_effort", None),
+            getattr(request, "top_p", None),
         )
-        payload = _serialize_invoke_result(result)
+        payload = _serialize_invoke_result(
+            result,
+            max_length=result.get("max_length") or getattr(request, "max_length", None),
+            response_format=result.get("response_format") or getattr(request, "response_format", None),
+        )
+        if getattr(request, "stream", None):
+            # SSE: 청크 단위로 마지막 AI 메시지 전송 후, done 이벤트에 메타데이터 포함
+            def _invoke_stream():
+                import json as _json
+                msgs = payload.get("messages") or []
+                last_content = ""
+                for m in reversed(msgs):
+                    if isinstance(m, dict) and m.get("t") == "AIMessage" and m.get("c"):
+                        last_content = m.get("c", "")
+                        break
+                chunk_size = 80
+                for i in range(0, len(last_content), chunk_size):
+                    yield f"data: {_json.dumps({'type': 'chunk', 'content': last_content[i:i+chunk_size]}, ensure_ascii=False)}\n\n"
+                meta = {k: payload.get(k) for k in ("status", "phase", "checklist", "selected_issue", "situation", "usage") if payload.get(k) is not None}
+                meta["messages"] = payload.get("messages")
+                yield f"data: {_json.dumps({'type': 'done', **meta}, ensure_ascii=False, default=str)}\n\n"
+            return StreamingResponse(
+                _invoke_stream(),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            )
         return JSONResponse(status_code=200, content=_standardize(payload))
     except Exception as e:
         print(f"ERROR in chat_invoke: {str(e)}")
         detail = _error_detail("상담 처리 중 오류가 발생했습니다.", e, raw_request)
-        raise HTTPException(status_code=500, detail=detail)
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "INTERNAL_ERROR", "message": detail} if isinstance(detail, str) else detail,
+        )
+
+
+@app.post("/api/v1/chat/invoke/batch")
+async def chat_invoke_batch(request: BatchInvokeRequest, raw_request: Request):
+    """여러 메시지를 순차 처리. openai_api_key·model은 상위에서 공통 적용."""
+    _require_openai_key(request)
+    effective_key = _effective_openai_key(request)
+    effective_base = (request.openai_base_url or openai_base_url_ctx.get() or "").strip() or None
+    effective_model = (getattr(request, "model", None) or chat_model_ctx.get() or "").strip() or None
+    overrides = getattr(request, "prompt_overrides", None) or None
+    results = []
+    for item in request.requests[:20]:  # 최대 20개
+        try:
+            thread_id = (item.thread_id or "default").strip() or "default"
+            msg = item.message.strip() or " "
+            eff_temp = getattr(item, "temperature", None) if getattr(item, "temperature", None) is not None else getattr(request, "temperature", None)
+            eff_max = getattr(item, "max_tokens", None) if getattr(item, "max_tokens", None) is not None else getattr(request, "max_tokens", None)
+            eff_reason = getattr(item, "reasoning_effort", None) or getattr(request, "reasoning_effort", None)
+            eff_top_p = getattr(item, "top_p", None) if getattr(item, "top_p", None) is not None else getattr(request, "top_p", None)
+            result = await asyncio.to_thread(
+                _invoke_graph_with_request_keys,
+                effective_key, msg, thread_id,
+                effective_base, effective_model,
+                overrides, None, None, None, None, None, None,
+                eff_temp, eff_max, eff_reason, eff_top_p,
+            )
+            payload = _serialize_invoke_result(result)
+            results.append({"status": "ok", "result": payload})
+        except Exception as e:
+            results.append({"status": "error", "message": str(e)})
+    return JSONResponse(status_code=200, content=_standardize({"results": results, "count": len(results)}))
+
 
 @app.post("/api/v1/chat/classify")
 async def classify_issue(request: ClassifyRequest, raw_request: Request):
@@ -283,13 +471,15 @@ async def classify_issue(request: ClassifyRequest, raw_request: Request):
         effective_key = _effective_openai_key(request)
         if _LAW_DEBUG:
             print(f"DEBUG: Classifying situation: {request.situation[:50]}...")
+        overrides = getattr(request, "prompt_overrides", None) or {}
         issues, articles_by_issue, _, _ = await asyncio.to_thread(
             step1_issue_classification,
             request.situation,
             collection=collection,
             top_k=request.top_k,
+            prompt_overrides=overrides,
             openai_api_key=effective_key,
-            law_api_key=request.law_api_key
+            law_api_key=None,
         )
         if _LAW_DEBUG:
             print(f"DEBUG: Issues found: {issues}")
@@ -343,11 +533,13 @@ async def generate_checklist(request: ChecklistRequest, raw_request: Request):
                 
         filter_text = (request.issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in request.all_qa))[:400]
         
+        overrides = getattr(request, "prompt_overrides", None) or {}
         step2_res = await asyncio.to_thread(
             step2_checklist, request.issue, filter_text, collection=collection,
             narrow_answers=narrow_answers or None,
             qa_list=request.all_qa,
             remaining_articles=merged,
+            prompt_overrides=overrides,
             openai_api_key=effective_key,
         )
         
@@ -382,8 +574,10 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
         else:
             effective_key = _effective_openai_key(request)
+            overrides = getattr(request, "prompt_overrides", None) or {}
             res = await asyncio.to_thread(
                 step3_conclusion, request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
+                prompt_overrides=overrides,
                 openai_api_key=effective_key
             )
             # Add penalty/supplementary info
@@ -407,7 +601,10 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
                     res["related_questions"] = questions_result[:5]
             except:
                 res["related_questions"] = []
-                
+            # 토큰 사용량: 결론 생성 LLM 호출 기준 (debug_info.llm_conclusion.usage)
+            llm_meta = res.get("debug_info") or {}
+            if isinstance(llm_meta.get("llm_conclusion"), dict) and llm_meta["llm_conclusion"].get("usage"):
+                res["usage"] = llm_meta["llm_conclusion"]["usage"]
             return JSONResponse(status_code=200, content=_standardize(res))
     except Exception as e:
         print(f"ERROR in generate_conclusion: {str(e)}")
@@ -479,21 +676,36 @@ async def calculation_qa(request: QARequest, raw_request: Request):
 
 @app.post("/api/v1/chat/qa/documents")
 async def documents_qa(request: QARequest, raw_request: Request):
-    """Handles document/form related questions."""
+    """서류·서식 질문. 국가법령정보 licbyl/admbyl API 사용. 서버 Secret(LAW_API_OC) 필요."""
     try:
         set_api_keys(request)
-        query = request.question
-        for w in ("필요한 서류", "서식", "제출서류", "양식"):
-            query = query.replace(w, "").strip()
-        query = query or request.question
+        # graph와 동일한 쿼리 전처리: 서류 관련 표현 제거 후 첫 단어(2자 이상) 사용
+        query = (request.question or "").strip()
+        for w in ("필요한 서류", "필요 서류", "제출서류", "서식", "서류", "양식", "별표", "뭐가", "무엇", "어떤", "무슨", "가 필요", "가 있나", "가 있나요", "?"):
+            query = query.replace(w, " ").strip()
+        query = query or (request.question or "").strip() or "근로"
+        first_word = (query.split() or [query])[0].strip()
+        if len(first_word) >= 2:
+            query = first_word
+        law_key = (law_api_key_ctx.get() or LAW_API_OC or "").strip() or None
 
         def _run_documents():
-            docs = search_documents_for_topic(query)
+            docs = search_documents_for_topic(query, display=15, oc=law_key)
             answer = format_documents_answer(docs, query)
             return answer, docs
 
         answer, docs = await asyncio.to_thread(_run_documents)
         return JSONResponse(status_code=200, content=_standardize({"answer": answer, "documents": docs}))
+    except ValueError as e:
+        if "LAW_API_OC" in str(e) or "설정되지 않았습니다" in str(e):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "DOCUMENTS_REQUIRES_LAW_API_KEY",
+                    "message": "서류·서식 검색은 국가법령정보 API(OC) 키가 필요합니다. 서버에 LAW_API_OC Secret을 설정해 주세요.",
+                },
+            )
+        raise HTTPException(status_code=500, detail=_error_detail("서류·서식 조회 중 오류가 발생했습니다.", e, raw_request))
     except Exception as e:
         print(f"ERROR in documents_qa: {str(e)}")
         detail = _error_detail("서류·서식 조회 중 오류가 발생했습니다.", e, raw_request)

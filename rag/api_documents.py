@@ -105,10 +105,12 @@ def search_documents_for_topic(
     *,
     display: int = 15,
     timeout: Optional[int] = None,
+    oc: Optional[str] = None,
 ) -> List[Dict[str, str]]:
     """
     주제(퇴직금, 육아휴직 등)에 맞는 법령·행정규칙 별표·서식 목록 조회.
     licbyl(법령 별표·서식) + admbyl(행정규칙 별표·서식) API 사용.
+    oc: 국가법령정보 API OC 키. 미지정 시 law_api_key_ctx 또는 config.LAW_API_OC 사용.
     """
     if not search_list:
         return []
@@ -132,6 +134,7 @@ def search_documents_for_topic(
                         output_type="JSON",
                         timeout=timeout,
                         extra_params={"search": search_scope},
+                        oc=oc,
                     )
                     if not resp.get("success") or not resp.get("data"):
                         continue

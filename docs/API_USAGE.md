@@ -16,7 +16,9 @@ LLM을 쓰는 API는 **호출하는 쪽(API 사용자)**이 요청 바디에 다
 | **`openai_api_key`** | string | **LLM API 필수** | OpenAI(또는 호환) API 키. 미전달 시 400 응답 |
 | **`model`** | string | 선택 | 사용할 채팅 모델 (예: `gpt-4o`, `gpt-4o-mini`) |
 | `openai_base_url` | string | 선택 | OpenAI Base URL (Azure·프록시 등) |
-| `law_api_key` | string | 선택 | 국가법령정보 API OC 키 (서류·법령 검색 시) |
+| `temperature` | number | 선택 | LLM temperature (0.0~2.0). 미지정 시 기본값 |
+| `max_tokens` | number | 선택 | LLM 최대 출력 토큰 수 |
+| `reasoning_effort` | string | 선택 | 추론 모델(o1/o3)용: `low` \| `medium` \| `high` |
 
 **LLM 사용 엔드포인트:** `POST /api/v1/chat/route`, `/api/v1/chat/invoke`, `/api/v1/chat/classify`, `/api/v1/chat/checklist`, `/api/v1/chat/conclusion`, `/api/v1/chat/qa/knowledge`, `/api/v1/chat/qa/calculation` → 위 엔드포인트 호출 시 요청 바디에 **`openai_api_key` 필수**, **`model` 선택**.
 
@@ -33,7 +35,11 @@ LLM을 쓰는 API는 **호출하는 쪽(API 사용자)**이 요청 바디에 다
 | `openai_api_key` | string | **(LLM API 필수)** OpenAI(또는 호환) API 키 |
 | `model` | string | **(선택)** 채팅 모델 (예: `gpt-4o`, `gpt-4o-mini`) |
 | `openai_base_url` | string | (선택) OpenAI Base URL |
-| `law_api_key` | string | (선택) 국가법령정보 API OC 키 |
+| `temperature` | number | (선택) LLM temperature. `max_tokens`, `reasoning_effort`도 요청별 지정 가능 |
+
+**법령 API(국가법령정보 OC):** 요청으로 받지 않습니다. 서류·법령 검색이 필요하면 서버에 **Secret** `LAW_API_OC`를 설정합니다.
+
+**토큰 사용량(usage):** `POST /api/v1/chat/conclusion`(stream=false), `POST /api/v1/chat/qa/knowledge`, `POST /api/v1/chat/qa/calculation` 응답에 **`usage`** (`prompt_tokens`, `completion_tokens`, `total_tokens`)가 포함됩니다. invoke는 여러 단계 호출 합산이 필요하면 응답의 `usage` 필드를 참고하세요.
 
 ---
 
@@ -100,7 +106,9 @@ API가 500을 반환할 때 **실제 예외 메시지**를 응답에 포함해 �
   - `openai_api_key` (필수): API 사용자 본인의 OpenAI API 키
   - `model` (선택): 사용할 모델 (예: `gpt-4o-mini`, `gpt-4o`)
   - `thread_id` (선택): 대화 스레드 ID (기본 `"default"`)
-  - `openai_base_url`, `law_api_key` (선택)
+  - `openai_base_url` (선택)
+  - `temperature`, `max_tokens`, `reasoning_effort` (선택): 모델 파라미터
+  - `filter_sources` (선택): 검색 대상 법령 목록. 비우면 전체 노동법 (예: `["근로기준법(법률)"]`)
 
 - **Response:**
   ```json
@@ -112,10 +120,11 @@ API가 500을 반환할 때 **실제 예외 메시지**를 응답에 포함해 �
     "selected_issue": "...",
     "situation": "...",
     "articles_by_issue": { ... },
-    "checklist_rag_results": [ ... ]
+    "checklist_rag_results": [ ... ],
+    "usage": { "prompt_tokens": 1200, "completion_tokens": 450, "total_tokens": 1650 }
   }
   ```
-  체크리스트 후 다음 사용자 답변을 보낼 때도 같은 `thread_id`로 `message`만 바꿔서 다시 `POST /api/v1/chat/invoke` 호출하면 됩니다.
+  `usage`는 전체 invoke에서 사용된 토큰 합산(선택 제공). 체크리스트 후 다음 사용자 답변을 보낼 때도 같은 `thread_id`로 `message`만 바꿔서 다시 `POST /api/v1/chat/invoke` 호출하면 됩니다.
 
 ---
 
@@ -204,9 +213,11 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
     "conclusion": "근로자퇴직급여 보장법에 따라 퇴직금 지급 대상입니다...",
     "laws": [...],
     "penalty_supplementary": "3년 이하의 징역 또는 3천만원 이하의 벌금...",
-    "related_questions": ["지연 이자는 어떻게 되나요?"]
+    "related_questions": ["지연 이자는 어떻게 되나요?"],
+    "usage": { "prompt_tokens": 1200, "completion_tokens": 450, "total_tokens": 1650 }
   }
   ```
+  `usage`: 결론 생성 LLM 호출 1회 기준 토큰 사용량 (stream=true일 때는 없음).
 
 ---
 
@@ -227,9 +238,10 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
   ```json
   {
     "answer": "근로기준법 제60조에 따라 1년간 80퍼센트 이상 출근한 근로자에게 15일의...",
-    "metadata": {...}
+    "metadata": { "content": "...", "model": "gpt-4o-mini", "usage": { "prompt_tokens": 800, "completion_tokens": 200, "total_tokens": 1000 } }
   }
   ```
+  `metadata.usage`: 해당 LLM 호출의 토큰 사용량.
 
 ### 계산 로직 QA (수당, 퇴직금 계산법 안내)
 - **URL:** `POST /api/v1/chat/qa/calculation`
@@ -282,7 +294,7 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 | **클라이언트** | ⚠️ | 브라우저/앱에서 키를 저장하면 XSS·피싱 시 탈취 가능. **공개 웹 프론트**에서는 가능하면 본인 백엔드(BFF)에서만 키를 보관하고, 프론트는 BFF를 호출하는 방식 권장. |
 
 - **우리 서버 코드:** 요청 바디 전체를 로그로 남기지 않으며, 예외 메시지(`str(e)`)만 출력. OpenAI 클라이언트는 키를 예외 메시지에 넣지 않음.
-- **운영 시:** 서버에 요청 로깅을 추가할 경우 `openai_api_key`, `law_api_key` 필드는 **반드시 마스킹** 후 로깅할 것.
+- **운영 시:** 서버에 요청 로깅을 추가할 경우 `openai_api_key` 필드는 **반드시 마스킹** 후 로깅할 것.
 
 ---
 

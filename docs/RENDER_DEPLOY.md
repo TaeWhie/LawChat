@@ -48,7 +48,7 @@ API에서 **동일한 1회 호출**로 같은 결과를 얻으려면:
 - **Body (JSON)**  
   - `message`: 사용자 입력 문자열  
   - `thread_id`: (선택) 대화 스레드 ID, 기본 `"default"`  
-  - `openai_api_key`, `law_api_key`: (선택) 요청 단위 API 키
+  - `openai_api_key`: (선택) 요청 단위 API 키. 법령 API 키는 서버 Secret(`LAW_API_OC`)만 사용
 
 **요청 Body (JSON)** 에서 선택적으로 다음을 넣을 수 있습니다.
 
@@ -56,8 +56,9 @@ API에서 **동일한 1회 호출**로 같은 결과를 얻으려면:
 - `thread_id`: 대화 스레드 ID (기본 `"default"`)
 - `openai_api_key`: 요청 단위 OpenAI API 키 (미설정 시 서버 환경변수 사용)
 - `openai_base_url`: OpenAI 호출 Base URL (Azure·프록시 등, 미설정 시 서버 기본값)
-- `law_api_key`: 국가법령정보 API OC 키 (미설정 시 서버 환경변수 사용)
 - `model`: 채팅 모델 오버라이드 (예: `gpt-4o`, `gpt-4o-mini`, 미설정 시 서버 `LAW_CHAT_MODEL` 사용)
+
+법령 API(국가법령정보 OC) 키는 **요청으로 받지 않으며**, 서버 Secret `LAW_API_OC`만 사용합니다.
 
 **응답**은 app_chatbot의 `_serialize_ok_result`와 동일한 구조입니다.
 

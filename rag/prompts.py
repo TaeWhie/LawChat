@@ -277,14 +277,19 @@ def system_checklist_continuation():
 true only when critical facts are still missing for a legal conclusion. false when enough to conclude. Be strict; avoid extra rounds."""
 
 
-def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_context: str) -> str:
-    """체크리스트 반복 여부 판단용 사용자 프롬프트 (컨텍스트 축소로 속도 확보)."""
+def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_context: str, override_template: Optional[str] = None) -> str:
+    """체크리스트 반복 여부 판단용 사용자 프롬프트 (컨텍스트 축소로 속도 확보). override_template 시 플레이스홀더: {issue}, {qa_text}, {rag_context}."""
     qa_text = "\n".join(
         f"Q: {x.get('question', x.get('q', ''))}\nA: {x.get('answer', x.get('a', ''))}"
         for x in qa_list
     )
     # 반복 여부만 판단하면 되므로 조문은 요약만 (800자)
     ctx_snippet = (rag_context or "").strip()[:800]
+    if override_template:
+        try:
+            return override_template.format(issue=issue, qa_text=qa_text, rag_context=ctx_snippet)
+        except KeyError:
+            return override_template
     return f"""Issue: {issue}
 
 [Q&A]
