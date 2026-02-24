@@ -2,7 +2,7 @@
 
 본 문서는 Render에 배포된 LawChat API의 주요 엔드포인트와 사용 방법을 안내합니다.
 
-**서버 Base URL:** Render에 배포한 뒤 **Render 대시보드 → 해당 Web Service → 상단에 표시되는 URL**을 사용합니다. 예: `https://lawchat-api.onrender.com` (서비스 이름에 따라 `https://<서비스이름>.onrender.com` 형태)
+**서버 Base URL:** Render에 배포한 뒤 **Render 대시보드 → 해당 Web Service → 상단에 표시되는 URL**을 사용합니다. 예: `https://law-chat-api.onrender.com/`
 
 모든 POST API 요청은 JSON 요청 바디(`application/json`)를 사용합니다.
 
@@ -119,6 +119,7 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 - **Response:**
   ```json
   {
+    "status": "success",
     "issues": ["퇴직금", "임금"],
     "articles_by_issue": {
       "퇴직금": [{...조문 데이터...}]
@@ -171,7 +172,7 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 - **Response:**
   ```json
   {
-    "conclusion": "근로자퇴직급여 보장법에 따라 퇴직물 지급 대상입니다...",
+    "conclusion": "근로자퇴직급여 보장법에 따라 퇴직금 지급 대상입니다...",
     "laws": [...],
     "penalty_supplementary": "3년 이하의 징역 또는 3천만원 이하의 벌금...",
     "related_questions": ["지연 이자는 어떻게 되나요?"]
@@ -218,6 +219,28 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 - **URL:** `GET /api/v1/laws/list` — 법령 목록
 - **URL:** `GET /api/v1/laws/chapters?law_id=...&source=...` — 장 목록
 - **URL:** `GET /api/v1/laws/articles/{chapter_number}?law_id=...&source=...` — 조문 목록
+
+---
+
+## 7. API 동작 검사 (스크립트)
+
+배포·로컬 서버의 **모든 엔드포인트**가 정상 응답하는지 한 번에 검사할 수 있습니다.
+
+- **스크립트:** `scripts/check_deployed_api.py`
+- **실행 (배포 URL 기준):**
+  ```bash
+  python scripts/check_deployed_api.py
+  ```
+- **로컬 서버 검사:**
+  ```bash
+  # Windows PowerShell
+  $env:LAW_API_BASE_URL="http://127.0.0.1:8000"
+  python scripts/check_deployed_api.py
+
+  # Linux/macOS
+  LAW_API_BASE_URL=http://127.0.0.1:8000 python scripts/check_deployed_api.py
+  ```
+- **출력:** 각 엔드포인트별 `[OK]`/`[FAIL]` 및 HTTP 상태 코드, 통과/실패 개수, 주요 엔드포인트(GET /, health, invoke, classify)의 **응답 예시** JSON.
 
 ---
 
