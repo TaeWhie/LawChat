@@ -378,11 +378,52 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 
 ---
 
+### 15. GET /api/v1/prompts
+
+**설명:** 프롬프트 커스터마이징용 **기본(기본값) 프롬프트** 조회. `prompt_overrides`에 사용하는 모든 키에 대한 현재 기본 텍스트를 반환합니다. **인증 불필요.**
+
+**요청:** 없음.
+
+**응답 (200):**
+```json
+{
+  "prompts": {
+    "system_issue_classification": "You are an expert at classifying...",
+    "user_issue_classification": "User situation:\n<situation>\n\n[Provided legal provisions]\n<rag_context>...",
+    "system_checklist": "...",
+    "user_checklist": "...",
+    "system_checklist_continuation": "...",
+    "user_checklist_continuation": "...",
+    "system_conclusion": "...",
+    "user_conclusion": "...",
+    "system_knowledge_qa": "...",
+    "user_knowledge_qa": "...",
+    "system_calculation_qa": "...",
+    "user_calculation_qa": "...",
+    "system_exception_qa": "...",
+    "user_exception_qa": "..."
+  },
+  "placeholders": {
+    "user_issue_classification": ["situation", "rag_context", "allowed_block(optional)"],
+    "user_checklist": ["issue", "rag_context", "filtered_provisions", "already_asked_text"],
+    "user_checklist_continuation": ["issue", "qa_text (Q&A 목록)", "rag_context"],
+    "user_conclusion": ["issue", "qa_list", "rag_context", "related_articles_hint", "law_names_hint"],
+    "user_knowledge_qa": ["question", "rag_context"],
+    "user_calculation_qa": ["question", "rag_context"],
+    "user_exception_qa": ["question", "rag_context"]
+  },
+  "usage": "prompt_overrides에 넣을 때 위 키와 동일한 이름으로 덮어쓰면 됩니다. user_* 템플릿은 플레이스홀더를 {변수명} 형태로 사용하세요."
+}
+```
+user_* 항목은 플레이스홀더 예시(`<situation>`, `<issue>` 등)가 들어 있는 템플릿 형태로 반환됩니다. 커스텀 시 `placeholders`의 변수명을 `{변수명}` 형태로 사용하면 됩니다.
+
+---
+
 ## LLM / 서버 Secret 요약
 
 | 엔드포인트 | openai_api_key (요청 필수) | 서버 LAW_API_OC (Secret) |
 |------------|----------------------------|---------------------------|
-| GET /, /api/v1/health, /api/v1/laws/* | 아니오 | 아니오 |
+| GET /, /api/v1/health, /api/v1/prompts, /api/v1/laws/* | 아니오 | 아니오 |
 | POST /api/v1/chat/qa/documents | 아니오 | **예** (서버 Secret 필수) |
 | POST /api/v1/chat/route, invoke, invoke/batch, classify, checklist, conclusion, qa/knowledge, qa/calculation | **예** | 아니오 |
 
@@ -391,6 +432,10 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 ## 프롬프트 커스터마이징 (prompt_overrides)
 
 요청 바디에 **`prompt_overrides`** (object)를 넣으면 해당 단계의 시스템/사용자 프롬프트를 **완전히 교체**할 수 있습니다.
+
+**기본 프롬프트 조회:**  
+커스터마이징 전 기존 프롬프트를 확인하려면 **`GET /api/v1/prompts`** 를 호출하세요.  
+응답의 `prompts`에 각 키별 기본 텍스트가 들어 있고, `placeholders`에 user_* 프롬프트에서 사용하는 변수명이 안내됩니다. (인증 불필요)
 
 **지원 키 (모두 선택):**  
 `system_issue_classification`, `user_issue_classification`, `system_checklist`, `user_checklist`, `system_checklist_continuation`, `user_checklist_continuation`, `system_conclusion`, `user_conclusion`, `system_exception_qa`, `user_exception_qa`, `system_knowledge_qa`, `user_knowledge_qa`, `system_calculation_qa`, `user_calculation_qa`
@@ -408,5 +453,3 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 4. **API 명세:** Swagger UI는 **Base URL + `/docs`**, OpenAPI JSON은 **Base URL + `/openapi.json`**.
 
 ---
-
-이 문서는 `API_REFERENCE.md`, `API_USAGE.md`와 내용이 겹칩니다. 한곳에서 전체 사용법과 주의 사항을 보려면 이 문서를 참고하면 됩니다.

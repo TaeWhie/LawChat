@@ -27,7 +27,18 @@ from rag.pipeline import (
 from rag.question_classifier import classify_question_type
 from rag.llm import chat, chat_stream, chat_json_fast, chat_with_metadata
 from rag.api_documents import search_documents_for_topic, format_documents_answer
-from rag.prompts import system_related_questions, user_related_questions
+from rag.prompts import (
+    system_related_questions,
+    user_related_questions,
+    system_issue_classification,
+    user_issue_classification,
+    system_checklist,
+    user_checklist,
+    system_checklist_continuation,
+    user_checklist_continuation,
+    system_conclusion,
+    user_conclusion,
+)
 from rag.capabilities import get_related_question_capabilities, ALLOWED_RELATED_QUESTION_TYPES
 from rag.question_classifier import (
     calculate_severance_pay, 
@@ -355,6 +366,55 @@ async def health_check():
         "vector_store_ready": vector_store_ready,
         "vector_dir_exists": vector_dir_exists,
     }
+
+
+@app.get("/api/v1/prompts")
+async def get_default_prompts():
+    """
+    프롬프트 커스터마이징용: prompt_overrides에 사용하는 모든 기본(기본값) 프롬프트를 반환합니다.
+    user_* 프롬프트는 플레이스홀더 예시(<situation>, <issue> 등)로 호출한 템플릿 형태로 반환됩니다.
+    """
+    # user 프롬프트용 플레이스홀더 (템플릿 구조 확인용)
+    ph_situation = "<situation>"
+    ph_rag = "<rag_context>"
+    ph_issue = "<issue>"
+    ph_filtered = "<filtered_provisions>"
+    ph_asked = "<already_asked_text>"
+    ph_qa_list = "<qa_list>"
+    ph_question = "<question>"
+    qa_sample = [{"question": "<Q1>", "answer": "<A1>"}]
+
+    prompts = {
+        "system_issue_classification": system_issue_classification(),
+        "user_issue_classification": user_issue_classification(ph_situation, ph_rag),
+        "system_checklist": system_checklist(),
+        "user_checklist": user_checklist(ph_issue, ph_rag, ph_filtered, ph_asked),
+        "system_checklist_continuation": system_checklist_continuation(),
+        "user_checklist_continuation": user_checklist_continuation(ph_issue, qa_sample, ph_rag),
+        "system_conclusion": system_conclusion(),
+        "user_conclusion": user_conclusion(ph_issue, ph_qa_list, ph_rag),
+        "system_knowledge_qa": system_knowledge_qa(),
+        "user_knowledge_qa": user_knowledge_qa(ph_question, ph_rag),
+        "system_calculation_qa": system_calculation_qa(),
+        "user_calculation_qa": user_calculation_qa(ph_question, ph_rag),
+        "system_exception_qa": system_exception_qa(),
+        "user_exception_qa": user_exception_qa(ph_question, ph_rag),
+    }
+    placeholders = {
+        "user_issue_classification": ["situation", "rag_context", "allowed_block(optional)"],
+        "user_checklist": ["issue", "rag_context", "filtered_provisions", "already_asked_text"],
+        "user_checklist_continuation": ["issue", "qa_text (Q&A 목록)", "rag_context"],
+        "user_conclusion": ["issue", "qa_list", "rag_context", "related_articles_hint", "law_names_hint"],
+        "user_knowledge_qa": ["question", "rag_context"],
+        "user_calculation_qa": ["question", "rag_context"],
+        "user_exception_qa": ["question", "rag_context"],
+    }
+    return {
+        "prompts": prompts,
+        "placeholders": placeholders,
+        "usage": "prompt_overrides에 넣을 때 위 키와 동일한 이름으로 덮어쓰면 됩니다. user_* 템플릿은 플레이스홀더를 {변수명} 형태로 사용하세요.",
+    }
+
 
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
