@@ -2,11 +2,20 @@
 배포된 LawChat API 각 엔드포인트 동작 검사.
 사용: python scripts/check_deployed_api.py
 BASE_URL을 변경하면 다른 서버 대상으로 실행 가능.
+프로젝트 루트 .env 의 OPENAI_API_KEY 를 자동 로드해 LLM API까지 검사합니다.
 """
 import httpx
 import json
 import os
 import sys
+
+# 프로젝트 루트 .env 로드 (OPENAI_API_KEY로 LLM API 검사)
+try:
+    from dotenv import load_dotenv
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    load_dotenv(os.path.join(_root, ".env"))
+except Exception:
+    pass
 
 BASE_URL = os.getenv("LAW_API_BASE_URL", "https://law-chat-api.onrender.com")
 TIMEOUT = 90.0  # invoke 등 LLM 호출은 오래 걸릴 수 있음

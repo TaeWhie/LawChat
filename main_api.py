@@ -183,6 +183,32 @@ def set_api_keys(keys: BaseRequest):
     if keys.model is not None and keys.model.strip():
         chat_model_ctx.set(keys.model.strip())
 
+
+def _invoke_graph_with_request_keys(
+    effective_key: str,
+    message: str,
+    thread_id: str,
+    effective_base_url: Optional[str] = None,
+    effective_model: Optional[str] = None,
+    effective_law_key: Optional[str] = None,
+):
+    """
+    워커 스레드 내부에서 요청 바디의 키를 ContextVar에 설정한 뒤 graph.invoke 실행.
+    asyncio.to_thread 시 ContextVar가 워커로 복사되지 않는 환경(Render 등)에서 500 방지.
+    """
+    openai_api_key_ctx.set(effective_key)
+    if effective_base_url:
+        openai_base_url_ctx.set(effective_base_url)
+    if effective_model:
+        chat_model_ctx.set(effective_model)
+    if effective_law_key:
+        law_api_key_ctx.set(effective_law_key)
+    graph = get_graph()
+    return graph.invoke(
+        {"messages": [HumanMessage(content=message or " ")]},
+        config={"configurable": {"thread_id": thread_id}},
+    )
+
 # --- Endpoints ---
 
 @app.middleware("http")
@@ -226,14 +252,20 @@ async def chat_invoke(request: InvokeRequest, raw_request: Request):
     """app_chatbot과 동일: 1회 graph.invoke로 전체 RAG 플로우 실행 (라우팅·이슈분류·체크리스트·결론·지식/계산/서류 분기 포함)."""
     _require_openai_key(request)
     try:
-        set_api_keys(request)
+        effective_key = _effective_openai_key(request)
         thread_id = (request.thread_id or "default").strip() or "default"
-        config = {"configurable": {"thread_id": thread_id}}
-        graph = get_graph()
+        message = request.message.strip() or " "
+        effective_base = (request.openai_base_url or openai_base_url_ctx.get() or "").strip() or None
+        effective_model = (getattr(request, "model", None) or chat_model_ctx.get() or "").strip() or None
+        effective_law = (request.law_api_key or law_api_key_ctx.get() or "").strip() or None
         result = await asyncio.to_thread(
-            graph.invoke,
-            {"messages": [HumanMessage(content=request.message.strip() or " ")]},
-            config=config,
+            _invoke_graph_with_request_keys,
+            effective_key,
+            message,
+            thread_id,
+            effective_base,
+            effective_model,
+            effective_law,
         )
         payload = _serialize_invoke_result(result)
         return JSONResponse(status_code=200, content=_standardize(payload))
