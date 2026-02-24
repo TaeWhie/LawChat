@@ -1,7 +1,7 @@
 import os
 import asyncio
 from typing import List, Dict, Any, Optional
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
@@ -113,11 +113,30 @@ class InvokeRequest(BaseRequest):
 # --- Helper Functions ---
 
 
+def _error_detail(default: str, e: Exception, raw_request: Optional[Request] = None) -> str:
+    """LAW_DEBUG=1 또는 요청 헤더 X-Law-Debug: 1 이면 예외 메시지를 포함해 반환 (재배포 없이 디버깅용)."""
+    if _LAW_DEBUG:
+        return f"{default} {str(e)}"
+    if raw_request and raw_request.headers.get("X-Law-Debug") == "1":
+        return f"{default} {str(e)}"
+    return default
+
+
 def _effective_openai_key(keys: Optional[BaseRequest]) -> Optional[str]:
     """요청·컨텍스트·환경변수 순으로 유효한 OpenAI API 키 반환 (asyncio.to_thread 내부에서 키 부재 방지)."""
     if keys and getattr(keys, "openai_api_key", None) and str(keys.openai_api_key).strip():
         return str(keys.openai_api_key).strip()
     return openai_api_key_ctx.get() or OPENAI_API_KEY
+
+
+def _require_openai_key(request: BaseRequest) -> None:
+    """LLM 사용 API: 클라이언트가 openai_api_key를 보내야 함. 없으면 400."""
+    key = getattr(request, "openai_api_key", None) and str(request.openai_api_key or "").strip()
+    if not key:
+        raise HTTPException(
+            status_code=400,
+            detail="이 API는 LLM을 사용합니다. 요청 바디에 openai_api_key(필수)를 넣어 주세요. model(선택)으로 모델을 지정할 수 있습니다.",
+        )
 
 def _standardize(obj):
     """Recursively converts objects into JSON-serializable types with maximal defensiveness."""
@@ -196,13 +215,16 @@ async def health_check():
 @app.post("/api/v1/chat/route")
 async def route_question(request: RouteRequest):
     """Routes the user question to the appropriate type."""
+    _require_openai_key(request)
+    set_api_keys(request)
     q_type = await asyncio.to_thread(classify_type, request.text)
     return {"question_type": q_type}
 
 
 @app.post("/api/v1/chat/invoke")
-async def chat_invoke(request: InvokeRequest):
+async def chat_invoke(request: InvokeRequest, raw_request: Request):
     """app_chatbot과 동일: 1회 graph.invoke로 전체 RAG 플로우 실행 (라우팅·이슈분류·체크리스트·결론·지식/계산/서류 분기 포함)."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         thread_id = (request.thread_id or "default").strip() or "default"
@@ -217,14 +239,13 @@ async def chat_invoke(request: InvokeRequest):
         return JSONResponse(status_code=200, content=_standardize(payload))
     except Exception as e:
         print(f"ERROR in chat_invoke: {str(e)}")
-        detail = "상담 처리 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("상담 처리 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/classify")
-async def classify_issue(request: ClassifyRequest):
+async def classify_issue(request: ClassifyRequest, raw_request: Request):
     """Classifies the user situation into legal issues."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         effective_key = _effective_openai_key(request)
@@ -256,14 +277,13 @@ async def classify_issue(request: ClassifyRequest):
         return JSONResponse(status_code=200, content=_standardize(content))
     except Exception as e:
         print(f"ERROR in classify_issue: {str(e)}")
-        detail = "이슈 분류 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("이슈 분류 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/checklist")
-async def generate_checklist(request: ChecklistRequest):
+async def generate_checklist(request: ChecklistRequest, raw_request: Request):
     """Generates a checklist for a specific issue and situation."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         
@@ -302,14 +322,13 @@ async def generate_checklist(request: ChecklistRequest):
         return JSONResponse(status_code=200, content=_standardize(step2_res))
     except Exception as e:
         print(f"ERROR in generate_checklist: {str(e)}")
-        detail = "체크리스트 생성 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("체크리스트 생성 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/conclusion")
-async def generate_conclusion(request: ConclusionRequest):
+async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
     """Generates a final conclusion based on QA history."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         
@@ -360,14 +379,13 @@ async def generate_conclusion(request: ConclusionRequest):
             return JSONResponse(status_code=200, content=_standardize(res))
     except Exception as e:
         print(f"ERROR in generate_conclusion: {str(e)}")
-        detail = "결론 도출 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("결론 도출 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/qa/knowledge")
-async def knowledge_qa(request: QARequest):
+async def knowledge_qa(request: QARequest, raw_request: Request):
     """Handles knowledge-based questions."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         effective_key = _effective_openai_key(request)
@@ -392,14 +410,13 @@ async def knowledge_qa(request: QARequest):
         }))
     except Exception as e:
         print(f"ERROR in knowledge_qa: {str(e)}")
-        detail = "지식 답변 생성 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("지식 답변 생성 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/qa/calculation")
-async def calculation_qa(request: QARequest):
+async def calculation_qa(request: QARequest, raw_request: Request):
     """Handles calculation questions."""
+    _require_openai_key(request)
     try:
         set_api_keys(request)
         effective_key = _effective_openai_key(request)
@@ -425,13 +442,11 @@ async def calculation_qa(request: QARequest):
         }))
     except Exception as e:
         print(f"ERROR in calculation_qa: {str(e)}")
-        detail = "금액 계산 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("금액 계산 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.post("/api/v1/chat/qa/documents")
-async def documents_qa(request: QARequest):
+async def documents_qa(request: QARequest, raw_request: Request):
     """Handles document/form related questions."""
     try:
         set_api_keys(request)
@@ -449,50 +464,42 @@ async def documents_qa(request: QARequest):
         return JSONResponse(status_code=200, content=_standardize({"answer": answer, "documents": docs}))
     except Exception as e:
         print(f"ERROR in documents_qa: {str(e)}")
-        detail = "서류·서식 조회 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("서류·서식 조회 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 # --- Law Browsing Endpoints ---
 
 @app.get("/api/v1/laws/chapters")
-async def list_chapters(law_id: Optional[str] = None, source: Optional[str] = None):
+async def list_chapters(raw_request: Request, law_id: Optional[str] = None, source: Optional[str] = None):
     """Lists chapters for a law."""
     try:
         data = get_chapters(law_id, source)
         return JSONResponse(status_code=200, content=_standardize(data))
     except Exception as e:
         print(f"ERROR in list_chapters: {str(e)}")
-        detail = "장 목록을 불러오는 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("장 목록을 불러오는 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.get("/api/v1/laws/articles/{chapter_number}")
-async def list_articles(chapter_number: str, law_id: Optional[str] = None, source: Optional[str] = None):
+async def list_articles(chapter_number: str, raw_request: Request, law_id: Optional[str] = None, source: Optional[str] = None):
     """Lists articles in a chapter."""
     try:
         data = get_articles_by_chapter(chapter_number, law_id, source)
         return JSONResponse(status_code=200, content=_standardize(data))
     except Exception as e:
         print(f"ERROR in list_articles: {str(e)}")
-        detail = "조문 목록을 불러오는 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("조문 목록을 불러오는 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 @app.get("/api/v1/laws/list")
-async def list_laws():
+async def list_laws(raw_request: Request):
     """Lists available laws."""
     try:
         data = get_laws()
         return JSONResponse(status_code=200, content=_standardize(data))
     except Exception as e:
         print(f"ERROR in list_laws: {str(e)}")
-        detail = "법령 목록을 불러오는 중 오류가 발생했습니다."
-        if _LAW_DEBUG:
-            detail += f" {str(e)}"
+        detail = _error_detail("법령 목록을 불러오는 중 오류가 발생했습니다.", e, raw_request)
         raise HTTPException(status_code=500, detail=detail)
 
 if __name__ == "__main__":

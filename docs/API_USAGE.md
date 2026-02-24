@@ -4,20 +4,36 @@
 
 **서버 Base URL:** Render에 배포한 뒤 **Render 대시보드 → 해당 Web Service → 상단에 표시되는 URL**을 사용합니다. 예: `https://law-chat-api.onrender.com/`
 
+---
+
+## 🔑 API 사용자가 키·모델을 넣는 방식 (서버에 키 설정 불필요)
+
+**서버에는 `OPENAI_API_KEY`를 설정하지 않습니다.**  
+LLM을 쓰는 API는 **호출하는 쪽(API 사용자)**이 요청 바디에 다음을 넣습니다.
+
+| 파라미터 | 타입 | 필수 | 설명 |
+|----------|------|------|------|
+| **`openai_api_key`** | string | **LLM API 필수** | OpenAI(또는 호환) API 키. 미전달 시 400 응답 |
+| **`model`** | string | 선택 | 사용할 채팅 모델 (예: `gpt-4o`, `gpt-4o-mini`) |
+| `openai_base_url` | string | 선택 | OpenAI Base URL (Azure·프록시 등) |
+| `law_api_key` | string | 선택 | 국가법령정보 API OC 키 (서류·법령 검색 시) |
+
+**LLM 사용 엔드포인트:** `POST /api/v1/chat/route`, `/api/v1/chat/invoke`, `/api/v1/chat/classify`, `/api/v1/chat/checklist`, `/api/v1/chat/conclusion`, `/api/v1/chat/qa/knowledge`, `/api/v1/chat/qa/calculation` → 위 엔드포인트 호출 시 요청 바디에 **`openai_api_key` 필수**, **`model` 선택**.
+
 모든 POST API 요청은 JSON 요청 바디(`application/json`)를 사용합니다.
 
 ---
 
-## 🔑 전역 공통 파라미터 (동적 API 키·모델 주입)
+## 🔑 전역 공통 파라미터 (요청 바디)
 
-**모든 POST 요청 바디**에 다음을 선택적으로 포함할 수 있습니다. 넘기지 않으면 서버 환경변수(OPENAI_API_KEY, LAW_API_OC 등)가 사용됩니다.
+**LLM을 쓰는 POST**에서는 아래를 요청 바디에 포함합니다.
 
 | 파라미터 | 타입 | 설명 |
 |----------|------|------|
-| `openai_api_key` | string | OpenAI(또는 호환) API 키 |
-| `openai_base_url` | string | OpenAI Base URL (Azure·프록시 등, Render 단일 배포 시 보통 생략) |
-| `law_api_key` | string | 국가법령정보 API OC 키 (서류·법령 검색 시) |
-| `model` | string | 채팅 모델 오버라이드 (예: `gpt-4o`, `gpt-4o-mini`. 미설정 시 서버 LAW_CHAT_MODEL 사용) |
+| `openai_api_key` | string | **(LLM API 필수)** OpenAI(또는 호환) API 키 |
+| `model` | string | **(선택)** 채팅 모델 (예: `gpt-4o`, `gpt-4o-mini`) |
+| `openai_base_url` | string | (선택) OpenAI Base URL |
+| `law_api_key` | string | (선택) 국가법령정보 API OC 키 |
 
 ---
 
@@ -55,6 +71,17 @@
 
 ---
 
+## 1-1. 디버깅 (500 에러 원인 확인)
+
+API가 500을 반환할 때 **실제 예외 메시지**를 응답에 포함해 보려면, 해당 요청에 다음 헤더를 붙입니다. (재배포 불필요)
+
+- **헤더:** `X-Law-Debug: 1`
+
+예: `curl -X POST ... -H "X-Law-Debug: 1" -d '{"situation":"..."}'`  
+응답 `detail`에 서버에서 발생한 예외 문자열이 함께 내려옵니다. 운영 환경에서는 보안상 해당 헤더 없이 호출하는 것을 권장합니다.
+
+---
+
 ## 2. ★ 권장: 1회 상담 (invoke) — 챗봇과 동일 동작
 
 **한 번의 호출로** 챗봇(app_chatbot)과 동일한 RAG 플로우(라우팅·이슈분류·체크리스트·결론·지식/계산/서류 분기)를 실행합니다. 프론트엔드는 이 엔드포인트만 사용하는 것을 권장합니다.
@@ -70,8 +97,10 @@
   }
   ```
   - `message` (필수): 사용자 입력 메시지
-  - `thread_id` (선택): 대화 스레드 ID. 체크리스트·다음 턴 시 동일 ID 사용 (기본 `"default"`)
-  - 위 공통 파라미터(`openai_api_key`, `openai_base_url`, `law_api_key`, `model`) 선택 사용
+  - `openai_api_key` (필수): API 사용자 본인의 OpenAI API 키
+  - `model` (선택): 사용할 모델 (예: `gpt-4o-mini`, `gpt-4o`)
+  - `thread_id` (선택): 대화 스레드 ID (기본 `"default"`)
+  - `openai_base_url`, `law_api_key` (선택)
 
 - **Response:**
   ```json
@@ -244,9 +273,22 @@ LawChat의 핵심인 사안 분류 -> 체크리스트 -> 최종 결론 3단계 �
 
 ---
 
+## 🔒 보안 고려사항 (API 키를 요청으로 보낼 때)
+
+| 구간 | 상태 | 비고 |
+|------|------|------|
+| **전송** | ✅ | 반드시 **HTTPS**로 호출. 키가 평문으로 노출되지 않음 (Render 기본 HTTPS). |
+| **서버** | ✅ | 키는 요청 처리 중 **메모리에서만** 사용하며, **저장·로그에 남기지 않음**. 400/500 응답 `detail`에도 키가 포함되지 않음. |
+| **클라이언트** | ⚠️ | 브라우저/앱에서 키를 저장하면 XSS·피싱 시 탈취 가능. **공개 웹 프론트**에서는 가능하면 본인 백엔드(BFF)에서만 키를 보관하고, 프론트는 BFF를 호출하는 방식 권장. |
+
+- **우리 서버 코드:** 요청 바디 전체를 로그로 남기지 않으며, 예외 메시지(`str(e)`)만 출력. OpenAI 클라이언트는 키를 예외 메시지에 넣지 않음.
+- **운영 시:** 서버에 요청 로깅을 추가할 경우 `openai_api_key`, `law_api_key` 필드는 **반드시 마스킹** 후 로깅할 것.
+
+---
+
 ## 💡 개발 팁 (프론트엔드 연동)
 
 1. **권장 플로우:** 상담은 **`POST /api/v1/chat/invoke` 한 종류만** 사용. `message`와 `thread_id`로 체크리스트·다음 턴까지 처리.
-2. **상태 관리:** API 키·모델을 상태(State)나 브라우저 스토리지에 저장해 두고, 모든 POST 요청 Body에 `openai_api_key`, `model` 등을 선택적으로 주입.
+2. **상태 관리:** API 사용자가 키·모델을 입력하면, 해당 값을 상태(State)나 브라우저 스토리지에 저장해 두고 LLM 호출 시 요청 Body에 `openai_api_key`(필수), `model`(선택)로 전달.
 3. **스트리밍 결론:** 단계별 결론(`/api/v1/chat/conclusion`)에서 `stream: true` 시 SSE(`text/event-stream`)로 수신 가능.
 4. **API 명세서:** Swagger UI는 **서버 Base URL + `/docs`** (예: `https://lawchat-api.onrender.com/docs`)에서 확인.
