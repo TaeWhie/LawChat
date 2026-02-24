@@ -38,7 +38,7 @@ from rag.question_classifier import (
 from rag.law_json import get_laws, get_chapters, get_articles_by_chapter
 from rag.graph import get_graph
 from langchain_core.messages import HumanMessage, AIMessage
-from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE
+from config import ALL_LABOR_LAW_SOURCES, SOURCE_DECREE, SOURCE_RULE, OPENAI_API_KEY
 from rag.context import openai_api_key_ctx, law_api_key_ctx, openai_base_url_ctx, chat_model_ctx
 
 app = FastAPI(title="LawChat Backend API", version=os.getenv("LAW_API_VERSION", "1.2.0"))
@@ -111,6 +111,13 @@ class InvokeRequest(BaseRequest):
     thread_id: Optional[str] = Field("default", description="대화 스레드 ID (체크포인터 구분용)")
 
 # --- Helper Functions ---
+
+
+def _effective_openai_key(keys: Optional[BaseRequest]) -> Optional[str]:
+    """요청·컨텍스트·환경변수 순으로 유효한 OpenAI API 키 반환 (asyncio.to_thread 내부에서 키 부재 방지)."""
+    if keys and getattr(keys, "openai_api_key", None) and str(keys.openai_api_key).strip():
+        return str(keys.openai_api_key).strip()
+    return openai_api_key_ctx.get() or OPENAI_API_KEY
 
 def _standardize(obj):
     """Recursively converts objects into JSON-serializable types with maximal defensiveness."""
@@ -220,6 +227,7 @@ async def classify_issue(request: ClassifyRequest):
     """Classifies the user situation into legal issues."""
     try:
         set_api_keys(request)
+        effective_key = _effective_openai_key(request)
         if _LAW_DEBUG:
             print(f"DEBUG: Classifying situation: {request.situation[:50]}...")
         issues, articles_by_issue, _, _ = await asyncio.to_thread(
@@ -227,7 +235,7 @@ async def classify_issue(request: ClassifyRequest):
             request.situation,
             collection=collection,
             top_k=request.top_k,
-            openai_api_key=request.openai_api_key,
+            openai_api_key=effective_key,
             law_api_key=request.law_api_key
         )
         if _LAW_DEBUG:
@@ -264,12 +272,14 @@ async def generate_checklist(request: ChecklistRequest):
         # Merge previous results if any
         remaining = request.previous_rag_results
         
+        effective_key = _effective_openai_key(request)
         query = (request.issue + " " + " ".join(narrow_answers))[:500] if narrow_answers else request.issue
         new_results = await asyncio.to_thread(
             search, collection, query, top_k=12,
             filter_sources=ALL_LABOR_LAW_SOURCES,
             exclude_sections=["벌칙", "부칙"],
             exclude_chapters=["제1장 총칙"],
+            openai_api_key=effective_key,
         )
         
         seen_art = {r.get("article", "") for r in remaining}
@@ -286,6 +296,7 @@ async def generate_checklist(request: ChecklistRequest):
             narrow_answers=narrow_answers or None,
             qa_list=request.all_qa,
             remaining_articles=merged,
+            openai_api_key=effective_key,
         )
         
         return JSONResponse(status_code=200, content=_standardize(step2_res))
@@ -319,9 +330,10 @@ async def generate_conclusion(request: ConclusionRequest):
                     yield f"Error: {str(e)}"
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
         else:
+            effective_key = _effective_openai_key(request)
             res = await asyncio.to_thread(
                 step3_conclusion, request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
-                openai_api_key=request.openai_api_key
+                openai_api_key=effective_key
             )
             # Add penalty/supplementary info
             conclusion_text = res.get("conclusion", "")
@@ -338,7 +350,7 @@ async def generate_conclusion(request: ConclusionRequest):
                     system_related_questions(caps),
                     user_related_questions(conclusion_text, request.issue, caps),
                     max_tokens=300,
-                    openai_api_key=request.openai_api_key
+                    openai_api_key=effective_key
                 )
                 if isinstance(questions_result, list):
                     res["related_questions"] = questions_result[:5]
@@ -358,11 +370,12 @@ async def knowledge_qa(request: QARequest):
     """Handles knowledge-based questions."""
     try:
         set_api_keys(request)
+        effective_key = _effective_openai_key(request)
         search_results = await asyncio.to_thread(
             search, collection, request.question, top_k=5,
             filter_sources=ALL_LABOR_LAW_SOURCES,
             exclude_sections=["벌칙", "부칙"],
-            openai_api_key=request.openai_api_key
+            openai_api_key=effective_key
         )
         from rag.pipeline import _rag_context
         context = _rag_context(search_results, max_length=2000)
@@ -371,7 +384,7 @@ async def knowledge_qa(request: QARequest):
             system_knowledge_qa(),
             user_knowledge_qa(request.question, context),
             max_tokens=1000,
-            openai_api_key=request.openai_api_key
+            openai_api_key=effective_key
         )
         return JSONResponse(status_code=200, content=_standardize({
             "answer": res.get("content"),
@@ -389,20 +402,21 @@ async def calculation_qa(request: QARequest):
     """Handles calculation questions."""
     try:
         set_api_keys(request)
+        effective_key = _effective_openai_key(request)
         from rag.pipeline import _rag_context
 
         def _run_calculation():
             search_results = search(
                 collection, request.question, top_k=5,
                 filter_sources=ALL_LABOR_LAW_SOURCES,
-                openai_api_key=request.openai_api_key
+                openai_api_key=effective_key
             )
             context = _rag_context(search_results, max_length=2000)
             return chat_with_metadata(
                 system_calculation_qa(),
                 user_calculation_qa(request.question, context),
                 max_tokens=1500,
-                openai_api_key=request.openai_api_key
+                openai_api_key=effective_key
             )
         res = await asyncio.to_thread(_run_calculation)
         return JSONResponse(status_code=200, content=_standardize({

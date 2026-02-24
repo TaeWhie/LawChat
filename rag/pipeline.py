@@ -776,12 +776,15 @@ def step2_checklist(
     collection=None,
     top_k: int = 10,
     narrow_answers: Optional[List[str]] = None,
+    qa_list: Optional[List[Dict[str, str]]] = None,
     remaining_articles: Optional[List[Dict[str, Any]]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
     """걸러진 조항 기준 체크리스트 (법률만). remaining_articles가 있으면 해당 조문만 사용(이슈와 무관한 임금 등 조문 혼입 방지).
     반환: {"checklist": [...], "rag_results": [...], "error": "...", "debug_info": {...}}"""
+    if openai_api_key:
+        openai_api_key_ctx.set(openai_api_key)
     debug_info = {}
     if prompt_overrides is None:
         prompt_overrides = {}
@@ -914,6 +917,7 @@ def step2_checklist(
             return {"checklist": [], "rag_results": [], "error": "컨텍스트 없음", "debug_info": debug_info}
     
     already_asked = ""
+    qa_list = qa_list or []
     if qa_list:
         already_asked = "\n".join(
             f"Q: {x.get('question', x.get('q', ''))}\nA: {x.get('answer', x.get('a', ''))}"
