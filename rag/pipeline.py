@@ -1590,8 +1590,25 @@ def step3_conclusion(
         user_prompt,
         reasoning_effort="low",  # 결론: low effort → 5~10배 속도 향상
     )
-    conclusion = conclusion_dict["content"]
+    conclusion = (conclusion_dict.get("content") or "") if isinstance(conclusion_dict, dict) else str(conclusion_dict or "")
+    if isinstance(conclusion, str):
+        conclusion = conclusion.strip()
+    else:
+        conclusion = str(conclusion or "").strip()
     debug_info["llm_conclusion"] = conclusion_dict
+
+    # LLM이 빈 결론을 반환한 경우 RAG 조문 기반 폴백 (결론이 비어 나오는 현상 방지)
+    if not conclusion and law_results:
+        parts = []
+        for r in law_results[:5]:
+            src = (r.get("source") or "").replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
+            art = r.get("article") or ""
+            text = (r.get("text") or r.get("content") or "")[:300]
+            if src and art:
+                parts.append(f"- **{src} {art}**: {text}..." if len((r.get("text") or r.get("content") or "")) > 300 else f"- **{src} {art}**: {text}")
+        conclusion = f"**요약**\n\n제공된 상황과 관련하여 아래 조문을 참고하세요.\n\n" + "\n\n".join(parts) if parts else "관련 조문을 확인 중입니다. 잠시 후 다시 시도해 주세요."
+    elif not conclusion:
+        conclusion = "제공된 정보와 조문을 바탕으로 결론을 생성하지 못했습니다. 상황을 조금 더 구체적으로 말씀해 주시거나, 관련 조문은 국가법령정보센터(www.law.go.kr)에서 확인해 주세요."
     
     # ── 결론 품질 검증 (강화: 개선된 _validate_conclusion 사용) ──────────
     validation = _validate_conclusion(conclusion, law_results)
