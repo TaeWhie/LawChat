@@ -367,9 +367,9 @@ async def root():
     }
 
 
-@app.get("/api/v1/health")
-async def health_check():
-    """Health check: 버전, 벡터스토어·의존성 상태."""
+@app.api_route("/api/v1/health", methods=["GET", "HEAD"])
+async def health_check(request: Request):
+    """Health check: 버전, 벡터스토어·의존성 상태. GET/HEAD 모두 200 (Render 등 HEAD 헬스체크 대응)."""
     version = os.getenv("LAW_API_VERSION", "1.2.0")
     vector_store_ready = collection is not None
     try:
@@ -378,13 +378,17 @@ async def health_check():
         vector_dir_exists = Path(VECTOR_DIR).exists() if VECTOR_DIR else False
     except Exception:
         vector_dir_exists = False
-    return {
+    body = {
         "status": "ok",
         "version": version,
         "context_supported": True,
         "vector_store_ready": vector_store_ready,
         "vector_dir_exists": vector_dir_exists,
     }
+    from fastapi.responses import JSONResponse, Response
+    if request.method == "HEAD":
+        return Response(status_code=200)
+    return JSONResponse(content=body, status_code=200)
 
 
 @app.get("/api/v1/prompts")
