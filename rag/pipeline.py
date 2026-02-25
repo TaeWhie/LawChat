@@ -611,7 +611,7 @@ def step1_and_step2_parallel(
         if _validate_issues_with_articles(issues, articles_by_issue):
             selected_issue = issues[0]
             remaining = articles_by_issue.get(selected_issue) or []
-            filter_preview = (selected_issue + " " + situation)[:400]
+            filter_preview = (selected_issue + " " + (situation or ""))[:400]
 
             # step2 체크리스트 생성 (step1 결과 나오는 즉시 실행)
             step2_res = step2_checklist(
@@ -655,7 +655,7 @@ def step1_and_step2_parallel(
 
     selected_issue = issues[0]
     remaining = articles_by_issue.get(selected_issue) or []
-    filter_preview = (selected_issue + " " + situation)[:400]
+    filter_preview = (selected_issue + " " + (situation or ""))[:400]
 
     step2_res = step2_checklist(
         selected_issue, filter_preview,

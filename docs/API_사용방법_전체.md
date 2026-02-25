@@ -443,6 +443,9 @@ user_* 항목은 플레이스홀더 예시(`<situation>`, `<issue>` 등)가 들�
 **사용 가능 엔드포인트:**  
 `POST /api/v1/chat/invoke`, `/api/v1/chat/classify`, `/api/v1/chat/checklist`, `/api/v1/chat/conclusion`
 
+**user_checklist 오버라이드 시 추가 플레이스홀더:**  
+`GET /api/v1/prompts`의 `placeholders.user_checklist` 외에, 실제 치환 시에는 **`situation`**, **`situation_block`**, **`already_block`**, **`tail`**, **`context`**(`rag_context`와 동일)도 사용할 수 있습니다. 템플릿에 `{...}` 형태로 넣으면 됩니다.
+
 ---
 
 ## 개발 팁

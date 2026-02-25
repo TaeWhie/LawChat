@@ -132,12 +132,21 @@ def user_issue_classification(situation: str, rag_context: str, allowed_primarie
 {", ".join(allowed_primaries)}
 """
     if override_template:
-        # Use custom template
-        return override_template.format(
-            situation=situation, 
-            rag_context=rag_context, 
-            allowed_block=allowed_block
-        )
+        try:
+            return override_template.format(
+                situation=situation,
+                rag_context=rag_context,
+                allowed_block=allowed_block,
+            )
+        except KeyError:
+            out = override_template
+            for key, val in [
+                ("situation", situation),
+                ("rag_context", rag_context),
+                ("allowed_block", allowed_block),
+            ]:
+                out = out.replace("{" + key + "}", str(val))
+            return out
         
     return f"""User situation:
 {situation}
@@ -192,6 +201,13 @@ Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = shor
 
 
 def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = "", situation: str = "", override_template: str = None):
+    # None/비문자열 방지 (pipeline에서 빈 값으로 올 수 있음)
+    issue = (issue or "") if isinstance(issue, str) else str(issue or "")
+    rag_context = (rag_context or "") if isinstance(rag_context, str) else str(rag_context or "")
+    filtered_provisions = (filtered_provisions or "") if isinstance(filtered_provisions, str) else str(filtered_provisions or "")
+    already_asked_text = (already_asked_text or "") if isinstance(already_asked_text, str) else str(already_asked_text or "")
+    situation = (situation or "") if isinstance(situation, str) else str(situation or "")
+
     already_block = ""
     if already_asked_text:
         already_block = f"""
@@ -214,14 +230,36 @@ Round 2+: Generate follow-up questions only for items answered "네" in previous
 """
     
     if override_template:
-        return override_template.format(
-            issue=issue,
-            already_block=already_block,
-            filtered_provisions=filtered_provisions,
-            rag_context=rag_context,
-            situation_block=situation_block,
-            tail=tail
-        )
+        # API 문서: issue, rag_context, filtered_provisions, already_asked_text. already_block/situation_block/tail 도 사용 가능.
+        # {context} 는 {rag_context} 와 동일하게 치환 (호환용).
+        try:
+            return override_template.format(
+                issue=issue,
+                already_block=already_block,
+                already_asked_text=already_asked_text,
+                filtered_provisions=filtered_provisions,
+                rag_context=rag_context,
+                context=rag_context,
+                situation_block=situation_block,
+                situation=situation,
+                tail=tail,
+            )
+        except (KeyError, ValueError, TypeError):
+            # 플레이스홀더 이름 불일치 또는 값/형식 오류 시 알려진 키만 치환
+            out = override_template
+            for key, val in [
+                ("issue", issue),
+                ("already_block", already_block),
+                ("already_asked_text", already_asked_text),
+                ("filtered_provisions", filtered_provisions),
+                ("rag_context", rag_context),
+                ("context", rag_context),
+                ("situation_block", situation_block),
+                ("situation", situation),
+                ("tail", tail),
+            ]:
+                out = out.replace("{" + key + "}", str(val))
+            return out
         
     return f"""Issue: {issue}
 {situation_block}
@@ -303,7 +341,14 @@ def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_c
         try:
             return override_template.format(issue=issue, qa_text=qa_text, rag_context=ctx_snippet)
         except KeyError:
-            return override_template
+            out = override_template
+            for key, val in [
+                ("issue", issue),
+                ("qa_text", qa_text),
+                ("rag_context", ctx_snippet),
+            ]:
+                out = out.replace("{" + key + "}", str(val))
+            return out
     return f"""Issue: {issue}
 
 [Q&A]
@@ -340,13 +385,30 @@ def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles
         law_names_hint += "\n- When citing articles from [남녀고용평등과 일·가정 양립 지원에 관한 법률], use format: '남녀고용평등과 일·가정 양립 지원에 관한 법률 제N조' or '남녀고용평등법 제N조'"
     
     if override_template:
-        return override_template.format(
-            issue=issue,
-            qa_list=qa_list,
-            rag_context=rag_context,
-            hint=hint,
-            law_names_hint=law_names_hint
-        )
+        # API 문서의 플레이스홀더: issue, qa_list, rag_context, related_articles_hint, law_names_hint
+        # hint는 related_articles_hint로 만든 안내 문구이므로 둘 다 넣어서 오버라이드에서 선택 사용 가능하게 함.
+        try:
+            return override_template.format(
+                issue=issue,
+                qa_list=qa_list,
+                rag_context=rag_context,
+                hint=hint,
+                related_articles_hint=related_articles_hint,
+                law_names_hint=law_names_hint,
+            )
+        except KeyError:
+            # 템플릿에 문서에 없는 플레이스홀더나 다른 중괄호가 있으면, 알려진 키만 치환 (그 외 { } 는 그대로 둠)
+            out = override_template
+            for key, val in [
+                ("issue", issue),
+                ("qa_list", qa_list),
+                ("rag_context", rag_context),
+                ("hint", hint),
+                ("related_articles_hint", related_articles_hint),
+                ("law_names_hint", law_names_hint),
+            ]:
+                out = out.replace("{" + key + "}", str(val))
+            return out
         
     return f"""Issue: {issue}
 
