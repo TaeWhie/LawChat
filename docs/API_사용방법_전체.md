@@ -188,6 +188,10 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 
 **참고:** 결론 텍스트는 `messages` 중 마지막 `t: "AIMessage"` 항목의 `c` 값입니다. 별도 `conclusion` 필드는 없습니다.
 
+**2차 요청(체크리스트 답변) 시 `message` 형식:**  
+`phase`가 `"checklist"`일 때, 같은 `thread_id`로 체크리스트에 대한 답변을 보내면 결론 단계로 진행됩니다. `message`는 **한 줄에 "질문: 답변"** 형태로, 여러 줄이면 줄바꿈(`\n`)으로 구분합니다.  
+예: `"주 평균 15시간 이상 근로인가요?: 네\n1년 이상 근속인가요?: 아니요"`
+
 **예시 요청:**
 ```json
 {
@@ -235,6 +239,7 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 |------|------|------|------|
 | situation | string | 예 | 상황 설명 |
 | top_k | number | 아니오 | 검색 조문 수 (기본 22) |
+| prompt_overrides | object | 아니오 | 이슈 분류 프롬프트 덮어쓰기 (`system_issue_classification`, `user_issue_classification`) |
 | openai_api_key | string | 예 | LLM용 API 키 |
 | model, openai_base_url | | 아니오 | 공통 |
 
@@ -264,6 +269,7 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 | all_qa | array | 아니오 | 기존 Q&A `[{ "question", "answer" }]` |
 | round | number | 아니오 | 라운드 (기본 1) |
 | previous_rag_results | array | 아니오 | 이전 RAG 결과 |
+| prompt_overrides | object | 아니오 | 체크리스트·연속 프롬프트 덮어쓰기 (`system_checklist`, `user_checklist`, `system_checklist_continuation`, `user_checklist_continuation`) |
 | openai_api_key | string | 예 | LLM용 API 키 |
 | model, openai_base_url | | 아니오 | 공통 |
 
@@ -278,6 +284,7 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
   "articles_by_issue": {}
 }
 ```
+실패 시(예: 컨텍스트 없음)에는 `checklist`가 빈 배열이거나 `error` 필드가 포함될 수 있습니다.
 
 ---
 
@@ -292,6 +299,7 @@ LLM을 사용하는 POST 엔드포인트에서 공통으로 쓸 수 있는 필�
 | issue | string | 예 | 이슈 키워드 |
 | all_qa | array | 예 | `[{ "question", "answer" }]` 또는 `[{ "q", "a" }]` |
 | stream | boolean | 아니오 | true 시 SSE 스트리밍 (기본 false) |
+| prompt_overrides | object | 아니오 | 결론 프롬프트 덮어쓰기 (`system_conclusion`, `user_conclusion`) |
 | openai_api_key | string | 예 | LLM용 API 키 |
 | model, openai_base_url | | 아니오 | 공통 |
 
@@ -454,5 +462,6 @@ user_* 항목은 플레이스홀더 예시(`<situation>`, `<issue>` 등)가 들�
 2. **상태 관리:** 클라이언트에서 `openai_api_key`, `model` 등을 입력받아 저장한 뒤, LLM 호출 시 요청 바디에 `openai_api_key`(필수), `model`(선택)로 전달.
 3. **스트리밍:** invoke에 `stream: true` 또는 conclusion에 `stream: true` 시 SSE(`text/event-stream`)로 수신 가능.
 4. **API 명세:** Swagger UI는 **Base URL + `/docs`**, OpenAPI JSON은 **Base URL + `/openapi.json`**.
+5. **샘플 스크립트:** 프로젝트 루트의 **`scripts/sample_invoke_flow.py`** 로 invoke 흐름(헬스체크 → 1차 invoke → 체크리스트 답변 → 결론)을 실행할 수 있습니다. 환경변수 `OPENAI_API_KEY`, `LAW_API_BASE_URL`(선택) 설정 후 `python scripts/sample_invoke_flow.py` 로 실행. 프롬프트 오버라이드 동작 확인은 `python scripts/sample_invoke_flow.py --test-all-overrides` 로 할 수 있습니다.
 
 ---

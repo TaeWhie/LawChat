@@ -171,9 +171,17 @@ def run_sample():
                 # 결론 단계면 이 내용이 "감지된 이슈: ... **결론** ..." 형태의 최종 답변.
                 if phase == "conclusion":
                     print("    --- 결론 메시지(앞 800자) ---")
-                    print("    " + (last_content[:800] + "..." if len(last_content) > 800 else last_content))
+                    _safe_print("    " + (last_content[:800] + "..." if len(last_content) > 800 else last_content))
+                    # 전체 결론을 UTF-8 파일로 저장 (이모지 등 유니코드 보존)
+                    try:
+                        out_path = os.path.join(os.path.dirname(__file__), "invoke_result_local.txt")
+                        with open(out_path, "w", encoding="utf-8") as f:
+                            f.write(last_content)
+                        print(f"    (전체 결론 저장: {out_path})")
+                    except Exception:
+                        pass
                 else:
-                    print(f"    --- 메시지(앞 300자) ---\n    {last_content[:300]}...\n")
+                    _safe_print(f"    --- 메시지(앞 300자) ---\n    {last_content[:300]}...\n")
 
             step += 1
             # 무한 루프 방지: 체크리스트가 2라운드 이상 나와도 최대 2번만 답변 후 종료.

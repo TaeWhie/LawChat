@@ -1589,6 +1589,7 @@ def step3_conclusion(
         sys_prompt,
         user_prompt,
         reasoning_effort="low",  # 결론: low effort → 5~10배 속도 향상
+        max_tokens=4000,  # 구조화된 결론(여러 섹션·표) 출력 공간 확보
     )
     conclusion = (conclusion_dict.get("content") or "") if isinstance(conclusion_dict, dict) else str(conclusion_dict or "")
     if isinstance(conclusion, str):
