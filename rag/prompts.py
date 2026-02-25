@@ -172,7 +172,7 @@ Rules:
    - ❌ "근로계약서에 명시된 사항이 있나요?"
    - ✅ "회사와 계약서를 작성했나요?"
 
-(4) One fact per question; no assumptions. Max 7 items; no duplicate topics.
+(4) One fact per question; no assumptions. Up to the maximum number of items allowed; no duplicate topics. Return only as many questions as truly needed—do not invent or pad questions to fill the limit.
 
 (5) Do NOT ask about facts the user has already stated in their initial message. If [User's initial situation] says e.g. "근속 7개월", "7개월 차", do NOT ask "현재 근속 기간이 1년 이상인가요?" or "근속 1년 미만인가요?". Use the situation block to skip already-known facts.
 
@@ -209,8 +209,8 @@ Do NOT repeat these questions or ask the same fact in different words. Ask NEW q
 Do NOT ask questions about facts already stated above (e.g. if they said "7개월 차", "근속 7개월", do not ask "1년 이상 근속인가요?"). Use this only to avoid redundant questions.
 """
     tail = """
-Round 1: Generate initial checklist (max 7 items).
-Round 2+: Generate follow-up questions only for items answered "네" in previous rounds (max 5 items).
+Round 1: Generate initial checklist (up to the maximum number of items; fewer is fine if fewer are needed).
+Round 2+: Generate follow-up questions only for items answered "네" in previous rounds (up to the maximum number of items; fewer is fine).
 """
     
     if override_template:

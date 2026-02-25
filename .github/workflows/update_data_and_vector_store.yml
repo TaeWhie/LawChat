@@ -59,23 +59,15 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        # 변경사항이 있는지 확인 (api_data만 커밋, vector_store는 제외)
-        # last_update.txt는 항상 커밋 (날짜 업데이트)
-        # [skip ci] 태그로 GitHub Actions 재실행 방지
-        # [ci skip] 또는 [skip deploy] 태그로 Streamlit Cloud 재배포 방지
+        # api_data + vector_store 함께 커밋 (수정되는 데이터이므로 덮어쓰기, 배포에서 재구축 없이 로드만 함)
         git add api_data/last_update.txt
-        if [ -n "$(git status --porcelain api_data/)" ]; then
-          git add api_data/
-          git commit -m "자동 업데이트: 법령 데이터 갱신 (벡터 스토어는 서비스 환경에서 재구축 필요) [skip ci] [ci skip] [skip deploy]" || exit 0
+        git add api_data/ 2>/dev/null || true
+        git add vector_store/ 2>/dev/null || true
+        
+        if [ -n "$(git status --porcelain)" ]; then
+          git commit -m "자동 업데이트: 법령 데이터 + 벡터 스토어 갱신 (배포는 저장된 vector_store 로드) [skip ci] [ci skip] [skip deploy]" || exit 0
           git push
-          echo "법령 데이터가 커밋되었습니다. 벡터 스토어는 서비스 환경에서 재구축해주세요."
-        elif [ -n "$(git status --porcelain api_data/last_update.txt)" ]; then
-          git commit -m "업데이트 날짜 갱신 [skip ci] [ci skip] [skip deploy]" || exit 0
-          git push
-          echo "업데이트 날짜만 갱신되었습니다."
+          echo "api_data와 vector_store가 커밋·푸시되었습니다."
         else
           echo "변경사항이 없습니다."
         fi
-        
-        # 벡터 스토어는 용량이 크고 환경별로 다를 수 있으므로 커밋하지 않음
-        # 서비스 환경(예: Streamlit Cloud)에서 배포 시 자동으로 재구축되도록 설정

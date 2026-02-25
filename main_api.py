@@ -87,20 +87,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global Vector Store Collection
+# Global Vector Store Collection (lazy-loaded so Render port scan succeeds before long build)
 collection = None
+_collection_lock = None
+
+def _get_collection_lock():
+    global _collection_lock
+    if _collection_lock is None:
+        import threading
+        _collection_lock = threading.Lock()
+    return _collection_lock
+
+def get_collection():
+    """벡터 스토어 컬렉션 반환. 없으면 한 번만 구축 후 캐시 (첫 요청 시 지연 로딩)."""
+    global collection
+    if collection is not None:
+        return collection
+    with _get_collection_lock():
+        if collection is not None:
+            return collection
+        col, _ = build_vector_store()
+        collection = col
+        try:
+            import rag.graph as _g
+            _g._collection_cache = col
+        except Exception:
+            pass
+        return collection
+
 
 @app.on_event("startup")
 async def startup_event():
-    global collection
-    col, _ = build_vector_store()
-    collection = col
-    # 그래프가 동일 벡터 스토어를 쓰도록 캐시 공유 (중복 로드 방지)
-    try:
-        import rag.graph as _g
-        _g._collection_cache = col
-    except Exception:
-        pass
+    """시작 시 무거운 벡터 스토어 구축은 하지 않음. 포트 바인딩을 위해 첫 요청 시 get_collection()에서 지연 로딩."""
+    pass
 
 # --- Data Models ---
 
@@ -535,7 +554,7 @@ async def classify_issue(request: ClassifyRequest, raw_request: Request):
         issues, articles_by_issue, _, _ = await asyncio.to_thread(
             step1_issue_classification,
             request.situation,
-            collection=collection,
+            collection=get_collection(),
             top_k=request.top_k,
             prompt_overrides=overrides,
             openai_api_key=effective_key,
@@ -577,7 +596,7 @@ async def generate_checklist(request: ChecklistRequest, raw_request: Request):
         effective_key = _effective_openai_key(request)
         query = (request.issue + " " + " ".join(narrow_answers))[:500] if narrow_answers else request.issue
         new_results = await asyncio.to_thread(
-            search, collection, query, top_k=12,
+            search, get_collection(), query, top_k=12,
             filter_sources=ALL_LABOR_LAW_SOURCES,
             exclude_sections=["벌칙", "부칙"],
             exclude_chapters=["제1장 총칙"],
@@ -595,7 +614,7 @@ async def generate_checklist(request: ChecklistRequest, raw_request: Request):
         
         overrides = getattr(request, "prompt_overrides", None) or {}
         step2_res = await asyncio.to_thread(
-            step2_checklist, request.issue, filter_text, collection=collection,
+            step2_checklist, request.issue, filter_text, collection=get_collection(),
             narrow_answers=narrow_answers or None,
             qa_list=request.all_qa,
             remaining_articles=merged,
@@ -626,7 +645,7 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             def stream_generator():
                 try:
                     for chunk in step3_conclusion_stream(
-                        request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
+                        request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
                         openai_api_key=effective_key
                     ):
                         yield chunk
@@ -637,14 +656,14 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             effective_key = _effective_openai_key(request)
             overrides = getattr(request, "prompt_overrides", None) or {}
             res = await asyncio.to_thread(
-                step3_conclusion, request.issue, request.all_qa, collection=collection, narrow_answers=narrow_answers or None,
+                step3_conclusion, request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
                 prompt_overrides=overrides,
                 openai_api_key=effective_key
             )
             # Add penalty/supplementary info
             conclusion_text = res.get("conclusion", "")
             penalty = await asyncio.to_thread(
-                get_penalty_and_supplementary, collection, conclusion_text, request.issue, request.all_qa
+                get_penalty_and_supplementary, get_collection(), conclusion_text, request.issue, request.all_qa
             )
             res["penalty_supplementary"] = penalty
             
@@ -680,7 +699,7 @@ async def knowledge_qa(request: QARequest, raw_request: Request):
         set_api_keys(request)
         effective_key = _effective_openai_key(request)
         search_results = await asyncio.to_thread(
-            search, collection, request.question, top_k=5,
+            search, get_collection(), request.question, top_k=5,
             filter_sources=ALL_LABOR_LAW_SOURCES,
             exclude_sections=["벌칙", "부칙"],
             openai_api_key=effective_key
@@ -714,7 +733,7 @@ async def calculation_qa(request: QARequest, raw_request: Request):
 
         def _run_calculation():
             search_results = search(
-                collection, request.question, top_k=5,
+                get_collection(), request.question, top_k=5,
                 filter_sources=ALL_LABOR_LAW_SOURCES,
                 openai_api_key=effective_key
             )

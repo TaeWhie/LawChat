@@ -57,8 +57,8 @@ def build_vector_store(force_rebuild: bool = False):
     """
     법령 청크를 임베딩하여 ChromaDB에 저장.
     저장 위치: config.VECTOR_DIR (기본: 프로젝트/vector_store/)
-    - 최초 1회만 임베딩 실행 후 디스크에 저장.
-    - 이후 실행 시 기존 vector_store/ 를 불러와 재임베딩 없이 사용.
+    - 배포 시: GitHub Action 등에서 미리 구축해 둔 vector_store/ 가 있으면 로드만 하고 재구축하지 않음.
+    - 개발/CI: existing == 0 이거나 force_rebuild 시에만 load_laws_auto() 후 임베딩 실행.
     반환: (collection, was_built) — was_built=True면 이번에 새로 구축함.
     """
     VECTOR_DIR.mkdir(parents=True, exist_ok=True)
@@ -73,11 +73,14 @@ def build_vector_store(force_rebuild: bool = False):
         name=collection_name,
         metadata={"description": "근로기준법 등 노동법령 조문"},
     )
+    # 이미 저장된 벡터 스토어가 있으면 로드만 하고 구축·임베딩은 건너뜀 (배포 시 CI에서 미리 만들어 둔 경우)
+    existing = collection.count()
+    if existing > 0 and not force_rebuild:
+        return collection, False
     chunks = load_laws_auto()
     if not chunks:
         return collection, False
     # 이미 문서 수가 같으면 재임베딩 없이 기존 스토어 사용
-    existing = collection.count()
     if existing >= len(chunks) and not force_rebuild:
         return collection, False
     if force_rebuild or existing == 0:
