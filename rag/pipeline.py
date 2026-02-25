@@ -620,6 +620,7 @@ def step1_and_step2_parallel(
                 narrow_answers=None,
                 qa_list=[],
                 remaining_articles=remaining,
+                situation=situation,
                 prompt_overrides=prompt_overrides,
                 openai_api_key=openai_api_key,
             )
@@ -662,6 +663,7 @@ def step1_and_step2_parallel(
         narrow_answers=None,
         qa_list=[],
         remaining_articles=remaining,
+        situation=situation,
         prompt_overrides=prompt_overrides,
         openai_api_key=openai_api_key,
     )
@@ -743,6 +745,46 @@ def _deduplicate_checklist(checklist: List[Dict[str, str]]) -> List[Dict[str, st
     return deduplicated
 
 
+def _normalize_question_for_similarity(q: str) -> set:
+    """유사도 비교용: 조사/어미 제거 후 2글자 이상 단어 집합."""
+    if not q or not isinstance(q, str):
+        return set()
+    # ? . , 제거 후 소문자
+    q = re.sub(r"[?.,]\s*", " ", q.strip().lower())
+    # 2글자 이상 단어만 (숫자+단위 포함: 1년, 7개월 등)
+    words = set(w for w in re.findall(r"[가-힣a-z0-9]{2,}", q) if w not in ("인가요", "있나요", "있나", "했나요", "받았나요", "알고", "있나요"))
+    return words
+
+
+def _filter_similar_to_previous(
+    checklist: List[Dict[str, str]], qa_list: List[Dict[str, str]], min_overlap: int = 2
+) -> List[Dict[str, str]]:
+    """이전 라운드 Q&A와 주제가 겹치는 질문 제거 (같은 질문 반복 방지)."""
+    if not qa_list or not checklist:
+        return checklist
+    prev_questions = [x.get("question", x.get("q", "")) or "" for x in qa_list]
+    prev_word_sets = [_normalize_question_for_similarity(q) for q in prev_questions]
+    filtered = []
+    for item in checklist:
+        new_q = item.get("question", "").strip()
+        new_words = _normalize_question_for_similarity(new_q)
+        if not new_words:
+            filtered.append(item)
+            continue
+        is_similar = False
+        for prev_set in prev_word_sets:
+            if not prev_set:
+                continue
+            overlap = len(new_words & prev_set)
+            # 같은 주제(키워드 2개 이상 겹침) 또는 한쪽이 다른 쪽에 포함되면 제외
+            if overlap >= min_overlap or (prev_set <= new_words) or (new_words <= prev_set):
+                is_similar = True
+                break
+        if not is_similar:
+            filtered.append(item)
+    return filtered
+
+
 def _enhance_articles_with_api(issue: str, articles: List[Dict[str, Any]], collection: Any, openai_api_key: Optional[str] = None) -> List[Dict[str, Any]]:
     """API를 활용해 조문 목록을 확장. lstrmRltJo, joRltLstrm 사용."""
     enhanced = list(articles)
@@ -796,6 +838,7 @@ def step2_checklist(
     narrow_answers: Optional[List[str]] = None,
     qa_list: Optional[List[Dict[str, str]]] = None,
     remaining_articles: Optional[List[Dict[str, Any]]] = None,
+    situation: Optional[str] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
@@ -942,6 +985,8 @@ def step2_checklist(
             for x in qa_list
         )
     
+    situation_text = (situation or "").strip()
+    
     # 토큰 제한 스마트화
     try:
         from config import CHECKLIST_MAX_TOKENS, CHAT_MODEL
@@ -963,6 +1008,7 @@ def step2_checklist(
         context, 
         filtered_provisions_text, 
         already_asked_text=already_asked,
+        situation=situation_text,
         override_template=prompt_overrides.get("user_checklist")
     )
     
@@ -979,6 +1025,12 @@ def step2_checklist(
     # 파싱 및 정규화
     checklist = _parse_checklist_response(out)
     checklist = _deduplicate_checklist(checklist)
+    # 이전 라운드와 유사한 질문 제거 (같은 질문 반복 방지)
+    if qa_list and checklist:
+        before = len(checklist)
+        checklist = _filter_similar_to_previous(checklist, qa_list, min_overlap=2)
+        if len(checklist) < before:
+            _debug_print(f"[체크리스트] 이전 Q&A와 유사한 질문 {before - len(checklist)}개 제거")
     
     # 체크리스트가 비었을 때 한 번만 재시도 (reasoning 모델이 본문 대신 생각만 채운 경우 등)
     if not checklist:
@@ -993,6 +1045,8 @@ def step2_checklist(
         debug_info["llm_checklist_retry"] = retry_debug
         checklist = _parse_checklist_response(out_retry)
         checklist = _deduplicate_checklist(checklist or [])
+        if qa_list and checklist:
+            checklist = _filter_similar_to_previous(checklist, qa_list, min_overlap=2)
     
     try:
         from config import CHECKLIST_MAX_ITEMS

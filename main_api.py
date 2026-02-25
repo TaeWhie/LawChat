@@ -591,7 +591,7 @@ async def generate_checklist(request: ChecklistRequest, raw_request: Request):
                 merged.append(r)
                 seen_art.add(r.get("article", ""))
                 
-        filter_text = (request.issue + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in request.all_qa))[:400]
+        filter_text = (request.issue + " " + request.situation.strip() + " " + "\n".join(f"Q: {x['question']} A: {x['answer']}" for x in request.all_qa))[:500]
         
         overrides = getattr(request, "prompt_overrides", None) or {}
         step2_res = await asyncio.to_thread(
@@ -599,6 +599,7 @@ async def generate_checklist(request: ChecklistRequest, raw_request: Request):
             narrow_answers=narrow_answers or None,
             qa_list=request.all_qa,
             remaining_articles=merged,
+            situation=request.situation.strip() or None,
             prompt_overrides=overrides,
             openai_api_key=effective_key,
         )

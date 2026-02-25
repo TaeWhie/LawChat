@@ -416,6 +416,7 @@ def process_turn(state: ChatbotState) -> dict:
                             step2_fb = step2_checklist(
                                 sel_issue, (user_text[:400] if isinstance(user_text, str) else ""),
                                 collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb,
+                                situation=user_text if isinstance(user_text, str) else None,
                                 openai_api_key=curr_okey
                             )
                             checklist_fb = step2_fb.get("checklist", []) if isinstance(step2_fb, dict) else []
@@ -887,6 +888,7 @@ def process_turn(state: ChatbotState) -> dict:
                             step2_fb2 = step2_checklist(
                                 sel_issue2, (user_text[:400] if isinstance(user_text, str) else ""),
                                 collection=col, narrow_answers=None, qa_list=[], remaining_articles=remaining_fb2,
+                                situation=user_text if isinstance(user_text, str) else None,
                                 openai_api_key=curr_okey
                             )
                             checklist_fb2 = step2_fb2.get("checklist", []) if isinstance(step2_fb2, dict) else []

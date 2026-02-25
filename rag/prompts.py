@@ -174,6 +174,10 @@ Rules:
 
 (4) One fact per question; no assumptions. Max 7 items; no duplicate topics.
 
+(5) Do NOT ask about facts the user has already stated in their initial message. If [User's initial situation] says e.g. "근속 7개월", "7개월 차", do NOT ask "현재 근속 기간이 1년 이상인가요?" or "근속 1년 미만인가요?". Use the situation block to skip already-known facts.
+
+(6) Do NOT ask follow-up questions that assume facts not yet confirmed. Ask prerequisite questions first. Example: do NOT ask "조사 기간 동안 근무장소 변경이나 보호 조치를 받았나요?" unless the user has already answered "조사받은 적이 있나요?" with "네". First ask "조사받은 적이 있나요?" then only if "네" ask about details (기간, 보호 조치 등).
+
 Examples of good questions:
 - "월급을 받지 못한 적이 있나요?"
 - "회사에서 해고 통보를 받았나요?"
@@ -187,14 +191,22 @@ Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = shor
     )
 
 
-def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = "", override_template: str = None):
+def user_checklist(issue: str, rag_context: str, filtered_provisions: str, already_asked_text: str = "", situation: str = "", override_template: str = None):
     already_block = ""
     if already_asked_text:
         already_block = f"""
 [Previous Q&A]
 {already_asked_text}
 
-Do NOT repeat these questions. Ask NEW questions only.
+Do NOT repeat these questions or ask the same fact in different words. Ask NEW questions on different topics only.
+"""
+    situation_block = ""
+    if situation and situation.strip():
+        situation_block = f"""
+[User's initial situation - already stated by the user]
+{situation.strip()}
+
+Do NOT ask questions about facts already stated above (e.g. if they said "7개월 차", "근속 7개월", do not ask "1년 이상 근속인가요?"). Use this only to avoid redundant questions.
 """
     tail = """
 Round 1: Generate initial checklist (max 7 items).
@@ -207,10 +219,12 @@ Round 2+: Generate follow-up questions only for items answered "네" in previous
             already_block=already_block,
             filtered_provisions=filtered_provisions,
             rag_context=rag_context,
+            situation_block=situation_block,
             tail=tail
         )
         
     return f"""Issue: {issue}
+{situation_block}
 {already_block}
 [Filtered provisions summary]
 {filtered_provisions}
