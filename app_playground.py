@@ -5,9 +5,7 @@ LawChat 프롬프트 실험 도구 (Streamlit) — 실제 서버 API 호출
 실행: streamlit run app_playground.py
 (서버가 localhost:8000 이면 먼저 uvicorn main_api:app --reload 로 기동)
 
-Streamlit Community Cloud 배포 시:
-  - requirements-streamlit-cloud.txt 사용
-  - 앱 설정(Secrets)에 api.base_url, (선택) api.openai_api_key 설정
+환경변수·시크릿 없음. API 서버 주소는 아래 상수만 사용.
 """
 import json
 import time
@@ -24,24 +22,8 @@ except ImportError:
         "최저임금", "남녀고용평등", "육아휴직", "고용보험",
     )
 
-# Cloud Secrets에서 API Base URL / API Key 기본값 로드 (설정 시)
-def _default_base_url():
-    try:
-        if hasattr(st, "secrets") and st.secrets.get("api", {}).get("base_url"):
-            return st.secrets["api"]["base_url"].rstrip("/")
-    except Exception:
-        pass
-    return "http://localhost:8000"
-
-def _default_api_key():
-    try:
-        if hasattr(st, "secrets") and st.secrets.get("api", {}).get("openai_api_key"):
-            return st.secrets["api"]["openai_api_key"] or ""
-    except Exception:
-        pass
-    return ""
-
-DEFAULT_BASE_URL = _default_base_url()
+# API 서버 URL (원하는 주소로 수정)
+DEFAULT_BASE_URL = "https://원하는주소"
 TIMEOUT = 90
 
 # 모드별 프롬프트 키
@@ -61,7 +43,7 @@ MODE_PROMPT_KEYS = {
 
 
 def get_base_url():
-    return st.session_state.get("playground_base_url", DEFAULT_BASE_URL).rstrip("/")
+    return DEFAULT_BASE_URL
 
 
 def get_api_key():
@@ -90,14 +72,9 @@ def api_post(path: str, body: dict):
 
 def render_sidebar():
     st.sidebar.header("설정")
-    st.session_state["playground_base_url"] = st.sidebar.text_input(
-        "API 서버 URL",
-        value=st.session_state.get("playground_base_url", DEFAULT_BASE_URL),
-        help="LawChat API 서버 주소. 예: http://localhost:8000 또는 https://law-chat-api.onrender.com",
-    )
     st.session_state["playground_api_key"] = st.sidebar.text_input(
         "OpenAI API Key",
-        value=st.session_state.get("playground_api_key", _default_api_key()),
+        value=st.session_state.get("playground_api_key", ""),
         type="password",
         help="LLM API 호출에 필수",
     )
