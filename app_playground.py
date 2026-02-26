@@ -91,9 +91,9 @@ def api_post(path: str, body: dict):
 def render_sidebar():
     st.sidebar.header("설정")
     st.session_state["playground_base_url"] = st.sidebar.text_input(
-        "API Base URL",
+        "API 서버 URL",
         value=st.session_state.get("playground_base_url", DEFAULT_BASE_URL),
-        help="예: http://localhost:8000 또는 https://law-chat-api.onrender.com",
+        help="LawChat API 서버 주소. 예: http://localhost:8000 또는 https://law-chat-api.onrender.com",
     )
     st.session_state["playground_api_key"] = st.sidebar.text_input(
         "OpenAI API Key",
@@ -118,7 +118,7 @@ def main():
     if not api_key:
         st.info("👈 **사이드바**에서 **OpenAI API Key**를 입력한 뒤 사용하세요. (입력하지 않으면 실행만 불가합니다.)")
     else:
-        st.caption("API 연결: " + get_base_url())
+        st.caption("API 서버: " + get_base_url())
 
     mode = st.selectbox(
         "실험 모드",

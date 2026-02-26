@@ -35,15 +35,15 @@ base_url = "https://your-lawchat-api.onrender.com"
 openai_api_key = "sk-..."
 ```
 
-- **base_url**: LawChat 백엔드 API의 Base URL (끝의 `/` 제거).
+- **base_url**: LawChat **API 서버 URL** (끝의 `/` 제거). 예: `https://your-lawchat-api.onrender.com`
 - **openai_api_key**: (선택) 기본으로 넣어 둘 OpenAI API 키.  
   비워두면 앱 사이드바에서 매번 입력해야 합니다.
 
-저장하면 앱이 재시작되며, 사이드바의 **API Base URL** / **OpenAI API Key** 기본값이 위 값으로 채워집니다. (사용자가 UI에서 덮어쓸 수 있습니다.)
+저장하면 앱이 재시작되며, 사이드바의 **API 서버 URL** / **OpenAI API Key** 기본값이 위 값으로 채워집니다. (사용자가 UI에서 덮어쓸 수 있습니다.)
 
 ## 4. 동작 확인
 
-- 앱에서 **API Base URL**이 Secrets의 `base_url`로 설정돼 있는지 확인.
+- 앱에서 **API 서버 URL**이 Secrets의 `base_url`로 설정돼 있는지 확인.
 - **연결 확인 (Health)** 버튼으로 백엔드 `/api/v1/health` 호출이 성공하는지 확인.
 - 의도 분류, 이슈 분류, 체크리스트, 결론 등 원하는 탭에서 API 호출이 되는지 테스트.
 
