@@ -275,11 +275,10 @@ Generate the checklist. {tail} Write all "item" and "question" fields **in Korea
 
 def system_conclusion():
     return r"""You are a helpful labor law advisor who provides practical, user-friendly legal guidance based on Korean labor law provisions.
-Critical: Base all answers only on the [Provided legal provisions] below.
-- Do not use speculation, general knowledge, or content outside the provided provisions.
-- If the question is not covered or no provision fits the case, reply only with this exact Korean sentence:
-  "해당 내용은 제공된 법령 데이터에 없습니다."
-- Cite only article numbers (e.g. 제N조) and figures/durations/conditions that appear in the provisions. Do not invent article numbers or figures.
+
+""" + RAG_ONLY_RULE + r"""
+- You MUST base your conclusion ONLY on the [Provided legal provisions] in the user message. Do not use general legal knowledge, training data, or any content not present in those provisions.
+- Every claim (기한, 권리, 절차 등) MUST be traceable to a specific article in the provided provisions. If the provisions do not cover the user's situation, reply with: "해당 내용은 제공된 법령 데이터에 없습니다."
 
 Your task: Help the user understand their situation clearly and tell them exactly what they can do right now.
 
@@ -409,17 +408,21 @@ Write the conclusion in Korean.
 
 
 def system_checklist_continuation():
-    """체크리스트 반복 여부를 판단하는 시스템 프롬프트 (짧게 유지해 응답 속도 확보)."""
-    return """Based on the Q&A, decide if more checklist questions are needed. Return only JSON: {"should_continue": true/false, "reason": "한 문장 한국어"}.
-true only when critical facts are still missing for a legal conclusion. false when enough to conclude. Be strict; avoid extra rounds."""
+    """체크리스트 반복 여부를 판단하는 시스템 프롬프트 (첫 라운드 포함, 항상 판단)."""
+    return """Based on the Q&A (or "first round: no answers yet"), decide if more checklist questions are needed. Return only JSON: {"should_continue": true/false, "reason": "한 문장 한국어"}.
+true only when critical facts are still missing for a legal conclusion. false when enough to conclude. Be strict; avoid extra rounds.
+When Q&A is empty (first round), decide from issue and context only; prefer false unless critical facts are clearly missing."""
 
 
 def user_checklist_continuation(issue: str, qa_list: List[Dict[str, str]], rag_context: str, override_template: Optional[str] = None) -> str:
-    """체크리스트 반복 여부 판단용 사용자 프롬프트 (컨텍스트 축소로 속도 확보). override_template 시 플레이스홀더: {issue}, {qa_text}, {rag_context}."""
-    qa_text = "\n".join(
-        f"Q: {x.get('question', x.get('q', ''))}\nA: {x.get('answer', x.get('a', ''))}"
-        for x in qa_list
-    )
+    """체크리스트 반복 여부 판단용 사용자 프롬프트 (첫 라운드: qa 비어 있으면 예상 판단 유도). override_template 시 플레이스홀더: {issue}, {qa_text}, {rag_context}."""
+    if qa_list:
+        qa_text = "\n".join(
+            f"Q: {x.get('question', x.get('q', ''))}\nA: {x.get('answer', x.get('a', ''))}"
+            for x in qa_list
+        )
+    else:
+        qa_text = "(첫 라운드: 아직 수집된 답변이 없습니다. 이슈와 조문 요약만 보고, 사용자가 이번 체크리스트에 답한 뒤 추가 질문이 필요할지 예상하여 판단하세요.)"
     # 반복 여부만 판단하면 되므로 조문은 요약만 (800자)
     ctx_snippet = (rag_context or "").strip()[:800]
     if override_template:
@@ -511,8 +514,10 @@ def user_conclusion(issue: str, qa_list: str, rag_context: str, related_articles
 {hint}
 {law_names_hint}
 
-**CRITICAL**: 
-- Every article citation MUST include the law name. Format: "[법률명] 제N조" (e.g., "근로기준법 제36조", "최저임금법 제5조"). Never cite articles without the law name.
+**CRITICAL - RAG only:**
+- Your conclusion MUST be based ONLY on the [Provided legal provisions] above. Do NOT use general knowledge, training data, or information not in those provisions.
+- If the provisions are empty or do not contain articles relevant to the user's issue, you MUST respond only with: "해당 내용은 제공된 법령 데이터에 없습니다."
+- Every article citation MUST include the law name. Format: "[법률명] 제N조" (e.g., "근로기준법 제36조"). Never cite articles without the law name.
 - Base your conclusion on BOTH the legal provisions AND the user's specific situation from the Q&A.
 - Provide practical, actionable guidance that directly addresses the user's situation.
 - Use clear, everyday Korean that non-lawyers can understand.

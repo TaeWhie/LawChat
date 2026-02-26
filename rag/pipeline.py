@@ -1058,17 +1058,17 @@ def step2_checklist(
     if checklist:
         _debug_print(f"[체크리스트 항목 예시] {checklist[0] if checklist else '없음'}")
     
-    # AI가 반복 여부를 판단 (qa_list가 있고 체크리스트가 비어있지 않으면)
+    # AI가 반복 여부를 판단 (체크리스트가 있으면 항상 판단, 첫 라운드 포함)
     should_continue = None
     continuation_reason = ""
     if not checklist:
         # 체크리스트가 비어있으면 더 이상 진행하지 않음
         should_continue = False
         continuation_reason = "체크리스트가 생성되지 않았습니다."
-    elif qa_list:
-        # 이전 답변이 있으면 AI가 판단
+    else:
+        # 체크리스트가 있으면 첫 라운드(qa_list 없음)여도 반복 여부 판단 수행
         try:
-            _debug_print(f"[체크리스트 반복 판단] Q&A {len(qa_list)}개, 체크리스트 {len(checklist)}개")
+            _debug_print(f"[체크리스트 반복 판단] Q&A {len(qa_list)}개, 체크리스트 {len(checklist)}개 (첫라운드 포함 항상 판단)")
             continuation_out, cont_debug = chat_json_fast(
                 prompt_overrides.get("system_checklist_continuation") or system_checklist_continuation(),
                 user_checklist_continuation(
@@ -1088,14 +1088,20 @@ def step2_checklist(
         except Exception as e:
             _debug_print(f"[체크리스트 반복 판단] 실패: {e}, 기본값 False 사용")
             should_continue = False
-    else:
-        # 첫 라운드 (qa_list가 없음) - 체크리스트가 있으면 사용자가 답변할 수 있도록 None 반환
-        # app.py에서 모든 질문에 답변이 완료되면 판단하도록 함
-        should_continue = None
+    
+    # 참고 조문 요약 (클라이언트/플레이그라운드에서 바로 보여주기용)
+    related_provisions_summary = []
+    for r in results:
+        src = (r.get("source") or "").replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
+        art = r.get("article") or ""
+        text = (r.get("text") or r.get("content") or "")[:150]
+        if src and art:
+            related_provisions_summary.append(f"**{src} {art}**\n{text}..." if len((r.get("text") or r.get("content") or "")) > 150 else f"**{src} {art}**\n{text}")
     
     return {
         "checklist": checklist,
         "rag_results": results,
+        "related_provisions_summary": related_provisions_summary,
         "should_continue": should_continue,
         "continuation_reason": continuation_reason,
         "debug_info": debug_info,
@@ -1345,6 +1351,7 @@ def step3_conclusion(
     collection=None,
     top_k: int = 10,
     narrow_answers: Optional[List[str]] = None,
+    checklist_rag_results: Optional[List[Dict[str, Any]]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
     language: Optional[str] = None,
@@ -1352,7 +1359,8 @@ def step3_conclusion(
 ) -> Dict[str, Any]:
     """
     모든 질문·대답과 RAG 조문 기반 결론 (법조항 인용).
-    - 1차: 법률 조문 기반
+    - checklist_rag_results: 체크리스트 단계에서 사용한 조문 목록이 있으면 먼저 포함 (결론 AI가 동일 조문 참고).
+    - 1차: 법률 조문 기반 (체크리스트 조문 우선 병합 후 검색으로 보강)
     - 2차: related_articles 컨텍스트 확장 (벌칙·부칙 포함)
     - 3차: 시행령/시행규칙 추가 검사
     - 4차: 판례, 노동위원회 결정례, 고용노동부 법령해석 추가
@@ -1382,7 +1390,16 @@ def step3_conclusion(
     # 동적 검색 전략: 이슈별 관련 법률 우선 검색 (법률 2개 이상이면 법률별 검색 후 병합)
     law_results = []
     seen_keys = set()  # (source, article) 기준 → 같은 조문 번호라도 법률이 다르면 둘 다 포함
-    
+
+    # 체크리스트에서 사용한 조문을 먼저 포함 (결론 AI가 동일 조문을 참고하도록)
+    if checklist_rag_results:
+        for r in checklist_rag_results:
+            key = (r.get("source", ""), r.get("article", ""))
+            if key not in seen_keys and (r.get("source") or r.get("article")):
+                law_results.append(dict(r))
+                seen_keys.add(key)
+        _debug_print(f"[결론 생성] 체크리스트 참고 조문 {len(law_results)}개 선반영")
+
     try:
         from rag.law_classification import classify_laws_for_issue
         api_detected_sources = classify_laws_for_issue(issue, qa_text, collection)
@@ -1568,6 +1585,16 @@ def step3_conclusion(
     if precedents_context.strip():
         full_context = full_context + "\n\n" + precedents_context
 
+    # RAG 조문이 없거나 너무 짧으면 LLM 호출 없이 고정 문구 반환 (기본지식 활용 방지)
+    RAG_MIN_CONTEXT_LENGTH = 100
+    if not (full_context and len(full_context.strip()) >= RAG_MIN_CONTEXT_LENGTH):
+        _debug_print("[결론 생성] 제공된 조문이 없거나 부족함 → RAG 전용 고정 문구 반환")
+        return {
+            "conclusion": "해당 내용은 제공된 법령 데이터에 없습니다. 상황을 조금 더 구체적으로 말씀해 주시거나, 관련 조문은 국가법령정보센터(www.law.go.kr)에서 확인해 주세요.",
+            "related_articles": [],
+            "debug_info": {"skip_llm": "rag_context_empty_or_too_short"},
+        }
+
     sys_prompt = prompt_overrides.get("system_conclusion") or system_conclusion()
     if language == "en":
         sys_prompt += "\n\nRespond in English only."
@@ -1687,6 +1714,7 @@ def step3_conclusion_stream(
     qa_list: List[Dict[str, str]],
     collection=None,
     narrow_answers: Optional[List[str]] = None,
+    checklist_rag_results: Optional[List[Dict[str, Any]]] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     openai_api_key: Optional[str] = None,
     language: Optional[str] = None,
@@ -1727,6 +1755,12 @@ def step3_conclusion_stream(
     # ── 1차: 법률 조문 검색 ───────────────────────────────────────────────
     law_results: List[Dict[str, Any]] = []
     seen_keys: set = set()
+    if checklist_rag_results:
+        for r in checklist_rag_results:
+            key = (r.get("source", ""), r.get("article", ""))
+            if key not in seen_keys and (r.get("source") or r.get("article")):
+                law_results.append(dict(r))
+                seen_keys.add(key)
     try:
         from rag.law_classification import classify_laws_for_issue
         api_detected_sources = classify_laws_for_issue(issue, qa_text, collection)

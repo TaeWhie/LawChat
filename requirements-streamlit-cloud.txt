@@ -1,0 +1,4 @@
+# Streamlit Community Cloud 전용 — 프롬프트 실험 도구(app_playground)만 배포할 때 사용
+# 백엔드 API는 별도 서버(Render, Fly.io 등)에 배포 후, Cloud 앱에서 Base URL로 연결
+streamlit>=1.28.0
+requests>=2.28.0

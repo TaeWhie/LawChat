@@ -642,6 +642,7 @@ def process_turn(state: ChatbotState) -> dict:
         overrides = state.get("prompt_overrides") or {}
         res = step3_conclusion(
             selected_issue, qa_list, collection=col, narrow_answers=None,
+            checklist_rag_results=parallel_result.get("rag_results") or None,
             prompt_overrides=overrides,
             language=state.get("language"), tone=state.get("tone"),
         )
@@ -684,6 +685,7 @@ def process_turn(state: ChatbotState) -> dict:
                     selected_issue, qa_list, 
                     collection=col, 
                     narrow_answers=None,
+                    checklist_rag_results=state.get("checklist_rag_results") or None,
                     prompt_overrides=overrides,
                     openai_api_key=curr_okey,
                     language=state.get("language"), tone=state.get("tone"),

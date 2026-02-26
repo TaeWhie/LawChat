@@ -153,6 +153,7 @@ class ConclusionRequest(BaseRequest):
     all_qa: List[Dict[str, str]]
     stream: bool = False
     prompt_overrides: Optional[Dict[str, str]] = Field(None, description="system_conclusion, user_conclusion 등")
+    checklist_rag_results: Optional[List[Dict[str, Any]]] = Field(None, description="체크리스트 단계에서 반환된 rag_results. 있으면 결론 AI가 해당 조문을 함께 참고합니다.")
 
 class QARequest(BaseRequest):
     question: str
@@ -650,6 +651,7 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
                 try:
                     for chunk in step3_conclusion_stream(
                         request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
+                        checklist_rag_results=getattr(request, "checklist_rag_results", None) or None,
                         openai_api_key=effective_key
                     ):
                         yield chunk
@@ -661,6 +663,7 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             overrides = getattr(request, "prompt_overrides", None) or {}
             res = await asyncio.to_thread(
                 step3_conclusion, request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
+                checklist_rag_results=getattr(request, "checklist_rag_results", None) or None,
                 prompt_overrides=overrides,
                 openai_api_key=effective_key
             )
