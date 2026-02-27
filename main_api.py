@@ -567,14 +567,14 @@ async def classify_issue(request: ClassifyRequest, raw_request: Request):
         )
         if _LAW_DEBUG:
             print(f"DEBUG: Issues found: {issues}")
+        # 완전한 RAG 구조를 유지하되, embedding만 제외 (응답 크기 축소)
         safe_articles = {}
         for issue, articles in articles_by_issue.items():
             safe_articles[str(issue)] = []
             for a in articles:
-                safe_articles[str(issue)].append({
-                    "article": str(a.get("article", "")),
-                    "title": str(a.get("title", ""))
-                })
+                # embedding 제외하고 나머지 필드 모두 포함
+                safe_article = {k: v for k, v in a.items() if k != "embedding"}
+                safe_articles[str(issue)].append(safe_article)
         content = {
             "status": "success",
             "issues": issues,

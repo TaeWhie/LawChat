@@ -756,6 +756,119 @@ def _normalize_question_for_similarity(q: str) -> set:
     return words
 
 
+def _extract_key_facts_from_situation(situation: str) -> set:
+    """상황에서 언급된 핵심 사실(숫자+단위, 기간 등) 추출."""
+    if not situation or not isinstance(situation, str):
+        return set()
+    
+    facts = set()
+    # 숫자+단위 패턴 추출 (예: "60시간", "2개월", "2년", "두 달")
+    patterns = [
+        r"\d+\s*시간",  # 60시간
+        r"\d+\s*개월",  # 2개월
+        r"\d+\s*달",    # 2달
+        r"\d+\s*년",    # 2년
+        r"두\s*달",     # 두 달
+        r"세\s*달",     # 세 달
+        r"한\s*달",     # 한 달
+        r"일\s*년",     # 일년
+        r"이\s*년",     # 이년
+    ]
+    
+    for pattern in patterns:
+        matches = re.findall(pattern, situation, re.IGNORECASE)
+        facts.update(matches)
+    
+    # 숫자만 있는 경우도 추출 (예: "60", "2")
+    numbers = re.findall(r"\d+", situation)
+    # 너무 작은 숫자(1자리)는 제외, 큰 숫자만 (시간, 기간 등)
+    for num in numbers:
+        if len(num) >= 2 or int(num) >= 10:
+            facts.add(num)
+    
+    return facts
+
+
+def _is_question_just_confirming_fact(question: str, facts: set) -> bool:
+    """질문이 상황에서 이미 언급된 사실을 단순 확인하는지 판단."""
+    if not facts or not question:
+        return False
+    
+    question_lower = question.lower()
+    
+    # 질문에 사실이 포함되어 있는지 확인
+    fact_in_question = False
+    matched_fact = None
+    for fact in facts:
+        fact_normalized = fact.lower().replace(" ", "")
+        question_normalized = question_lower.replace(" ", "")
+        if fact_normalized in question_normalized or fact.lower() in question_lower:
+            fact_in_question = True
+            matched_fact = fact
+            break
+    
+    if not fact_in_question:
+        return False
+    
+    # 질문이 그 사실을 "확인"하는 형태인지 판단
+    # 확인 패턴: 사실을 직접 확인하는 질문 (예: "60시간 넘었나요?", "2개월 체불되었나요?")
+    # 하지만 다른 행동/문서를 묻는 질문은 제외 (예: "60시간 넘었는데 요구했나요?" → 요구 행동을 묻는 것)
+    
+    # 행동/문서 키워드가 있으면 제거하지 않음
+    action_keywords = ["요구", "청구", "신고", "받았", "명세서", "계약서", "서류", "지급", "통보", "알고"]
+    has_action = any(keyword in question_lower for keyword in action_keywords)
+    
+    if has_action:
+        return False  # 다른 정보도 묻는 질문이므로 유지
+    
+    # 사실만 확인하는 패턴 체크
+    # 예: "60시간 넘었나요?", "2개월 체불되었나요?", "주당 60시간 넘게 일했나요?"
+    confirmation_patterns = [
+        r".*(\d+\s*(시간|개월|달|년)|두\s*달|세\s*달|한\s*달).*(했나요|인가요|있나요|되었나요|넘었나요|넘었는지|일했나요|일하는지)\s*$",
+        r".*(했나요|인가요|있나요|되었나요|넘었나요|넘었는지|일했나요|일하는지).*(\d+\s*(시간|개월|달|년)|두\s*달|세\s*달|한\s*달)",
+    ]
+    
+    for pattern in confirmation_patterns:
+        if re.search(pattern, question_lower):
+            return True  # 사실만 확인하는 질문이므로 제거 대상
+    
+    return False
+
+
+def _filter_questions_repeating_situation(
+    checklist: List[Dict[str, str]], situation: Optional[str] = None
+) -> List[Dict[str, str]]:
+    """상황에서 이미 언급된 사실을 단순 확인하는 질문 제거."""
+    if not situation or not checklist:
+        return checklist
+    
+    facts = _extract_key_facts_from_situation(situation)
+    if not facts:
+        return checklist
+    
+    filtered = []
+    removed_count = 0
+    
+    for item in checklist:
+        question = item.get("question", "").strip()
+        if not question:
+            filtered.append(item)
+            continue
+        
+        # 사실을 단순 확인하는 질문인지 판단
+        if _is_question_just_confirming_fact(question, facts):
+            removed_count += 1
+            _debug_print(f"[상황 중복 필터] 제거: {question[:50]}...")
+            continue
+        
+        filtered.append(item)
+    
+    if removed_count > 0:
+        _debug_print(f"[상황 중복 필터] 총 {removed_count}개 질문 제거")
+    
+    return filtered
+
+
 def _filter_similar_to_previous(
     checklist: List[Dict[str, str]], qa_list: List[Dict[str, str]], min_overlap: int = 2
 ) -> List[Dict[str, str]]:
@@ -864,7 +977,29 @@ def step2_checklist(
     
     # remaining_articles 우선 사용 (법률별 균형 유지, step1에서 온 source 보존)
     if remaining_articles:
-        enhanced_articles = _enhance_articles_with_api(issue, remaining_articles, collection, openai_api_key=openai_api_key)
+        # remaining_articles가 간단한 구조(article, title만)인 경우, 조문 번호로 재검색하여 완전한 RAG 구조로 변환
+        normalized_remaining = []
+        for art in remaining_articles:
+            # 이미 완전한 RAG 구조인지 확인 (text 필드가 있으면 완전한 구조)
+            if art.get("text") or art.get("source"):
+                normalized_remaining.append(art)
+            else:
+                # 간단한 구조면 조문 번호 추출하여 재검색
+                art_num = _article_number_from_result(art)
+                if art_num:
+                    try:
+                        full_results = search_by_article_numbers(collection, [art_num], ALL_LABOR_LAW_SOURCES)
+                        if full_results:
+                            normalized_remaining.extend(full_results)
+                        else:
+                            # 검색 실패해도 원본 유지 (최소한 article은 있음)
+                            normalized_remaining.append(art)
+                    except Exception:
+                        normalized_remaining.append(art)
+                else:
+                    normalized_remaining.append(art)
+        
+        enhanced_articles = _enhance_articles_with_api(issue, normalized_remaining, collection, openai_api_key=openai_api_key)
         if len(enhanced_articles) > max_articles:
             enhanced_articles = _cap_articles_by_source_diversity(enhanced_articles, max_articles)
             _debug_print(f"[체크리스트] 참조 조문 상한 {max_articles}개로 제한 (법률별 균형)")
@@ -1026,6 +1161,14 @@ def step2_checklist(
     # 파싱 및 정규화
     checklist = _parse_checklist_response(out)
     checklist = _deduplicate_checklist(checklist)
+    
+    # 상황에서 이미 언급된 사실을 단순 확인하는 질문 제거
+    if situation_text and checklist:
+        before = len(checklist)
+        checklist = _filter_questions_repeating_situation(checklist, situation_text)
+        if len(checklist) < before:
+            _debug_print(f"[체크리스트] 상황 중복 질문 {before - len(checklist)}개 제거")
+    
     # 이전 라운드와 유사한 질문 제거 (같은 질문 반복 방지)
     if qa_list and checklist:
         before = len(checklist)
@@ -1047,6 +1190,11 @@ def step2_checklist(
         debug_info["llm_checklist_retry"] = retry_debug
         checklist = _parse_checklist_response(out_retry)
         checklist = _deduplicate_checklist(checklist or [])
+        
+        # 상황 중복 필터링
+        if situation_text and checklist:
+            checklist = _filter_questions_repeating_situation(checklist, situation_text)
+        
         if qa_list and checklist:
             checklist = _filter_similar_to_previous(checklist, qa_list, min_overlap=2)
     
@@ -1395,7 +1543,29 @@ def step3_conclusion(
 
     # 체크리스트에서 사용한 조문을 먼저 포함 (결론 AI가 동일 조문을 참고하도록)
     if checklist_rag_results:
+        # 간단한 구조(article, title만)인 경우 조문 번호로 재검색하여 완전한 RAG 구조로 변환
+        normalized_checklist_results = []
         for r in checklist_rag_results:
+            # 이미 완전한 RAG 구조인지 확인 (text 필드가 있으면 완전한 구조)
+            if r.get("text") or (r.get("source") and r.get("article")):
+                normalized_checklist_results.append(r)
+            else:
+                # 간단한 구조면 조문 번호 추출하여 재검색
+                art_num = _article_number_from_result(r)
+                if art_num:
+                    try:
+                        full_results = search_by_article_numbers(collection, [art_num], ALL_LABOR_LAW_SOURCES)
+                        if full_results:
+                            normalized_checklist_results.extend(full_results)
+                        else:
+                            # 검색 실패해도 원본 유지 (최소한 article은 있음)
+                            normalized_checklist_results.append(r)
+                    except Exception:
+                        normalized_checklist_results.append(r)
+                else:
+                    normalized_checklist_results.append(r)
+        
+        for r in normalized_checklist_results:
             key = (r.get("source", ""), r.get("article", ""))
             if key not in seen_keys and (r.get("source") or r.get("article")):
                 law_results.append(dict(r))
@@ -1758,7 +1928,29 @@ def step3_conclusion_stream(
     law_results: List[Dict[str, Any]] = []
     seen_keys: set = set()
     if checklist_rag_results:
+        # 간단한 구조(article, title만)인 경우 조문 번호로 재검색하여 완전한 RAG 구조로 변환
+        normalized_checklist_results = []
         for r in checklist_rag_results:
+            # 이미 완전한 RAG 구조인지 확인 (text 필드가 있으면 완전한 구조)
+            if r.get("text") or (r.get("source") and r.get("article")):
+                normalized_checklist_results.append(r)
+            else:
+                # 간단한 구조면 조문 번호 추출하여 재검색
+                art_num = _article_number_from_result(r)
+                if art_num:
+                    try:
+                        full_results = search_by_article_numbers(collection, [art_num], ALL_LABOR_LAW_SOURCES)
+                        if full_results:
+                            normalized_checklist_results.extend(full_results)
+                        else:
+                            # 검색 실패해도 원본 유지 (최소한 article은 있음)
+                            normalized_checklist_results.append(r)
+                    except Exception:
+                        normalized_checklist_results.append(r)
+                else:
+                    normalized_checklist_results.append(r)
+        
+        for r in normalized_checklist_results:
             key = (r.get("source", ""), r.get("article", ""))
             if key not in seen_keys and (r.get("source") or r.get("article")):
                 law_results.append(dict(r))
