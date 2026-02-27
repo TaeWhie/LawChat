@@ -650,9 +650,14 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             def stream_generator():
                 try:
                     for chunk in step3_conclusion_stream(
-                        request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
+                        request.issue,
+                        request.all_qa,
+                        collection=get_collection(),
+                        narrow_answers=narrow_answers or None,
                         checklist_rag_results=getattr(request, "checklist_rag_results", None) or None,
-                        openai_api_key=effective_key
+                        prompt_overrides={},
+                        openai_api_key=effective_key,
+                        situation=getattr(request, "situation", None),
                     ):
                         yield chunk
                 except Exception as e:
@@ -662,10 +667,15 @@ async def generate_conclusion(request: ConclusionRequest, raw_request: Request):
             effective_key = _effective_openai_key(request)
             overrides = getattr(request, "prompt_overrides", None) or {}
             res = await asyncio.to_thread(
-                step3_conclusion, request.issue, request.all_qa, collection=get_collection(), narrow_answers=narrow_answers or None,
+                step3_conclusion,
+                request.issue,
+                request.all_qa,
+                collection=get_collection(),
+                narrow_answers=narrow_answers or None,
                 checklist_rag_results=getattr(request, "checklist_rag_results", None) or None,
                 prompt_overrides=overrides,
-                openai_api_key=effective_key
+                openai_api_key=effective_key,
+                situation=getattr(request, "situation", None),
             )
             # Add penalty/supplementary info
             conclusion_text = res.get("conclusion", "")

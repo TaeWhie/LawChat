@@ -1532,6 +1532,7 @@ def step3_conclusion(
     openai_api_key: Optional[str] = None,
     language: Optional[str] = None,
     tone: Optional[str] = None,
+    situation: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     모든 질문·대답과 RAG 조문 기반 결론 (법조항 인용).
@@ -1550,6 +1551,9 @@ def step3_conclusion(
         collection, _ = build_vector_store()
     
     qa_text = "\n".join(f"Q: {x.get('q', x.get('question', ''))}\nA: {x.get('a', x.get('answer', ''))}" for x in qa_list)
+    # 결론 단계에서도 사용자의 초기 상황을 함께 보여주면 맥락을 더 잘 유지할 수 있음
+    if situation:
+        qa_text = f"[User's initial situation]\n{situation.strip()}\n\n" + qa_text
     law_query = issue
     if narrow_answers:
         # narrow_answers가 str 리스트 또는 dict 리스트 모두 처리
@@ -1917,6 +1921,7 @@ def step3_conclusion_stream(
     openai_api_key: Optional[str] = None,
     language: Optional[str] = None,
     tone: Optional[str] = None,
+    situation: Optional[str] = None,
 ):
     """
     step3_conclusion의 스트리밍 버전.
@@ -1937,6 +1942,8 @@ def step3_conclusion_stream(
         f"Q: {x.get('q', x.get('question', ''))}\nA: {x.get('a', x.get('answer', ''))}"
         for x in qa_list
     )
+    if situation:
+        qa_text = f"[User's initial situation]\n{situation.strip()}\n\n" + qa_text
     law_query = issue
     if narrow_answers:
         # narrow_answers가 str 리스트 또는 dict 리스트 모두 처리
