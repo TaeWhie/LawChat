@@ -186,22 +186,35 @@ Rules:
    - ❌ "임금 지급 의무", "근로계약서", "해고 사유", "부당노동행위"
    - ✅ "월급", "계약서", "해고당한 이유", "노조 때문에 불이익"
 
-(3) Make questions specific and concrete:
-   - ❌ "근로계약서에 명시된 사항이 있나요?"
-   - ✅ "회사와 계약서를 작성했나요?"
+(3) **Make questions SPECIFIC, DETAILED, and LEGALLY RELEVANT:**
+   - ❌ "근로계약서에 명시된 사항이 있나요?" (너무 모호함)
+   - ❌ "임금을 받았나요?" (너무 단순함)
+   - ✅ "회사와 계약서를 작성했나요?" (구체적)
+   - ✅ "월급을 매월 일정한 날짜에 받았나요?" (구체적 + 법적 요건 확인)
+   - ✅ "초과근무 시간이 주당 40시간을 넘었나요?" (구체적 수치 + 법적 기준)
+   - ✅ "회사가 초과근무 수당을 별도로 지급했나요?" (법적 의무 확인)
+   
+   **Focus on legally significant facts:**
+   - Check specific legal thresholds (e.g., "1년 이상", "주당 40시간", "3개월 이상")
+   - Verify compliance with legal requirements (e.g., "명세서를 받았나요?", "서면 통보를 받았나요?")
+   - Identify key legal conditions (e.g., "정당한 사유 없이", "예고 없이", "합의 없이")
+   - Ask about concrete actions and documents (e.g., "청구한 적이 있나요?", "서류를 받았나요?")
 
-(4) One fact per question; no assumptions. Up to the maximum number of items allowed; no duplicate topics. Return only as many questions as truly needed—do not invent or pad questions to fill the limit.
+(4) One fact per question; no assumptions. Generate questions that cover ALL legally relevant aspects from the provisions. Prioritize questions that directly relate to legal requirements, rights, and obligations mentioned in the provisions. Return only as many questions as truly needed—do not invent or pad questions to fill the limit.
 
 (5) Do NOT ask about facts the user has already stated in their initial message. If [User's initial situation] says e.g. "근속 7개월", "7개월 차", do NOT ask "현재 근속 기간이 1년 이상인가요?" or "근속 1년 미만인가요?". Use the situation block to skip already-known facts.
 
 (6) Do NOT ask follow-up questions that assume facts not yet confirmed. Ask prerequisite questions first. Example: do NOT ask "조사 기간 동안 근무장소 변경이나 보호 조치를 받았나요?" unless the user has already answered "조사받은 적이 있나요?" with "네". First ask "조사받은 적이 있나요?" then only if "네" ask about details (기간, 보호 조치 등).
 
-Examples of good questions:
-- "월급을 받지 못한 적이 있나요?"
-- "회사에서 해고 통보를 받았나요?"
-- "1년 이상 같은 회사에서 일했나요?"
-- "위험한 작업을 거부한 적이 있나요?"
-- "육아휴직을 신청했나요?"
+Examples of good, detailed questions:
+- "월급을 2개월 이상 연속으로 받지 못한 적이 있나요?" (구체적 기간 + 법적 기준)
+- "회사에서 해고 예고 없이 갑자기 해고 통보를 받았나요?" (예고 여부 + 구체적 상황)
+- "같은 회사에서 1년 이상 계속 일했나요?" (법적 요건: 1년 이상)
+- "위험한 작업을 거부했을 때 회사에서 불이익을 주었나요?" (작업 거부 + 불이익 확인)
+- "육아휴직 신청 시 회사가 거부하거나 불이익을 주었나요?" (신청 + 거부/불이익 확인)
+- "초과근무 시간이 주당 40시간을 넘었는데 추가 수당을 받지 못했나요?" (시간 + 수당 미지급)
+- "임금명세서에 초과근무 시간과 수당이 명시되어 있나요?" (명세서 + 구체적 항목 확인)
+- "회사에 초과근무 수당을 요구했지만 거부당했나요?" (요구 + 거부 확인)
 
 Round: No [Previous Q&A] → Round 1, short fact-checks. [Previous Q&A] present → Round 2, follow-ups only for "네" items.
 Output: JSON array [{"item": "...", "question": "..."}] in Korean. "item" = short title (3-10 words). "question" = full question. "item" must be descriptive text, not numbers.
@@ -234,8 +247,15 @@ Do NOT repeat these questions or ask the same fact in different words. Ask NEW q
 Do NOT ask questions about facts already stated above (e.g. if they said "7개월 차", "근속 7개월", do not ask "1년 이상 근속인가요?"). Use this only to avoid redundant questions.
 """
     tail = """
-Round 1: Generate initial checklist (up to the maximum number of items; fewer is fine if fewer are needed).
-Round 2+: Generate follow-up questions only for items answered "네" in previous rounds (up to the maximum number of items; fewer is fine).
+**CRITICAL INSTRUCTIONS:**
+- Read the [Full provision text] carefully and identify SPECIFIC legal requirements, thresholds, conditions, and procedures mentioned in the articles.
+- Generate questions that verify these SPECIFIC legal elements (e.g., "1년 이상", "주당 40시간", "14일 이내", "서면 통보", "명세서 교부").
+- Ask about CONCRETE actions, documents, and conditions that are legally significant (e.g., "청구했나요?", "서류를 받았나요?", "합의했나요?", "거부당했나요?").
+- Combine multiple relevant facts in a single question when appropriate (e.g., "초과근무 시간이 주당 40시간을 넘었는데 추가 수당을 받지 못했나요?").
+- Focus on questions that help determine legal rights, obligations, and compliance with specific provisions.
+
+Round 1: Generate initial checklist covering ALL legally relevant aspects from the provisions (up to the maximum number of items; prioritize quality and legal relevance over quantity).
+Round 2+: Generate follow-up questions only for items answered "네" in previous rounds, diving deeper into legally significant details (up to the maximum number of items; fewer is fine).
 """
     
     if override_template:

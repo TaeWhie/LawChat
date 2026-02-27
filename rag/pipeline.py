@@ -1015,8 +1015,9 @@ def step2_checklist(
     out, llm_debug = chat_json(
         sys_prompt,
         user_prompt,
+        model="gpt-4o-mini",  # 체크리스트: 일반 모델 사용으로 temperature=0.0 적용 가능
+        temperature=0.0,  # 일관된 결과를 위해 0.0으로 고정
         max_tokens=max_tok,
-        reasoning_effort="low",  # 체크리스트: low effort로 3~6배 속도 향상
         return_metadata=True
     )
     debug_info["llm_checklist"] = llm_debug
@@ -1038,8 +1039,9 @@ def step2_checklist(
         out_retry, retry_debug = chat_json(
             sys_prompt,
             user_prompt,
+            model="gpt-4o-mini",  # 재시도도 동일 모델 사용
+            temperature=0.0,
             max_tokens=3072,
-            reasoning_effort="low",
             return_metadata=True
         )
         debug_info["llm_checklist_retry"] = retry_debug
