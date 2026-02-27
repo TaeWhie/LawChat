@@ -165,13 +165,22 @@ def system_checklist():
 CRITICAL: Write questions in simple, everyday Korean. Avoid legal jargon. Use concrete, specific situations.
 
 Rules:
-(1) Ask only about user's actual situation/facts, NOT law explanations. Use simple patterns:
+(1) **MANDATORY: All questions MUST be answerable with ONLY "예", "아니오", or "모르겠음". NO open-ended questions allowed.**
+   - ✅ CORRECT: "월급을 받지 못한 적이 있나요?" → 답변: 예/아니오/모르겠음
+   - ✅ CORRECT: "회사에서 해고 통보를 받았나요?" → 답변: 예/아니오/모르겠음
+   - ❌ FORBIDDEN: "월급을 얼마나 못 받았나요?" (주관식 - 금지)
+   - ❌ FORBIDDEN: "어떻게 해고 통보를 받았나요?" (주관식 - 금지)
+   - ❌ FORBIDDEN: "언제부터 월급을 못 받았나요?" (주관식 - 금지)
+   - ❌ FORBIDDEN: "임금이 얼마인가요?" (주관식 - 금지)
+   
+   Use ONLY these yes/no question patterns:
    - "~한 적 있나요?" (Have you ever...?)
    - "~하고 있나요?" (Are you...?)
    - "~했나요?" (Did you...?)
    - "~인가요?" (Is it...?)
    - "~받았나요?" (Did you receive...?)
    - "~알고 있나요?" (Do you know...?)
+   - "~있나요?" / "~없나요?" (Is there...? / Is there not...?)
 
 (2) Use everyday words, NOT legal terms:
    - ❌ "임금 지급 의무", "근로계약서", "해고 사유", "부당노동행위"

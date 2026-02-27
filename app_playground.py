@@ -23,7 +23,7 @@ except ImportError:
     )
 
 # API 서버 URL (원하는 주소로 수정)
-DEFAULT_BASE_URL = "https://원하는주소"
+DEFAULT_BASE_URL = "https://law-chat-api.onrender.com"
 TIMEOUT = 90
 
 # 모드별 프롬프트 키
@@ -251,6 +251,16 @@ def main():
                     st.session_state["playground_cl_last_round"] = int(round_num)
                     st.session_state["playground_cl_issue"] = issue
                     st.session_state["playground_cl_situation"] = situation
+                    history = st.session_state.get("playground_cl_history", [])
+                    history_entry = {
+                        "issue": issue,
+                        "situation": situation,
+                        "round": int(round_num),
+                        "all_qa": all_qa,
+                        "response": data,
+                        "saved_at": time.time(),
+                    }
+                    st.session_state["playground_cl_history"] = history + [history_entry]
                     st.rerun()
                 else:
                     st.error(f"에러 {code}: {data}")
@@ -322,6 +332,18 @@ def main():
                         st.session_state["playground_cl_last_questions"] = q_list2
                         st.session_state["playground_cl_accumulated_qa"] = new_qa
                         st.session_state["playground_cl_last_round"] = next_round
+                        issue_used = st.session_state.get("playground_cl_issue", issue)
+                        situation_used = st.session_state.get("playground_cl_situation", situation)
+                        history = st.session_state.get("playground_cl_history", [])
+                        history_entry = {
+                            "issue": issue_used,
+                            "situation": situation_used,
+                            "round": next_round,
+                            "all_qa": new_qa,
+                            "response": data,
+                            "saved_at": time.time(),
+                        }
+                        st.session_state["playground_cl_history"] = history + [history_entry]
                         # 이전 답변 위젯 키 초기화해 새 질문에 맞춤 (선택적)
                         for j in range(len(last_questions)):
                             if f"cl_answer_{j}" in st.session_state:
@@ -346,6 +368,190 @@ def main():
                     )
             with st.expander("마지막 체크리스트 전체 응답"):
                 st.json(last_response)
+
+        history = st.session_state.get("playground_cl_history", [])
+        if history:
+            st.divider()
+            st.subheader("저장된 체크리스트 기록")
+            for idx, item in enumerate(reversed(history), 1):
+                ts = item.get("saved_at")
+                ts_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)) if ts else ""
+                header = f"[{idx}] {item.get('issue', '(이슈 없음)')} / round {item.get('round')} / {ts_str}"
+                with st.expander(header):
+                    st.markdown(f"**situation**: {item.get('situation', '')}")
+                    st.json(item.get("response", {}))
+            st.download_button(
+                "전체 체크리스트 기록 JSON 다운로드",
+                data=json.dumps(history, ensure_ascii=False, indent=2),
+                file_name="checklist_history.json",
+                mime="application/json",
+            )
+
+        # ----- 자동 이슈별 체크리스트 시뮬레이션 -----
+        st.divider()
+        with st.expander("자동 이슈별 체크리스트 시뮬레이션 (테스트용)", expanded=False):
+            st.caption("situation을 한 번 입력하면, 이슈 분류 → 각 이슈별 체크리스트를 여러 라운드까지 자동으로 돌려서 결과를 모아줍니다. Q&A 답변은 선택한 기본값으로 자동 채우며, 실제 사건 상담용이 아닌 **프롬프트/체크리스트 구조 검증용**입니다.")
+            auto_situation = st.text_area(
+                "situation (자동 시뮬레이션용)",
+                value=situation,
+                height=80,
+                key="auto_cl_situation",
+            )
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                auto_top_k = st.number_input(
+                    "이슈 분류 top_k",
+                    min_value=1,
+                    max_value=50,
+                    value=10,
+                    key="auto_cl_topk",
+                )
+            with col2:
+                max_issues = st.number_input(
+                    "최대 이슈 개수",
+                    min_value=1,
+                    max_value=50,
+                    value=5,
+                    key="auto_cl_max_issues",
+                    help="이슈 분류 결과 중 상위 몇 개 이슈에 대해 체크리스트를 돌릴지 설정합니다.",
+                )
+            with col3:
+                max_rounds = st.number_input(
+                    "이슈별 최대 라운드 수",
+                    min_value=1,
+                    max_value=10,
+                    value=3,
+                    key="auto_cl_max_rounds",
+                    help="각 이슈별로 체크리스트를 최대 몇 라운드까지 반복 호출할지 설정합니다.",
+                )
+            answer_default = st.selectbox(
+                "자동 Q&A에서 사용할 기본 답변",
+                options=["예", "아니오", "모르겠음"],
+                index=2,
+                key="auto_cl_default_answer",
+                help="각 라운드에서 생성된 질문에 대해 이 값으로 자동 답변을 채워 다음 라운드를 호출합니다.",
+            )
+
+            if st.button("자동 이슈별 체크리스트 전체 실행", key="auto_cl_run"):
+                if not api_key:
+                    st.warning("OpenAI API Key를 사이드바에 입력해 주세요.")
+                else:
+                    with st.spinner("이슈 분류 및 이슈별 체크리스트 자동 실행 중..."):
+                        # 1단계: situation으로 이슈 분류
+                        classify_body = {
+                            "situation": auto_situation,
+                            "top_k": int(auto_top_k),
+                            "openai_api_key": api_key,
+                        }
+                        if overrides:
+                            classify_body["prompt_overrides"] = overrides
+                        code_c, data_c = api_post("/api/v1/chat/classify", classify_body)
+                        if code_c != 200:
+                            st.error(f"이슈 분류 에러 {code_c}: {data_c}")
+                        else:
+                            issues_auto = data_c.get("issues", [])[: int(max_issues)]
+                            if not issues_auto:
+                                st.warning("이슈 분류 결과가 없습니다.")
+                            else:
+                                auto_results = []
+                                for iss in issues_auto:
+                                    all_qa_auto = []
+                                    previous_rag = []
+                                    for r in range(1, int(max_rounds) + 1):
+                                        body_cl = {
+                                            "issue": iss,
+                                            "situation": auto_situation,
+                                            "all_qa": all_qa_auto,
+                                            "round": r,
+                                            "previous_rag_results": previous_rag,
+                                            "openai_api_key": api_key,
+                                        }
+                                        if overrides:
+                                            body_cl["prompt_overrides"] = overrides
+                                        code_cl, data_cl = api_post("/api/v1/chat/checklist", body_cl)
+                                        if code_cl != 200:
+                                            auto_results.append(
+                                                {
+                                                    "issue": iss,
+                                                    "situation": auto_situation,
+                                                    "round": r,
+                                                    "all_qa": list(all_qa_auto),
+                                                    "error": {"status_code": code_cl, "data": data_cl},
+                                                }
+                                            )
+                                            break
+                                        checklist_items = data_cl.get("checklist", [])
+                                        questions = [
+                                            (item.get("question") or item.get("item") or str(item))
+                                            for item in checklist_items
+                                        ]
+                                        should_continue_auto = data_cl.get("should_continue")
+                                        auto_results.append(
+                                            {
+                                                "issue": iss,
+                                                "situation": auto_situation,
+                                                "round": r,
+                                                "all_qa": list(all_qa_auto),
+                                                "questions": questions,
+                                                "should_continue": should_continue_auto,
+                                                "response": data_cl,
+                                            }
+                                        )
+                                        # 다음 라운드를 위한 자동 Q&A 누적
+                                        if not questions:
+                                            break
+                                        new_pairs = [
+                                            {"question": q, "answer": answer_default} for q in questions
+                                        ]
+                                        all_qa_auto = all_qa_auto + new_pairs
+                                        previous_rag = data_cl.get("rag_results") or []
+                                        if should_continue_auto is not True:
+                                            break
+                                st.session_state["playground_auto_cl_results"] = auto_results
+
+                    auto_results = st.session_state.get("playground_auto_cl_results", [])
+                    if auto_results:
+                        st.success(f"자동 실행 완료 (총 {len(auto_results)}개 라운드 결과). 아래에서 이슈·라운드별로 확인하거나 JSON으로 다운로드할 수 있습니다.")
+
+            auto_results_view = st.session_state.get("playground_auto_cl_results", [])
+            if auto_results_view:
+                st.markdown("#### 자동 실행 결과 요약")
+                # 이슈별로 그룹핑
+                issue_map = {}
+                for item in auto_results_view:
+                    issue_key = item.get("issue", "(이슈 없음)")
+                    issue_map.setdefault(issue_key, []).append(item)
+                for iss, items in issue_map.items():
+                    with st.expander(f"[자동] 이슈: {iss} (라운드 {len(items)}개)", expanded=False):
+                        for it in items:
+                            header = f"round {it.get('round')}"
+                            should_c = it.get("should_continue")
+                            sc_str = (
+                                " (should_continue: true)"
+                                if should_c is True
+                                else " (should_continue: false)"
+                                if should_c is False
+                                else " (should_continue: null)"
+                                if should_c is None
+                                else ""
+                            )
+                            st.markdown(f"**{header}{sc_str}**")
+                            if "error" in it:
+                                st.error(it["error"])
+                            else:
+                                qs = it.get("questions") or []
+                                if qs:
+                                    for i, q in enumerate(qs, 1):
+                                        st.markdown(f"- Q{i}. {q}")
+                                with st.expander("원시 응답(JSON)", expanded=False):
+                                    st.json(it.get("response", {}))
+                st.download_button(
+                    "자동 실행 결과 JSON 다운로드",
+                    data=json.dumps(auto_results_view, ensure_ascii=False, indent=2),
+                    file_name="auto_checklist_results.json",
+                    mime="application/json",
+                    key="auto_cl_download",
+                )
 
     # ----- 결론 -----
     elif mode == "결론":
