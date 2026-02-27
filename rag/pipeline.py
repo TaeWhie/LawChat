@@ -734,14 +734,40 @@ def _parse_checklist_response(out: Any) -> List[Dict[str, str]]:
 
 def _deduplicate_checklist(checklist: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """체크리스트에서 중복/유사 질문 제거."""
-    seen_questions = set()
+    if not checklist:
+        return checklist
+    
     deduplicated = []
+    seen_questions = set()  # 정확히 같은 질문 체크용
+    seen_word_sets = []  # 유사 질문 체크용 (같은 라운드 내)
+    
     for item in checklist:
-        q = item.get("question", "").strip().lower()
-        # 간단한 중복 체크 (정확히 같은 질문)
-        if q and q not in seen_questions:
-            seen_questions.add(q)
+        q = item.get("question", "").strip()
+        if not q:
+            continue
+        
+        # 1. 정확히 같은 질문 체크
+        q_lower = q.lower()
+        if q_lower in seen_questions:
+            continue
+        
+        # 2. 같은 라운드 내에서 유사한 질문 체크
+        new_words = _normalize_question_for_similarity(q)
+        is_similar = False
+        for prev_words in seen_word_sets:
+            if not prev_words:
+                continue
+            overlap = len(new_words & prev_words)
+            # 같은 주제(키워드 2개 이상 겹침) 또는 한쪽이 다른 쪽에 포함되면 제외
+            if overlap >= 2 or (prev_words <= new_words) or (new_words <= prev_words):
+                is_similar = True
+                break
+        
+        if not is_similar:
+            seen_questions.add(q_lower)
+            seen_word_sets.append(new_words)
             deduplicated.append(item)
+    
     return deduplicated
 
 
