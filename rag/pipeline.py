@@ -1535,13 +1535,19 @@ def _validate_conclusion(conclusion: str, law_results: List[Dict[str, Any]]) -> 
     return validation
 
 
-def _add_precedents_and_explanations(issue: str, qa_text: str, law_results: List[Dict[str, Any]]) -> str:
-    """판례, 노동위원회 결정례, 고용노동부 법령해석, 법령해석례, 고용보험심사위원회를 컨텍스트에 추가."""
+def _add_precedents_and_explanations(
+    issue: str,
+    qa_text: str,
+    law_results: List[Dict[str, Any]],
+    situation: Optional[str] = None,
+) -> Tuple[str, Dict[str, Any]]:
+    """판례, 노동위원회 결정례, 고용노동부 법령해석 등 추가. 상황·체크리스트가 있으면 판례는 상황 맞춤 검색 시도 후 캐시 폴백. (컨텍스트 문자열, 판례 검증용 메타) 반환."""
     additional_context = []
-    
+    precedents_meta: Dict[str, Any] = {}
+
     try:
         from rag.api_data_loader import (
-            get_precedents_from_cache,
+            get_precedents_for_conclusion,
             get_nlrc_decisions_from_cache,
             get_moel_explanations_from_cache,
             get_expc_from_cache,
@@ -1556,10 +1562,15 @@ def _add_precedents_and_explanations(issue: str, qa_text: str, law_results: List
         )
         from rag.api_cache import get_aiRltLs_cached
         
-        # 판례 추가
-        precedents = get_precedents_from_cache(issue, max_results=3)
+        # 판례 추가 (결론 조문(JO) 검색 우선 → 상황·쿼리 검색 → 실패 시 이슈 캐시 폴백)
+        precedents, precedents_meta = get_precedents_for_conclusion(
+            issue, situation=situation, qa_text=qa_text, law_results=law_results, max_results=3
+        )
         if precedents:
-            _debug_print(f"[결론 확장] 판례 {len(precedents)}개 발견")
+            _debug_print(
+                f"[결론 확장] 판례 {len(precedents)}개 발견 (출처: {precedents_meta.get('source', '')}, "
+                f"쿼리: {precedents_meta.get('query_used', precedents_meta.get('keyword_used', ''))!r})"
+            )
             prec_texts = []
             for prec in precedents:
                 title = prec.get("사건명") or prec.get("사건번호") or ""
@@ -1707,8 +1718,9 @@ def _add_precedents_and_explanations(issue: str, qa_text: str, law_results: List
                         # 연관법령 정보는 간단히 언급만 (너무 길어지지 않도록)
     except Exception as e:
         _debug_print(f"[결론 확장] 판례/해석 추가 실패: {e}")
+        precedents_meta = {}
     
-    return "\n\n".join(additional_context) if additional_context else ""
+    return "\n\n".join(additional_context) if additional_context else "", precedents_meta
 
 
 def step3_conclusion(
@@ -1947,16 +1959,16 @@ def step3_conclusion(
 
     def _fetch_precedents():
         try:
-            return _add_precedents_and_explanations(issue, qa_text, law_results)
+            return _add_precedents_and_explanations(issue, qa_text, law_results, situation=situation)
         except Exception as e:
             _debug_print(f"[결론 생성] 판례·결정례 추가 실패: {e}")
-            return ""
+            return ("", {})
 
     with _cf.ThreadPoolExecutor(max_workers=2) as _ex:
         _fut_decree = _ex.submit(_fetch_decree)
         _fut_prec   = _ex.submit(_fetch_precedents)
         decree_rule_results = _fut_decree.result()
-        precedents_context  = _fut_prec.result()
+        precedents_context, precedents_used = _fut_prec.result()
 
     decree_rule_context = ""
     if decree_rule_results:
@@ -2097,6 +2109,7 @@ def step3_conclusion(
         "law_results": law_results,
         "decree_rule_results": decree_rule_results,
         "validation": validation,
+        "precedents_used": precedents_used,
         "debug_info": debug_info,
     }
 
@@ -2255,15 +2268,15 @@ def step3_conclusion_stream(
 
     def _fetch_prec():
         try:
-            return _add_precedents_and_explanations(issue, qa_text, law_results)
+            return _add_precedents_and_explanations(issue, qa_text, law_results, situation=situation)
         except Exception:
-            return ""
+            return ("", {})
 
     with _cf.ThreadPoolExecutor(max_workers=2) as ex:
         f_d = ex.submit(_fetch_decree)
         f_p = ex.submit(_fetch_prec)
         decree_results = f_d.result()
-        prec_ctx = f_p.result()
+        prec_ctx, _ = f_p.result()
 
     full_context = law_context
     if decree_results:

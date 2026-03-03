@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     from config import (
@@ -578,30 +578,437 @@ def get_law_terms_from_joRltLstrm_cache(article_num: str) -> List[str]:
     return list(dict.fromkeys(law_terms))
 
 
+def _build_precedent_search_query(
+    issue: str,
+    situation: Optional[str] = None,
+    qa_text: Optional[str] = None,
+    max_query_len: int = 80,
+) -> str:
+    """
+    결론용 판례 검색 쿼리 생성: 이슈 + 상황 요약 + 체크리스트 답변에서 추출한 핵심어.
+    API 검색어 길이 제한을 고려해 max_query_len 이내로 자른다.
+    """
+    parts = [(issue or "").strip()]
+    # 상황 문장 앞부분 (숫자·기간·해고/퇴직 등이 자주 나옴)
+    if situation and situation.strip():
+        s_clean = re.sub(r"\s+", " ", situation.strip())[:50]
+        if s_clean and s_clean not in parts:
+            parts.append(s_clean)
+    # 체크리스트 답변에서 '네/아니요'가 아닌 구체적 답만 추출
+    if qa_text and qa_text.strip():
+        skip = {"네", "아니요", "(미입력)", "미입력", "q:", "a:", ""}
+        answers = []
+        for line in qa_text.splitlines():
+            line = line.strip()
+            if line.upper().startswith("A:") or line.startswith("A:"):
+                ans = line[1:].strip().lstrip(":").strip()
+                if ans and ans.lower() not in skip and len(ans) >= 2:
+                    # 단어 단위로 (2글자 이상, 숫자+단위 허용)
+                    for w in re.findall(r"[가-힣a-zA-Z0-9]+", ans):
+                        if len(w) >= 2 and w not in skip and w not in answers:
+                            answers.append(w)
+                            if len(answers) >= 5:
+                                break
+            if len(answers) >= 5:
+                break
+        if answers:
+            parts.append(" ".join(answers[:4]))
+    query = " ".join(p for p in parts if p).strip()
+    if len(query) > max_query_len:
+        query = query[: max_query_len - 3].rstrip() + "..."
+    return query
+
+
+def _cosine_similarity(a: List[float], b: List[float]) -> float:
+    """두 벡터의 코사인 유사도."""
+    if not a or not b or len(a) != len(b):
+        return 0.0
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    if na <= 0 or nb <= 0:
+        return 0.0
+    return dot / (na * nb)
+
+
+def rank_precedents_by_situation(
+    precedents: List[Dict[str, Any]],
+    situation: Optional[str] = None,
+    qa_text: Optional[str] = None,
+    issue: Optional[str] = None,
+    top_k: int = 5,
+    openai_api_key: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    판례 목록을 사용자 상황과의 임베딩 유사도 순으로 정렬해 상위 top_k개 반환.
+    situation/qa_text가 없으면 원래 순서대로 상위 top_k 반환.
+    """
+    if not precedents:
+        return []
+    situation_str = (situation or "").strip()
+    if qa_text and qa_text.strip():
+        qa_short = qa_text.replace("[User's initial situation]", "").strip()[:300]
+        situation_str = (situation_str + " " + qa_short).strip()
+    if not situation_str and not issue:
+        return precedents[:top_k]
+    try:
+        from rag.store import get_embedding, get_embeddings_batch
+    except ImportError:
+        return precedents[:top_k]
+    query_parts = [situation_str]
+    if issue and issue.strip():
+        query_parts.append(issue.strip())
+    query_text = " ".join(query_parts).strip() or situation_str
+    if not query_text:
+        return precedents[:top_k]
+    try:
+        query_emb = list(get_embedding(query_text, api_key=openai_api_key))
+    except Exception:
+        return precedents[:top_k]
+    prec_texts = []
+    for p in precedents:
+        if not isinstance(p, dict):
+            prec_texts.append("")
+            continue
+        title = (p.get("사건명") or p.get("사건번호") or "").strip()
+        summary = (p.get("판시사항") or p.get("요지") or p.get("판결요지") or "").strip()
+        prec_texts.append(f"{title} {summary[:500]}" if summary else (title or "(제목없음)"))
+    if not prec_texts:
+        return precedents[:top_k]
+    try:
+        prec_embs = get_embeddings_batch(prec_texts, api_key=openai_api_key)
+    except Exception:
+        return precedents[:top_k]
+    scored = [( _cosine_similarity(query_emb, emb), i, prec) for i, (prec, emb) in enumerate(zip(precedents, prec_embs))]
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    return [x[2] for x in scored[:top_k]]
+
+
+def _supplement_precedents_to_min(current: List[Dict[str, Any]], issue: str, min_count: int, seen_ids: set) -> List[Dict[str, Any]]:
+    """current가 min_count 미만이면 캐시에서 중복 제외하고 추가해 min_count까지 채움."""
+    if len(current) >= min_count:
+        return current
+    supplemental = get_precedents_from_cache(issue, max_results=min_count + 5)
+    for p in supplemental:
+        if len(current) >= min_count:
+            break
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("판례일련번호") or p.get("id") or p.get("ID")
+        pid_str = str(pid) if pid is not None else ""
+        if pid_str and pid_str not in seen_ids:
+            seen_ids.add(pid_str)
+            current.append(p)
+    return current
+
+
+def _dedupe_precedents_by_id(prec_list: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """판례일련번호/id 기준 중복 제거, 순서 유지."""
+    seen = set()
+    out = []
+    for p in prec_list:
+        if not isinstance(p, dict):
+            continue
+        pid = p.get("판례일련번호") or p.get("id") or p.get("ID")
+        pid_str = str(pid).strip() if pid is not None else ""
+        if not pid_str:
+            out.append(p)
+            continue
+        if pid_str in seen:
+            continue
+        seen.add(pid_str)
+        out.append(p)
+    return out
+
+
+def get_precedents_for_conclusion(
+    issue: str,
+    situation: Optional[str] = None,
+    qa_text: Optional[str] = None,
+    law_results: Optional[List[Dict[str, Any]]] = None,
+    max_results: int = 5,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """
+    결론 단계용 판례 조회.
+    1) 결론에 쓰인 조문(law_results)이 있으면 참조조문(JO)으로 API 검색 우선 시도
+    2) 이슈/상황 쿼리로 API 검색 시도
+    3) 실패 시 이슈 키워드 캐시로 폴백.
+    반환: (precedents_list, meta_dict)
+    meta에 source="api" | "cache", query_used 또는 jo_used 포함.
+    """
+    meta: Dict[str, Any] = {
+        "source": "cache",
+        "keyword_used": issue,
+        "path_used": "",
+        "count": 0,
+        "titles": [],
+        "precedent_ids": [],
+        "query_used": "",
+        "jo_used": "",
+    }
+    query = _build_precedent_search_query(issue, situation, qa_text)
+    has_situation = bool((situation or "").strip() or (qa_text or "").replace("[User's initial situation]", "").strip())
+    INITIAL_FETCH = 15  # 1차 검색으로 더 가져온 뒤 상황 유사도로 상위 N건 선별
+
+    def _fill_meta_from_prec_list(prec_list: list, try_label: str, use_jo: bool = False) -> bool:
+        if not isinstance(prec_list, list) or not prec_list:
+            return False
+        prec_list = prec_list[:max_results]
+        titles = []
+        ids = []
+        for p in prec_list:
+            if isinstance(p, dict):
+                titles.append(p.get("사건명") or p.get("사건번호") or "(제목없음)")
+                pid = p.get("판례일련번호") or p.get("id") or p.get("ID")
+                if pid is not None:
+                    ids.append(str(pid))
+        meta["source"] = "api"
+        meta["query_used"] = try_label if not use_jo else ""
+        meta["jo_used"] = try_label if use_jo else ""
+        meta["count"] = len(prec_list)
+        meta["titles"] = titles
+        meta["precedent_ids"] = ids
+        meta["keyword_used"] = try_label
+        return True
+
+    # 1) 결론에 나온 조문으로 참조조문(JO) 검색 우선 시도
+    if law_results:
+        try:
+            from rag.law_api_client import search_list
+            from rag.sync_common import extract_list_from_response
+            refs = []
+            for r in law_results[:5]:
+                src = (r.get("source") or "").replace("(법률)", "").replace("(시행령)", "").replace("(시행규칙)", "").strip()
+                art = (r.get("article") or "").strip()
+                if not art or not src:
+                    continue
+                m = re.match(r"(제\d+(?:의\d+)?조)", art)
+                num = m.group(1) if m else None
+                if num:
+                    law_name = (src.split()[0] if src else "근로기준법").strip()
+                    refs.append(f"{law_name} {num}")
+            seen_ref = set()
+            refs_unique = [x for x in refs if x not in seen_ref and not seen_ref.add(x)]
+            merged = []
+            seen_id = set()
+            jo_labels = []
+            for ref in refs_unique[:3]:
+                r = search_list("prec", jo=ref, display=INITIAL_FETCH, page=1)
+                if not r.get("success") or not r.get("data"):
+                    continue
+                data = r["data"]
+                prec_list = extract_list_from_response(data, "prec")
+                if not isinstance(prec_list, list):
+                    continue
+                jo_labels.append(ref)
+                for p in prec_list:
+                    if not isinstance(p, dict):
+                        continue
+                    pid = p.get("판례일련번호") or p.get("id") or p.get("ID")
+                    pid_str = str(pid) if pid is not None else ""
+                    if pid_str and pid_str not in seen_id:
+                        seen_id.add(pid_str)
+                        merged.append(p)
+            if merged:
+                if has_situation and len(merged) > max_results:
+                    try:
+                        from rag.context import openai_api_key_ctx
+                        merged = rank_precedents_by_situation(
+                            merged, situation=situation, qa_text=qa_text, issue=issue,
+                            top_k=max_results, openai_api_key=openai_api_key_ctx.get(),
+                        )
+                    except Exception:
+                        merged = merged[:max_results]
+                else:
+                    merged = merged[:max_results]
+                if len(merged) < max_results:
+                    merged = _supplement_precedents_to_min(merged, issue, max_results, seen_id)
+                merged = _dedupe_precedents_by_id(merged)[:max_results]
+                if _fill_meta_from_prec_list(merged, jo_labels[0] if jo_labels else "", use_jo=True):
+                    if jo_labels:
+                        meta["jo_used"] = ", ".join(jo_labels[:2])
+                    return merged, meta
+        except Exception as e:
+            meta["error"] = str(e)
+            meta["api_error"] = str(e)
+
+    # 2) 상황/체크리스트가 있으면 API로 쿼리 검색 시도
+    if has_situation and query and query != (issue or "").strip():
+        try:
+            from rag.law_api_client import search_list
+            from rag.sync_common import extract_list_from_response
+            # API는 다단어 쿼리에서 prec 키를 비울 수 있음 → 짧은 쿼리 시도 후, 실패 시 이슈만 재시도
+            situation_part = ""
+            if situation and situation.strip():
+                words = re.findall(r"[가-힣a-zA-Z0-9]+", situation.strip())
+                situation_part = " ".join(w for w in words[:3] if len(w) >= 2)[:15]
+            api_query = ((issue or "").strip() + " " + situation_part).strip()[:22]
+            if not api_query:
+                api_query = (issue or "").strip()
+            for attempt, try_query in enumerate([api_query, (issue or "").strip()]):
+                if attempt > 0 and try_query == api_query:
+                    continue
+                # 이슈가 "해고/징계" 형태면 API는 단일 키워드가 나음 → 2차 시도 시 캐시용 키워드 사용
+                if attempt > 0 and "/" in (issue or ""):
+                    try:
+                        cands = _precedent_keyword_candidates(issue)
+                        try_query = next((c for c in cands if "/" not in c), try_query)
+                    except Exception:
+                        pass
+                r = search_list("prec", query=try_query, display=INITIAL_FETCH, page=1)
+                if not r.get("success") or not r.get("data"):
+                    continue
+                data = r["data"]
+                prec_list = extract_list_from_response(data, "prec")
+                if not isinstance(prec_list, list) or not prec_list:
+                    continue
+                if has_situation and len(prec_list) > max_results:
+                    try:
+                        from rag.context import openai_api_key_ctx
+                        prec_list = rank_precedents_by_situation(
+                            prec_list, situation=situation, qa_text=qa_text, issue=issue,
+                            top_k=max_results, openai_api_key=openai_api_key_ctx.get(),
+                        )
+                    except Exception:
+                        prec_list = prec_list[:max_results]
+                else:
+                    prec_list = prec_list[:max_results]
+                seen_id = {str(p.get("판례일련번호") or p.get("id") or p.get("ID")) for p in prec_list if isinstance(p, dict)}
+                if len(prec_list) < max_results:
+                    prec_list = _supplement_precedents_to_min(prec_list, issue, max_results, seen_id)
+                prec_list = _dedupe_precedents_by_id(prec_list)[:max_results]
+                if _fill_meta_from_prec_list(prec_list, try_query, use_jo=False):
+                    return prec_list, meta
+            meta["api_error"] = "response_prec_empty_or_invalid"
+        except Exception as e:
+            meta["error"] = str(e)
+            meta["api_error"] = str(e)
+            meta["source"] = "cache_fallback"
+
+    # 폴백: 이슈 키워드 캐시
+    prec_list, cache_meta = get_precedents_from_cache_with_meta(issue, max_results)
+    cache_meta["source"] = "cache"
+    cache_meta["query_used"] = meta.get("query_used", "")
+    cache_meta["jo_used"] = meta.get("jo_used", "")
+    if meta.get("api_error"):
+        cache_meta["api_error"] = meta["api_error"]
+    if meta.get("error"):
+        cache_meta["api_error"] = cache_meta.get("api_error") or meta["error"]
+    return prec_list, cache_meta
+
+
 def get_precedents_from_cache(keyword: str, max_results: int = 5) -> List[Dict[str, Any]]:
     """
     api_data/precedents/ 캐시에서 판례 목록을 반환.
+    이슈(primary)가 "해고/징계" 등이면 동기화 키워드(해고, 부당해고 등)로 후보를 시도.
     """
     try:
         from config import PRECEDENTS_DATA_DIR
     except ImportError:
         return []
+    from rag.sync_common import load_json, extract_list_from_response
     precedents_dir = Path(PRECEDENTS_DATA_DIR)
     if not precedents_dir.exists():
         return []
-    from rag.sync_common import load_json
-    safe = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in keyword)
-    path = precedents_dir / "prec" / "by_keyword" / f"{safe}.json"
-    data = load_json(path)
-    if not data or not isinstance(data, dict):
+    # 이슈 문자열 → 캐시 파일명 후보 (동기화는 TERM_SYNC_KEYWORDS 기준으로만 저장됨)
+    candidates = _precedent_keyword_candidates(keyword)
+    for kw in candidates:
+        safe = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in kw)
+        path = precedents_dir / "prec" / "by_keyword" / f"{safe}.json"
+        data = load_json(path)
+        if not data or not isinstance(data, dict):
+            continue
+        prec_list = extract_list_from_response(data, "prec")
+        if isinstance(prec_list, list) and prec_list:
+            return prec_list[:max_results]
+        # 레거시 구조 직접 확인
+        if isinstance(data.get("prec"), list):
+            return data["prec"][:max_results]
+        if isinstance(data.get("precService"), dict) and isinstance(data["precService"].get("prec"), list):
+            return data["precService"]["prec"][:max_results]
+    return []
+
+
+def _precedent_keyword_candidates(issue_or_keyword: str) -> List[str]:
+    """
+    결론 단계에서 쓰는 이슈(primary) → 판례 캐시 조회에 쓸 키워드 후보 목록.
+    첫 번째는 원문 그대로 safe한 형태, 이후는 해당 이슈와 관련된 동기화 키워드.
+    """
+    s = (issue_or_keyword or "").strip()
+    if not s:
         return []
-    # 판례 목록 추출 (구조에 따라 다를 수 있음)
-    precedents = []
-    if isinstance(data.get("prec"), list):
-        precedents = data["prec"][:max_results]
-    elif isinstance(data.get("precService"), dict) and isinstance(data["precService"].get("prec"), list):
-        precedents = data["precService"]["prec"][:max_results]
-    return precedents
+    try:
+        from rag.labor_keywords import PRIMARY_ISSUES, TERM_SYNC_KEYWORDS
+    except ImportError:
+        return [s]
+    # primary 이슈 → 캐시에 있는 키워드 후보 (TERM_SYNC_KEYWORDS 기준)
+    primary_to_sync = {
+        "해고/징계": ["해고", "부당해고", "정리해고"],
+        "휴일/휴가": ["연차휴가", "연차", "주휴일"],
+        "도급·용역대금": [],  # 동기화 키워드 없음
+        "근로자 보호": ["산재", "산업재해"],
+        "노조": ["노동조합"],
+    }
+    out = [s]
+    if s in primary_to_sync:
+        out.extend(primary_to_sync[s])
+    # 중복 제거 순서 유지
+    seen = set()
+    result = []
+    for x in out:
+        key = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in x)
+        if key not in seen:
+            seen.add(key)
+            result.append(x)
+    return result
+
+
+def get_precedents_from_cache_with_meta(keyword: str, max_results: int = 5) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """
+    판례 목록과 함께 '어떤 키워드로 어떤 파일에서 몇 건을 불러왔는지' 검증용 메타를 반환.
+    반환: (precedents_list, meta_dict)
+    meta_dict: keyword_used, path_used, count, titles, precedent_ids
+    """
+    try:
+        from config import PRECEDENTS_DATA_DIR
+    except ImportError:
+        return [], {"keyword_used": keyword, "path_used": "", "count": 0, "titles": [], "precedent_ids": [], "error": "no_config"}
+    from rag.sync_common import load_json, extract_list_from_response
+    precedents_dir = Path(PRECEDENTS_DATA_DIR)
+    meta = {"keyword_used": keyword, "path_used": "", "count": 0, "titles": [], "precedent_ids": []}
+    if not precedents_dir.exists():
+        return [], {**meta, "error": "precedents_dir_not_found"}
+    candidates = _precedent_keyword_candidates(keyword)
+    for kw in candidates:
+        safe = "".join(c if c.isalnum() or c in ("_", "-") else "_" for c in kw)
+        path = precedents_dir / "prec" / "by_keyword" / f"{safe}.json"
+        data = load_json(path)
+        if not data or not isinstance(data, dict):
+            continue
+        prec_list = extract_list_from_response(data, "prec")
+        if not isinstance(prec_list, list):
+            if isinstance(data.get("prec"), list):
+                prec_list = data["prec"]
+            elif isinstance(data.get("precService"), dict) and isinstance(data["precService"].get("prec"), list):
+                prec_list = data["precService"]["prec"]
+            else:
+                continue
+        prec_list = prec_list[:max_results]
+        titles = []
+        ids = []
+        for p in prec_list:
+            if isinstance(p, dict):
+                titles.append(p.get("사건명") or p.get("사건번호") or "(제목없음)")
+                pid = p.get("판례일련번호") or p.get("id") or p.get("ID")
+                if pid is not None:
+                    ids.append(str(pid))
+        meta["keyword_used"] = kw
+        meta["path_used"] = str(path)
+        meta["count"] = len(prec_list)
+        meta["titles"] = titles
+        meta["precedent_ids"] = ids
+        return prec_list, meta
+    return [], meta
 
 
 def get_nlrc_decisions_from_cache(keyword: str, max_results: int = 5) -> List[Dict[str, Any]]:

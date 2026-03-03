@@ -649,6 +649,7 @@ def _render_chat_ui():
                             cb_issue, all_qa,
                             collection=col,
                             narrow_answers=narrow_answers if narrow_answers else None,
+                            situation=getattr(st.session_state, "cb_situation", None),
                         )
                         conclusion_text = st.write_stream(stream)
 

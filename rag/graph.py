@@ -649,6 +649,7 @@ def process_turn(state: ChatbotState) -> dict:
             checklist_rag_results=parallel_result.get("rag_results") or None,
             prompt_overrides=overrides,
             language=state.get("language"), tone=state.get("tone"),
+            situation=state.get("situation"),
         )
         conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
         rel = res.get("related_articles", []) if isinstance(res, dict) else []
@@ -693,6 +694,7 @@ def process_turn(state: ChatbotState) -> dict:
                     prompt_overrides=overrides,
                     openai_api_key=curr_okey,
                     language=state.get("language"), tone=state.get("tone"),
+                    situation=state.get("situation"),
                 )
                 conc = res.get("conclusion", res) if isinstance(res, dict) else str(res)
                 rel = res.get("related_articles", []) if isinstance(res, dict) else []

@@ -30,13 +30,13 @@ TARGETS_USE_SERVICE = frozenset({"lstrmRlt", "dlytrmRlt", "lstrmRltJo", "joRltLs
 # joRltLstrm은 조문번호 JO 파라미터 사용
 TARGET_USES_JO = "joRltLstrm"
 
-# 봇 차단 방지: 모든 요청에 필수. 제거 시 노동위원회·고용보험심사위원회 등에서 HTML 에러 발생
-# 최신 브라우저 헤더로 업데이트 및 추가 헤더 포함
+# 봇 차단 방지: 모든 요청에 필수.
+# Accept-Encoding에서 br 제거: 일부 환경에서 브로틀리 시 연결 끊김 방지
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-    "Accept-Encoding": "gzip, deflate, br",
+    "Accept-Encoding": "gzip, deflate",
     "Referer": "https://open.law.go.kr/",
     "Origin": "https://open.law.go.kr",
     "Connection": "keep-alive",
@@ -119,7 +119,9 @@ def search_list(
     }
     if target == TARGET_USES_JO and jo is not None:
         params["JO"] = jo
-    elif query:
+    elif target == "prec" and jo is not None:
+        params["JO"] = jo
+    if query:
         params["query"] = query
     if ef_yd:
         params["efYd"] = ef_yd
@@ -130,10 +132,30 @@ def search_list(
     if extra_params:
         params.update(extra_params)
 
-    _delay()
     to = timeout if timeout is not None else LAW_API_TIMEOUT
+    if target == "prec":
+        to = max(to, 45)
     session = _get_session()
-    resp = session.get(base_url, params=params, timeout=to)
+    resp = None
+    last_err = None
+    for attempt in range(3):
+        _delay()
+        try:
+            resp = session.get(base_url, params=params, timeout=to)
+            break
+        except (ConnectionError, OSError) as e:
+            last_err = e
+            if attempt < 2:
+                time.sleep(5 * (attempt + 1))
+            else:
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "status_code": 0,
+                    "content_type": "",
+                }
+    if resp is None:
+        return {"success": False, "error": str(last_err or "unknown"), "status_code": 0, "content_type": ""}
 
     if resp.status_code != 200:
         return {

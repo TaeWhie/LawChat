@@ -32,8 +32,11 @@ def extract_list_from_response(data: Dict[str, Any], target: str) -> list:
     """API 목록 응답에서 항목 리스트 추출. 다양한 응답 루트 키 대응."""
     if not isinstance(data, dict):
         return []
+    # target과 래퍼명(PrecSearch, NlrcService 등) 모두 후보에 포함
+    wrapper_names = ("PrecSearch", "precSearch", "NlrcService", "nlrcService", "LawSearch", "lawSearch")
     candidates = (
-        (target,)  # target과 일치하는 키 우선 (law, eflaw, admrul, prec 등)
+        (target,)
+        + tuple(wrapper_names)
         + (
             "law", "eflaw", "admrul", "prec", "expc", "detc", "decc",
             "licbyl", "admbyl", "ppc", "eiac", "ftc", "nlrc", "iaciac",
