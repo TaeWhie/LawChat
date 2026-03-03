@@ -542,8 +542,12 @@ def process_turn(state: ChatbotState) -> dict:
                     # 프리랜서 관련 질문은 적절한 검색어 사용
                     search_query = user_text
                     if "프리랜서" in user_text or "프리" in user_text:
-                        # 근로자 판단 기준 관련 조문 검색
-                        search_query = "근로자 판단 기준 근로계약 용역계약 위장도급"
+                        # 근로자 판단 기준 + 돈/임금 못 받은 경우 대응 조문까지 검색
+                        payment_kw = ["못받", "못 받", "체불", "미지급", "돈을 안", "대금", "지급"]
+                        if any(kw in user_text for kw in payment_kw):
+                            search_query = "근로자 판단 기준 근로계약 용역계약 위장도급 임금 지급 의무 체불 근로기준법"
+                        else:
+                            search_query = "근로자 판단 기준 근로계약 용역계약 위장도급"
                     elif any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
                         # 최신성 확인 질문: 원래 질문 그대로 검색 (최저임금 등)
                         search_query = user_text
@@ -996,7 +1000,11 @@ def process_turn(state: ChatbotState) -> dict:
                 else:
                     search_query = user_text
                     if "프리랜서" in user_text or "프리" in user_text:
-                        search_query = "근로자 판단 기준 근로계약 용역계약 위장도급"
+                        payment_kw = ["못받", "못 받", "체불", "미지급", "돈을 안", "대금", "지급"]
+                        if any(kw in user_text for kw in payment_kw):
+                            search_query = "근로자 판단 기준 근로계약 용역계약 위장도급 임금 지급 의무 체불 근로기준법"
+                        else:
+                            search_query = "근로자 판단 기준 근로계약 용역계약 위장도급"
                     elif any(kw in user_text for kw in ["올해", "2026", "2025", "2024", "최신"]):
                         search_query = user_text
                     

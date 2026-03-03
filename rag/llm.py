@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import time
 from typing import Any, Dict, Generator, List, Optional
 
 from openai import OpenAI
@@ -20,6 +21,36 @@ from rag.context import (
 
 # 프로덕션에서 stderr 노이즈 방지. LAW_DEBUG=1 일 때만 상세 출력
 _DEBUG = os.getenv("LAW_DEBUG", "0") == "1"
+
+# 429 재시도 설정
+_RATE_LIMIT_MAX_RETRIES = 3
+_RATE_LIMIT_DEFAULT_WAIT = 2.0
+
+
+def _is_rate_limit_error(e: Exception) -> bool:
+    """429 Rate limit 예외 여부 (메시지 또는 타입으로 판단)."""
+    s = str(e).lower()
+    if "429" in s or "rate_limit" in s or "rate limit" in s:
+        return True
+    try:
+        from openai import RateLimitError
+        return isinstance(e, RateLimitError)
+    except Exception:
+        pass
+    return False
+
+
+def _wait_seconds_for_rate_limit(e: Exception) -> float:
+    """에러 메시지에서 'try again in X.XXs' 추출, 없으면 기본값 반환."""
+    msg = str(e)
+    m = re.search(r"try again in (\d+(?:\.\d+)?)\s*s", msg, re.I)
+    if m:
+        return max(1.0, float(m.group(1)))
+    m = re.search(r"try again in (\d+)\s*ms", msg, re.I)
+    if m:
+        return max(1.0, int(m.group(1)) / 1000.0)
+    return _RATE_LIMIT_DEFAULT_WAIT
+
 
 # OpenAI 클라이언트 캐시 (API 키별로 구분)
 _clients: Dict[str, OpenAI] = {}
@@ -108,19 +139,28 @@ def chat(
     if is_reasoning and eff is not None:
         kwargs["reasoning_effort"] = eff
 
-    try:
-        r = client.chat.completions.create(**kwargs)
-        if not r.choices:
-            return ""
-        content = r.choices[0].message.content
-        return content.strip() if content else ""
-    except Exception as e:
-        actual_api_key = openai_api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
-        key_info = f"Used Key: {actual_api_key[:7]}...{actual_api_key[-4:]}" if actual_api_key else "None"
-        new_msg = f"{str(e)} | [{key_info}]"
-        if _DEBUG:
-            print(f"[chat] API 호출 오류: {new_msg}", file=sys.stderr)
-        raise Exception(new_msg)
+    last_error = None
+    for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+        try:
+            r = client.chat.completions.create(**kwargs)
+            if not r.choices:
+                return ""
+            content = r.choices[0].message.content
+            return content.strip() if content else ""
+        except Exception as e:
+            last_error = e
+            if _is_rate_limit_error(e) and attempt < _RATE_LIMIT_MAX_RETRIES - 1:
+                wait_sec = _wait_seconds_for_rate_limit(e)
+                if _DEBUG:
+                    print(f"[chat] 429 재시도 {attempt + 1}/{_RATE_LIMIT_MAX_RETRIES} — {wait_sec:.1f}초 대기", file=sys.stderr)
+                time.sleep(wait_sec)
+                continue
+            actual_api_key = openai_api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
+            key_info = f"Used Key: {actual_api_key[:7]}...{actual_api_key[-4:]}" if actual_api_key else "None"
+            new_msg = f"{str(last_error)} | [{key_info}]"
+            if _DEBUG:
+                print(f"[chat] API 호출 오류: {new_msg}", file=sys.stderr)
+            raise Exception(new_msg)
 
 
 def extract_json(text: str) -> Optional[Any]:
@@ -249,17 +289,27 @@ def chat_stream(
     if is_reasoning and eff is not None:
         kwargs["reasoning_effort"] = eff
 
-    try:
-        stream = client.chat.completions.create(**kwargs)
-        for chunk in stream:
-            if chunk.choices:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
-    except Exception as e:
-        if _DEBUG:
-            print(f"[chat_stream] 스트리밍 오류: {e}", file=sys.stderr)
-        raise
+    last_error = None
+    for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+        try:
+            stream = client.chat.completions.create(**kwargs)
+            for chunk in stream:
+                if chunk.choices:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        yield content
+            return
+        except Exception as e:
+            last_error = e
+            if _is_rate_limit_error(e) and attempt < _RATE_LIMIT_MAX_RETRIES - 1:
+                wait_sec = _wait_seconds_for_rate_limit(e)
+                if _DEBUG:
+                    print(f"[chat_stream] 429 재시도 {attempt + 1}/{_RATE_LIMIT_MAX_RETRIES} — {wait_sec:.1f}초 대기", file=sys.stderr)
+                time.sleep(wait_sec)
+                continue
+            if _DEBUG:
+                print(f"[chat_stream] 스트리밍 오류: {last_error}", file=sys.stderr)
+            raise
 
 
 def chat_with_metadata(
@@ -299,31 +349,40 @@ def chat_with_metadata(
     if is_reasoning and eff is not None:
         kwargs["reasoning_effort"] = eff
 
-    try:
-        r = client.chat.completions.create(**kwargs)
-        content = ""
-        if r.choices:
-            raw = r.choices[0].message.content
-            content = raw.strip() if raw else ""
-        usage = None
-        if getattr(r, "usage", None) is not None:
-            u = r.usage
-            usage = {
-                "prompt_tokens": getattr(u, "prompt_tokens", None) or 0,
-                "completion_tokens": getattr(u, "completion_tokens", None) or 0,
-                "total_tokens": getattr(u, "total_tokens", None) or 0,
+    last_error = None
+    for attempt in range(_RATE_LIMIT_MAX_RETRIES):
+        try:
+            r = client.chat.completions.create(**kwargs)
+            content = ""
+            if r.choices:
+                raw = r.choices[0].message.content
+                content = raw.strip() if raw else ""
+            usage = None
+            if getattr(r, "usage", None) is not None:
+                u = r.usage
+                usage = {
+                    "prompt_tokens": getattr(u, "prompt_tokens", None) or 0,
+                    "completion_tokens": getattr(u, "completion_tokens", None) or 0,
+                    "total_tokens": getattr(u, "total_tokens", None) or 0,
+                }
+            return {
+                "content": content,
+                "system_prompt": system_prompt,
+                "user_prompt": user_prompt,
+                "model": actual_model,
+                "usage": usage,
             }
-        return {
-            "content": content,
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
-            "model": actual_model,
-            "usage": usage,
-        }
-    except Exception as e:
-        actual_api_key = openai_api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
-        key_info = f"Used Key: {actual_api_key[:7]}...{actual_api_key[-4:]}" if actual_api_key else "None"
-        new_msg = f"{str(e)} | [{key_info}]"
-        if _DEBUG:
-            print(f"[chat_with_metadata] API 호출 오류: {new_msg}", file=sys.stderr)
-        raise Exception(new_msg)
+        except Exception as e:
+            last_error = e
+            if _is_rate_limit_error(e) and attempt < _RATE_LIMIT_MAX_RETRIES - 1:
+                wait_sec = _wait_seconds_for_rate_limit(e)
+                if _DEBUG:
+                    print(f"[chat_with_metadata] 429 재시도 {attempt + 1}/{_RATE_LIMIT_MAX_RETRIES} — {wait_sec:.1f}초 대기", file=sys.stderr)
+                time.sleep(wait_sec)
+                continue
+            actual_api_key = openai_api_key or openai_api_key_ctx.get() or OPENAI_API_KEY
+            key_info = f"Used Key: {actual_api_key[:7]}...{actual_api_key[-4:]}" if actual_api_key else "None"
+            new_msg = f"{str(last_error)} | [{key_info}]"
+            if _DEBUG:
+                print(f"[chat_with_metadata] API 호출 오류: {new_msg}", file=sys.stderr)
+            raise Exception(new_msg)

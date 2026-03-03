@@ -18,12 +18,20 @@ def classify_question_type(user_text: str) -> Literal["knowledge", "calculation"
     if any(kw in text for kw in document_keywords):
         return "documents"
     
-    # 예외 상황 키워드 (최우선 체크 - 유도 질문, 모호한 신분, 최신성 확인)
-    exception_keywords_strict = ["프리랜서", "몰래", "기밀", "빼돌려"]
+    # 예외 상황 키워드 (유도 질문, 기밀 등은 항상 예외)
+    exception_keywords_strict = ["몰래", "기밀", "빼돌려"]
     exception_keywords_date = ["올해", "2026", "2025", "2024", "최신"]
+    # 프리랜서·도급·용역 + 대금/미지급 → 상황(situation)으로 두고 이슈 "도급·용역대금"으로 상담
+    freelancer_dogyu_keywords = ["프리랜서", "프리", "도급", "용역대금", "용역"]
+    payment_context_keywords = ["못받", "못 받", "체불", "미지급", "돈을 안", "대금", "지급", "안 줬", "안줬"]
     
-    # 엄격한 예외 키워드 (프리랜서, 불법 행위 등)
     if any(kw in text for kw in exception_keywords_strict):
+        return "exception"
+    # 프리랜서/도급/용역이면서 돈·대금 문제를 말하면 → situation (이슈 "도급·용역대금"으로 체크리스트·결론 흐름)
+    if any(kw in text for kw in freelancer_dogyu_keywords) and any(kw in text for kw in payment_context_keywords):
+        return "situation"
+    # 프리랜서/도급/용역만 있고 대금 맥락 없으면 예외(단발 QA)
+    if any(kw in text for kw in ["프리랜서", "프리", "도급", "용역대금", "용역"]):
         return "exception"
     
     # 최신성 확인 질문 (날짜 + "얼마" 또는 "최저임금" 등) → exception으로 처리
@@ -228,7 +236,8 @@ def system_exception_qa():
 Your task: Answer questions about ambiguous employment status, ethical guidance, and data currency.
 
 **Types of questions:**
-1. Ambiguous status (프리랜서 vs 근로자): Determine if someone qualifies as a worker under labor law
+1. Ambiguous status (프리랜서 vs 근로자): Determine if someone qualifies as a worker under labor law.
+   - If the question also mentions unpaid money (돈을 못받았어, 체불, 미지급 등): (a) Explain worker vs non-worker criteria using the provisions. (b) If deemed a worker under labor law, mention that wage claim procedures (임금 지급 청구, 노동위원회 등) may apply based on the provisions. (c) If not a worker (pure freelancer/용역), briefly note that civil claim (민사상 채무불이행, 대금 청구) or legal advice may be needed, and cite any provided provisions on wage payment obligation where relevant.
 2. Ethical questions (유도 질문): For questions about illegal acts (e.g., "몰래 기밀 빼돌려서 퇴사"):
    - Explain the legal consequences based on labor law provisions (e.g., 해고 사유, 퇴직금 지급, 계약 위반)
    - Use related provisions such as 근로기준법 제23조 (해고 등의 제한), 제19조 (근로조건의 위반) to explain that illegal acts can be grounds for dismissal

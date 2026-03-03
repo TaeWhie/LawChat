@@ -619,6 +619,7 @@ def _render_chat_ui():
                     narrow_answers=narrow_answers or None,
                     qa_list=all_qa,
                     remaining_articles=merged,
+                    situation=cb_situation or "",
                 )
                 should_continue = step2_res.get("should_continue", False)
                 continuation_reason = step2_res.get("continuation_reason", "")

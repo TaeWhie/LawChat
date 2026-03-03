@@ -179,12 +179,13 @@ Rules:
    - "~했나요?" (Did you...?)
    - "~인가요?" (Is it...?)
    - "~받았나요?" (Did you receive...?)
-   - "~알고 있나요?" (Do you know...?)
    - "~있나요?" / "~없나요?" (Is there...? / Is there not...?)
+   - ❌ FORBIDDEN: "~인지 알고 있나요?" / "~라는 것을 알고 있나요?" — Do NOT ask whether the user "knows" a legal rule (e.g. "퇴직금은 14일 이내 지급되어야 한다는 것을 알고 있나요?"). Ask only about CONCRETE FACTS (what happened, what they did, what they received). Legal knowledge belongs in the conclusion, not in the checklist.
 
 (2) Use everyday words, NOT legal terms:
-   - ❌ "임금 지급 의무", "근로계약서", "해고 사유", "부당노동행위"
-   - ✅ "월급", "계약서", "해고당한 이유", "노조 때문에 불이익"
+   - ❌ "임금 지급 의무", "근로계약서", "해고 사유", "부당노동행위", "근로자대표와 서면으로 합의"
+   - ✅ "월급", "계약서", "해고당한 이유", "노조 때문에 불이익", "연장 근무 수당을 받지 못한 적이 있나요?"
+   - **Prefer fact-based questions**: Ask "~받았나요?", "~했나요?", "~청구했나요?" (what the user did/received), NOT "~받아야 하나요?" or "~지급받아야 하나요?" (legal obligation). The latter belongs in the conclusion.
 
 (3) **Make questions SPECIFIC, DETAILED, and LEGALLY RELEVANT:**
    - ❌ "근로계약서에 명시된 사항이 있나요?" (너무 모호함)
@@ -200,11 +201,13 @@ Rules:
    - Identify key legal conditions (e.g., "정당한 사유 없이", "예고 없이", "합의 없이")
    - Ask about concrete actions and documents (e.g., "청구한 적이 있나요?", "서류를 받았나요?")
 
-(4) One fact per question; no assumptions. Generate questions that cover ALL legally relevant aspects from the provisions. Prioritize questions that directly relate to legal requirements, rights, and obligations mentioned in the provisions. Return only as many questions as truly needed—do not invent or pad questions to fill the limit.
+(4) One fact per question; no assumptions. Generate questions that cover ALL legally relevant aspects from the provisions. **Spread questions across DIFFERENT articles and DIFFERENT legal requirements (서로 다른 조문·요건을 골고루 반영)**—do not focus only on one provision; if multiple articles are given, ensure your checklist reflects more than one (e.g. one question on 기간, another on 청구/서면, another on 예고/절차). Prioritize questions that directly relate to legal requirements, rights, and obligations mentioned in the provisions. **You MUST return at least 3 checklist items** unless the provision has exactly one binary condition (then 2 is acceptable). When the provisions mention multiple conditions or procedures (e.g. 기간, 청구 여부, 서면 수령 여부, 예고 여부, 합의 여부), generate at least 3 distinct questions so that the conclusion can be based on sufficient facts. Never return only one or two questions when the issue involves overtime pay, rest periods, dismissal procedure, workplace harassment, or safety—always add at least 2–3 (e.g. "청구한 적이 있나요?", "서면으로 통보받았나요?", "기간이 ~인가요?").
 
-(5) Do NOT ask about facts the user has already stated in their initial message. If [User's initial situation] says e.g. "근속 7개월", "7개월 차", do NOT ask "현재 근속 기간이 1년 이상인가요?" or "근속 1년 미만인가요?". Use the situation block to skip already-known facts.
+(5) **Terminology by issue:** If the issue is "도급·용역대금" (freelancer / consignment payment), use "대금", "용역대금", "지급받지 못한 대금" in questions—NOT "임금" (which refers to labor-law wages). Example: "대금을 청구한 적이 있나요?" not "임금을 청구한 적이 있나요?".
 
-(6) Do NOT ask follow-up questions that assume facts not yet confirmed. Ask prerequisite questions first. Example: do NOT ask "조사 기간 동안 근무장소 변경이나 보호 조치를 받았나요?" unless the user has already answered "조사받은 적이 있나요?" with "네". First ask "조사받은 적이 있나요?" then only if "네" ask about details (기간, 보호 조치 등).
+(6) Do NOT ask about facts the user has already stated in their initial message. If [User's initial situation] says e.g. "근속 7개월", "7개월 차", do NOT ask "현재 근속 기간이 1년 이상인가요?" or "근속 1년 미만인가요?". Use the situation block to skip already-known facts.
+
+(7) Do NOT ask follow-up questions that assume facts not yet confirmed. Example: do NOT ask "조사 기간 동안 근무장소 변경이나 보호 조치를 받았나요?" unless the user has already answered "조사받은 적이 있나요?" with "네". First ask "조사받은 적이 있나요?" then only if "네" ask about details (기간, 보호 조치 등).
 
 Examples of good, detailed questions:
 - "월급을 2개월 이상 연속으로 받지 못한 적이 있나요?" (구체적 기간 + 법적 기준)
@@ -249,12 +252,14 @@ Do NOT ask questions about facts already stated above (e.g. if they said "7개�
     tail = """
 **CRITICAL INSTRUCTIONS:**
 - Read the [Full provision text] carefully and identify SPECIFIC legal requirements, thresholds, conditions, and procedures mentioned in the articles.
+- **Reflect DIFFERENT provisions and DIFFERENT legal requirements (서로 다른 조문·요건)** in your questions: do not ask only about one article; distribute questions across multiple aspects (e.g. 기간, 청구/서면, 예고/절차, 명세서 등) so that at least 3 distinct checklist items are produced when the text contains multiple articles or conditions.
+- **Prefer fact questions over obligation questions**: Use "~받았나요?", "~청구했나요?", "~통보받았나요?" (what happened) rather than "~받아야 하나요?", "~지급받아야 하나요?" (legal obligation). Obligation belongs in the conclusion.
 - Generate questions that verify these SPECIFIC legal elements (e.g., "1년 이상", "주당 40시간", "14일 이내", "서면 통보", "명세서 교부").
 - Ask about CONCRETE actions, documents, and conditions that are legally significant (e.g., "청구했나요?", "서류를 받았나요?", "합의했나요?", "거부당했나요?").
 - Combine multiple relevant facts in a single question when appropriate (e.g., "초과근무 시간이 주당 40시간을 넘었는데 추가 수당을 받지 못했나요?").
 - Focus on questions that help determine legal rights, obligations, and compliance with specific provisions.
 
-Round 1: Generate initial checklist covering ALL legally relevant aspects from the provisions (up to the maximum number of items; prioritize quality and legal relevance over quantity).
+Round 1: Generate initial checklist covering ALL legally relevant aspects from the provisions. **Minimum 3 items** (unless there is exactly one binary condition). Spread items across different articles/requirements. Prioritize quality and legal relevance.
 Round 2+: Generate follow-up questions only for items answered "네" in previous rounds, diving deeper into legally significant details (up to the maximum number of items; fewer is fine).
 """
     

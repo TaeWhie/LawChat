@@ -65,6 +65,7 @@ ISSUE_TO_LAW_MAPPING = {
     "해고/징계": [SOURCE_LAW],
     "휴일/휴가": [SOURCE_LAW],
     "근로계약": [SOURCE_LAW],
+    "도급·용역대금": [SOURCE_LAW],  # 근로자 판단·임금 조항 참고용
 }
 
 # 한 사이클: 본칙으로 조항 확정 후 벌칙·부칙 확인. 법률 검색 시 본칙만 사용.
@@ -450,6 +451,67 @@ def _classify_with_llm(
     return (issues, articles_by_issue, "llm", debug_info)
 
 
+def _reorder_issues_by_situation(issues: List[str], situation: str) -> List[str]:
+    """복수 이슈일 때 상황 문장의 핵심 키워드에 따라 1순위 이슈를 조정."""
+    if not issues or len(issues) <= 1 or not situation:
+        return list(issues)
+    s = situation.strip()
+    if not s:
+        return list(issues)
+    reordered = list(issues)
+    # "마지막 달 급여" 미지급 → 임금을 퇴직금보다 우선 (퇴사해도 마지막 달 급여가 핵심인 경우)
+    if ("마지막 달" in s or "마지막달" in s) and ("급여" in s or "월급" in s or "월급을" in s):
+        if "임금" in reordered and "퇴직금" in reordered and reordered[0] != "임금":
+            reordered = ["임금"] + [x for x in reordered if x != "임금"]
+            _debug_print(f"[이슈 1순위] '마지막 달 급여' → 임금 우선: {reordered}")
+    # "60시간", "연장근로", "추가 수당" 등 → 근로시간을 임금보다 우선 (연장근로 수당이 핵심인 경우)
+    elif any(kw in s for kw in ("60시간", "주당 60", "연장근로", "추가 수당", "야근 수당", "포괄임금제")):
+        if "근로시간" in reordered and "임금" in reordered and reordered[0] != "근로시간":
+            reordered = ["근로시간"] + [x for x in reordered if x != "근로시간"]
+            _debug_print(f"[이슈 1순위] '연장근로/추가 수당' → 근로시간 우선: {reordered}")
+    # "육아휴직 급여" 자격 문의 → 고용보험을 육아휴직보다 우선 (급여 지급 자격·심사는 고용보험)
+    elif "육아휴직" in s and ("급여" in s or "자격" in s):
+        if "고용보험" in reordered and "육아휴직" in reordered and reordered[0] != "고용보험":
+            reordered = ["고용보험"] + [x for x in reordered if x != "고용보험"]
+            _debug_print(f"[이슈 1순위] '육아휴직 급여/자격' → 고용보험 우선: {reordered}")
+    # 실업급여·휴업급여·실업 인정·급여 잘림 → 고용보험 우선
+    elif any(kw in s for kw in ("실업급여", "휴업급여", "실업 인정", "급여가 잘렸", "휴업급여 서류", "이중 가입")):
+        if "고용보험" in reordered and reordered[0] != "고용보험":
+            reordered = ["고용보험"] + [x for x in reordered if x != "고용보험"]
+            _debug_print(f"[이슈 1순위] '실업/휴업 급여' → 고용보험 우선: {reordered}")
+    # 단체협약 위반·파업 징계 → 노조 우선
+    elif any(kw in s for kw in ("단체협약", "파업 참가", "파업 참가했다")):
+        if "노조" in reordered and reordered[0] != "노조":
+            reordered = ["노조"] + [x for x in reordered if x != "노조"]
+            _debug_print(f"[이슈 1순위] '단체협약/파업' → 노조 우선: {reordered}")
+    # 계약 해지 통보(사전 통지 없음) → 근로계약 우선
+    elif ("계약 해지" in s or "계약해지" in s) and "통보" in s:
+        if "근로계약" in reordered and "해고/징계" in reordered and reordered[0] != "근로계약":
+            reordered = ["근로계약"] + [x for x in reordered if x != "근로계약"]
+            _debug_print(f"[이슈 1순위] '계약 해지 통보' → 근로계약 우선: {reordered}")
+    # 미사용 연차 퇴직 시 소멸 → 휴일/휴가 우선
+    elif ("미사용 연차" in s or "연차" in s) and "소멸" in s:
+        if "휴일/휴가" in reordered and "퇴직금" in reordered and reordered[0] != "휴일/휴가":
+            reordered = ["휴일/휴가"] + [x for x in reordered if x != "휴일/휴가"]
+            _debug_print(f"[이슈 1순위] '미사용 연차 소멸' → 휴일/휴가 우선: {reordered}")
+    # 야간 근무 수당 없음 → 근로시간 우선
+    elif "야간" in s and "수당" in s:
+        if "근로시간" in reordered and "임금" in reordered and reordered[0] != "근로시간":
+            reordered = ["근로시간"] + [x for x in reordered if x != "근로시간"]
+            _debug_print(f"[이슈 1순위] '야간 수당' → 근로시간 우선: {reordered}")
+    # 휴일 근무 수당·대체휴일 없음 → 근로시간 우선 (수당이 핵심일 때)
+    elif "휴일 근무" in s and ("수당" in s or "대체휴일" in s):
+        if "근로시간" in reordered and "휴일/휴가" in reordered and reordered[0] != "근로시간":
+            reordered = ["근로시간"] + [x for x in reordered if x != "근로시간"]
+            _debug_print(f"[이슈 1순위] '휴일 근무 수당' → 근로시간 우선: {reordered}")
+    # 육아휴직 썼다고 평가 감점 → 남녀고용평등 우선 (성차별·평가 불이익)
+    elif "육아휴직" in s and ("평가" in s or "감점" in s):
+        if "남녀고용평등" in reordered and "육아휴직" in reordered and reordered[0] != "남녀고용평등":
+            reordered = ["남녀고용평등"] + [x for x in reordered if x != "남녀고용평등"]
+            _debug_print(f"[이슈 1순위] '육아휴직 평가/감점' → 남녀고용평등 우선: {reordered}")
+    return reordered
+
+
 def step1_issue_classification(
     situation: str,
     *,
@@ -505,6 +567,7 @@ def step1_issue_classification(
         )
         # 검증: 최소 1개 이슈에 조문이 있어야 함
         if _validate_issues_with_articles(issues, articles_by_issue):
+            issues = _reorder_issues_by_situation(issues, situation)
             for issue in issues[:top_n]:
                 n = len(articles_by_issue.get(issue, []))
                 _debug_print(f"  이슈 '{issue}' 조문 수: {n}")
@@ -520,6 +583,9 @@ def step1_issue_classification(
         openai_base_url=None # law_api_key is for law API, not openai base url.
     )
     
+    # 상황 키워드에 따른 1순위 이슈 조정 (마지막 달 급여→임금, 60시간/연장근로→근로시간)
+    issues = _reorder_issues_by_situation(issues, situation)
+    
     # LLM 경로도 실패 시 키워드 fallback 재시도
     if not issues and candidate_issues:
         _debug_print(f"[경로 B fallback] LLM 실패 → 키워드 후보 재시도: {candidate_issues}")
@@ -534,6 +600,7 @@ def step1_issue_classification(
         )
         if _validate_issues_with_articles(issues, articles_by_issue):
             _debug_print("[이슈 분류 완료] 키워드 fallback → 이슈별 조문 반환")
+            issues = _reorder_issues_by_situation(issues, situation)
             return (issues, articles_by_issue, "keyword", debug_info)
     
     return (issues, articles_by_issue, source, debug_info)
@@ -590,7 +657,7 @@ def step1_and_step2_parallel(
         for x in candidate_issues:
             if x and x not in seen_order:
                 seen_order.append(x)
-        issues = seen_order
+        issues = _reorder_issues_by_situation(seen_order, situation)
 
         # step1 조문 수집 (thread A)
         def _do_step1():
@@ -782,18 +849,61 @@ def _normalize_question_for_similarity(q: str) -> set:
     return words
 
 
+# 체크리스트가 1개만 남았을 때 추가할 보조 질문 (이슈별). 최소 2개 확보용.
+_CHECKLIST_FALLBACK_BY_ISSUE: Dict[str, str] = {
+    "임금": "회사에 해당 금액을 요구하거나 청구한 적이 있나요?",
+    "퇴직금": "퇴직금을 회사에 청구한 적이 있나요?",
+    "근로시간": "연장·야간 또는 휴일 근무에 대한 추가 수당을 받지 못한 적이 있나요?",
+    "휴일/휴가": "연차휴가나 휴일 수당을 회사에 요구한 적이 있나요?",
+    "해고/징계": "해고 사유와 시기를 서면으로 통보받았나요?",
+    "직장 내 괴롭힘": "괴롭힘 사실을 회사에 신고한 적이 있나요?",
+    "산재": "산재 신청이나 보상을 회사에 요청한 적이 있나요?",
+    "산업안전": "위험한 작업을 거부하거나 회사에 개선을 요청한 적이 있나요?",
+    "노조": "노조 활동이나 단체교섭으로 불이익을 받은 적이 있나요?",
+    "근로자 보호": "해당 내용을 회사에 요구하거나 고용노동부에 신고한 적이 있나요?",
+    "도급·용역대금": "대금을 서면으로 요청하거나 청구한 적이 있나요?",
+    "최저임금": "최저임금 미만으로 지급받은 적이 있나요?",
+    "남녀고용평등": "성차별이나 불이익을 회사에 신고한 적이 있나요?",
+    "육아휴직": "육아휴직 또는 근로시간 단축을 신청한 적이 있나요?",
+    "고용보험": "실업급여·휴업급여 등을 신청한 적이 있나요?",
+    "근로계약": "근로조건을 서면으로 받았나요?",
+}
+
+
+def _ensure_min_checklist_items(checklist: List[Dict[str, str]], issue: str) -> List[Dict[str, str]]:
+    """체크리스트가 1개만 있으면 이슈별 보조 질문을 하나 추가해 최소 2개로 맞춤."""
+    if not checklist or len(checklist) >= 2:
+        return checklist
+    fallback_q = _CHECKLIST_FALLBACK_BY_ISSUE.get((issue or "").strip())
+    if not fallback_q:
+        return checklist
+    first_q = (checklist[0].get("question") or "").strip()
+    first_words = _normalize_question_for_similarity(first_q)
+    fallback_words = _normalize_question_for_similarity(fallback_q)
+    overlap = len(first_words & fallback_words)
+    if overlap >= 3:
+        _debug_print(f"[체크리스트 보조] 기존 질문과 유사해 보조 질문 생략")
+        return checklist
+    checklist = list(checklist)
+    checklist.append({"item": "추가 확인", "question": fallback_q})
+    _debug_print(f"[체크리스트 보조] 1개 → 2개로 보조 질문 추가 (이슈: {issue})")
+    return checklist
+
+
 def _extract_key_facts_from_situation(situation: str) -> set:
-    """상황에서 언급된 핵심 사실(숫자+단위, 기간 등) 추출."""
+    """상황에서 언급된 핵심 사실(숫자+단위, 기간, 서술 표현) 추출."""
     if not situation or not isinstance(situation, str):
         return set()
     
     facts = set()
-    # 숫자+단위 패턴 추출 (예: "60시간", "2개월", "2년", "두 달")
+    # 숫자+단위 패턴 추출 (예: "60시간", "2개월", "2년", "두 달") — 공백 유무 모두
     patterns = [
-        r"\d+\s*시간",  # 60시간
-        r"\d+\s*개월",  # 2개월
-        r"\d+\s*달",    # 2달
-        r"\d+\s*년",    # 2년
+        r"\d+\s*시간",   # 60 시간
+        r"\d+시간",      # 60시간
+        r"\d+\s*개월",   # 2 개월
+        r"\d+개월",      # 2개월
+        r"\d+\s*달",    # 2 달
+        r"\d+\s*년",    # 2 년
         r"두\s*달",     # 두 달
         r"세\s*달",     # 세 달
         r"한\s*달",     # 한 달
@@ -807,56 +917,89 @@ def _extract_key_facts_from_situation(situation: str) -> set:
     
     # 숫자만 있는 경우도 추출 (예: "60", "2")
     numbers = re.findall(r"\d+", situation)
-    # 너무 작은 숫자(1자리)는 제외, 큰 숫자만 (시간, 기간 등)
     for num in numbers:
         if len(num) >= 2 or int(num) >= 10:
             facts.add(num)
+    
+    # 상황에서 이미 말한 서술 표현(질문에서 그대로 재확인되면 제거 대상)
+    claim_phrases = [
+        "못 받", "받지 못", "안 받", "못받", "못 받고", "받지 못하고",
+        "추가 수당", "연장근로 수당", "야근 수당", "수당을 못", "수당을 안",
+        "연장근로", "야근", "넘게 일", "넘어서 일", "넘게 일하는", "60시간 넘게",
+        "체불", "미지급", "못 받고 있습니다", "일하는데",
+        # 해고·예고 수당
+        "예고 수당", "예고 수당을 안 줬", "예고 수당을 받지 못한",
+        # 해고 예고 기간 없이 당장 나가라고 (상황 반복 질문 제거)
+        "당장 나가라고", "예고 기간 없이 당장", "해고 예고 기간 없이",
+        # 괴롭힘·신고
+        "괴롭힘 신고", "신고했는데", "신고한 적", "괴롭힘을 신고한", "직장 내 괴롭힘을 신고한",
+        # 작업중지권
+        "작업중지권", "행사했는데", "행사한 후",
+        # 근로계약서
+        "서명하지 말라고", "안 썼어요", "작성하지 않은 적", "근로계약서를 작성하지 않은",
+    ]
+    situation_lower = situation.lower()
+    for phrase in claim_phrases:
+        if phrase in situation_lower or phrase in situation:
+            facts.add(phrase.strip())
     
     return facts
 
 
 def _is_question_just_confirming_fact(question: str, facts: set) -> bool:
     """질문이 상황에서 이미 언급된 사실을 단순 확인하는지 판단."""
-    if not facts or not question:
+    if not question:
         return False
-    
     question_lower = question.lower()
+    
+    # 먼저: 상황에 "괴롭힘 신고"가 있는데 질문이 "괴롭힘을/직장 내 괴롭힘을 신고한 적 있나요?"만 묻는 경우 → 제거
+    # (fact_in_question이 False가 나와서 아래 체크에 안 타는 경우 방지)
+    if facts and "괴롭힘" in question_lower and "신고" in question_lower and "있나요" in question_lower:
+        if any(f in facts for f in ("괴롭힘 신고", "신고했는데", "괴롭힘을 신고한", "직장 내 괴롭힘을 신고한")):
+            return True
+    if facts and any(f in facts for f in ("괴롭힘 신고", "신고했는데", "신고한 적")) and re.search(r"신고.*(한|했).*적.*있나요", question_lower):
+        return True
+    
+    if not facts:
+        return False
     
     # 질문에 사실이 포함되어 있는지 확인
     fact_in_question = False
-    matched_fact = None
     for fact in facts:
         fact_normalized = fact.lower().replace(" ", "")
         question_normalized = question_lower.replace(" ", "")
         if fact_normalized in question_normalized or fact.lower() in question_lower:
             fact_in_question = True
-            matched_fact = fact
             break
     
     if not fact_in_question:
         return False
     
     # 질문이 그 사실을 "확인"하는 형태인지 판단
-    # 확인 패턴: 사실을 직접 확인하는 질문 (예: "60시간 넘었나요?", "2개월 체불되었나요?")
-    # 하지만 다른 행동/문서를 묻는 질문은 제외 (예: "60시간 넘었는데 요구했나요?" → 요구 행동을 묻는 것)
-    
-    # 행동/문서 키워드가 있으면 제거하지 않음
-    action_keywords = ["요구", "청구", "신고", "받았", "명세서", "계약서", "서류", "지급", "통보", "알고"]
+    # 다른 행동/문서를 묻는 질문은 제외 (예: "60시간 넘었는데 요구했나요?" → 요구 행동을 묻는 것)
+    # "신고" 제외: 상황에 "신고했다" 있을 때 "신고한 적 있나요?"는 단순 확인이므로 제거 대상
+    action_keywords = ["요구", "청구", "명세서", "계약서", "서류", "통보", "알고"]
     has_action = any(keyword in question_lower for keyword in action_keywords)
-    
     if has_action:
-        return False  # 다른 정보도 묻는 질문이므로 유지
+        return False
     
-    # 사실만 확인하는 패턴 체크
-    # 예: "60시간 넘었나요?", "2개월 체불되었나요?", "주당 60시간 넘게 일했나요?"
+    # "받았"은 청구 등과 함께 쓰일 때만 유지하고, "받지 못한 적 있나요?" 형태는 제거 대상
+    if "받았" in question_lower and ("청구" in question_lower or "요구" in question_lower or "지급" in question_lower):
+        return False
+    
+    # 사실만 확인하는 패턴: 숫자+단위 + 확인 어미
     confirmation_patterns = [
         r".*(\d+\s*(시간|개월|달|년)|두\s*달|세\s*달|한\s*달).*(했나요|인가요|있나요|되었나요|넘었나요|넘었는지|일했나요|일하는지)\s*$",
         r".*(했나요|인가요|있나요|되었나요|넘었나요|넘었는지|일했나요|일하는지).*(\d+\s*(시간|개월|달|년)|두\s*달|세\s*달|한\s*달)",
     ]
-    
     for pattern in confirmation_patterns:
         if re.search(pattern, question_lower):
-            return True  # 사실만 확인하는 질문이므로 제거 대상
+            return True
+    
+    # 상황에서 추출한 서술 표현(추가 수당, 못 받 등)을 그대로 확인하는 질문 — 단순 확인 어미로 끝나면 제거
+    confirmation_endings = ("있나요", "했나요", "인가요", "되었나요", "받았나요", "일했나요", "받지 못한 적", "못 받은 적")
+    if any(question_lower.rstrip("?.").endswith(e) for e in confirmation_endings):
+        return True
     
     return False
 
@@ -869,8 +1012,9 @@ def _filter_questions_repeating_situation(
         return checklist
     
     facts = _extract_key_facts_from_situation(situation)
-    if not facts:
-        return checklist
+    situation_stripped = (situation or "").strip().rstrip(".?!")
+    # 상황 문장 끝의 "해요", "했어요" 등 제거한 코어 (질문과 동일 구문 비교용)
+    situation_core = re.sub(r"\s*(해요|했어요|해요\.?|했어요\.?)\s*$", "", situation_stripped).strip()
     
     filtered = []
     removed_count = 0
@@ -880,6 +1024,15 @@ def _filter_questions_repeating_situation(
         if not question:
             filtered.append(item)
             continue
+        
+        # 질문이 상황 문장을 그대로 "~해요?", "~했나요?" 등으로 반복한 경우 제거
+        q_stripped = question.rstrip("?.").strip()
+        q_core = re.sub(r"\s*(해요|했나요|인가요|있나요|되었나요)\s*$", "", q_stripped).strip()
+        if situation_core and q_core and len(q_core) > 5:
+            if q_core == situation_core or q_core in situation_core or situation_core in q_core:
+                removed_count += 1
+                _debug_print(f"[상황 중복 필터] 제거(문장 반복): {question[:50]}...")
+                continue
         
         # 사실을 단순 확인하는 질문인지 판단
         if _is_question_just_confirming_fact(question, facts):
@@ -921,6 +1074,38 @@ def _filter_similar_to_previous(
                 break
         if not is_similar:
             filtered.append(item)
+    return filtered
+
+
+def _filter_knowledge_check_questions(checklist: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """지식 확인형 질문('~인지/한다는 것을 알고 있나요?') 및 의무 확인형('~받아야 하나요?') 제거. 사실·행위·서류 질문만 유지."""
+    if not checklist:
+        return checklist
+    # 프롬프트에서 금지했으나 일부 LLM이 생성하는 패턴
+    knowledge_patterns = [
+        re.compile(r"알고\s*있나요", re.I),
+        re.compile(r"인지\s*알고", re.I),
+        re.compile(r"한다는\s*것을\s*알고", re.I),
+        re.compile(r"있다는\s*것을\s*알고", re.I),
+    ]
+    # 의무 확인형: 사실 확인은 "~받았나요?"로 묻고, "~받아야 하나요?"는 결론에서 다룸
+    obligation_patterns = [
+        re.compile(r"지급받아야\s*하나요\s*\?*\s*$", re.I),
+        re.compile(r"받아야\s*하나요\s*\?*\s*$", re.I),
+    ]
+    filtered = []
+    for item in checklist:
+        q = (item.get("question") or "").strip()
+        if not q:
+            filtered.append(item)
+            continue
+        if any(p.search(q) for p in knowledge_patterns):
+            _debug_print(f"[지식 확인형 필터] 제거: {q[:60]}...")
+            continue
+        if any(p.search(q) for p in obligation_patterns):
+            _debug_print(f"[의무 확인형 필터] 제거: {q[:60]}...")
+            continue
+        filtered.append(item)
     return filtered
 
 
@@ -1187,6 +1372,7 @@ def step2_checklist(
     # 파싱 및 정규화
     checklist = _parse_checklist_response(out)
     checklist = _deduplicate_checklist(checklist)
+    checklist = _filter_knowledge_check_questions(checklist)
     
     # 상황에서 이미 언급된 사실을 단순 확인하는 질문 제거
     if situation_text and checklist:
@@ -1216,6 +1402,7 @@ def step2_checklist(
         debug_info["llm_checklist_retry"] = retry_debug
         checklist = _parse_checklist_response(out_retry)
         checklist = _deduplicate_checklist(checklist or [])
+        checklist = _filter_knowledge_check_questions(checklist)
         
         # 상황 중복 필터링
         if situation_text and checklist:
@@ -1223,6 +1410,9 @@ def step2_checklist(
         
         if qa_list and checklist:
             checklist = _filter_similar_to_previous(checklist, qa_list, min_overlap=2)
+    
+    # 체크리스트가 1개만 남으면 이슈별 보조 질문 추가 (최소 2개)
+    checklist = _ensure_min_checklist_items(checklist or [], issue)
     
     try:
         from config import CHECKLIST_MAX_ITEMS

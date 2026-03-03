@@ -73,6 +73,7 @@ def main(force_rebuild: bool = False):
         narrow_answers=None,
         qa_list=qa_list,
         remaining_articles=remaining,
+        situation=situation,
     )
     checklist = step2_res.get("checklist", []) if isinstance(step2_res, dict) else (step2_res or [])
     if checklist:

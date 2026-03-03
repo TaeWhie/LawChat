@@ -439,6 +439,7 @@ def main():
                         narrow_answers=narrow_answers or None,
                         qa_list=qa_list,
                         remaining_articles=remaining,
+                        situation=st.session_state.get("situation") or "",
                     )
                     checklist = step2_res.get("checklist", []) or []
                     error_msg = step2_res.get("error")
@@ -554,6 +555,7 @@ def main():
                         narrow_answers=narrow_answers or None,
                         qa_list=all_qa,
                         remaining_articles=merged,
+                        situation=st.session_state.get("situation") or "",
                     )
                     should_continue = step2_res.get("should_continue", False)
                     continuation_reason = step2_res.get("continuation_reason", "")
@@ -636,6 +638,7 @@ def main():
                     narrow_answers=narrow_answers or None,
                     qa_list=all_qa,
                     remaining_articles=merged,
+                    situation=st.session_state.get("situation") or "",
                 )
                 new_checklist = step2_res.get("checklist", []) or []
                 if not new_checklist:
@@ -813,6 +816,7 @@ def main():
                             narrow_answers=narrow_next or None,
                             qa_list=next_qa,
                             remaining_articles=remaining_next,
+                            situation=st.session_state.get("situation") or "",
                         )
                     st.session_state.checklist = step2_res.get("checklist", []) or []
                     st.session_state.checklist_rag_results = step2_res.get("rag_results", []) or []

@@ -308,6 +308,15 @@ def get_categories_for_issue(issue: str) -> List[str]:
     
     # 핵심 키워드 우선 매칭 (직접 언급된 경우)
     priority_keywords = {
+        "프리랜서": "도급·용역대금",
+        "도급": "도급·용역대금",
+        "용역대금": "도급·용역대금",
+        "용역 계약": "도급·용역대금",
+        "위장도급": "도급·용역대금",
+        "외주": "도급·용역대금",
+        "납품": "도급·용역대금",
+        "대금 결제": "도급·용역대금",
+        "잔금": "도급·용역대금",
         "육아휴직": "육아휴직",
         "산재": "산재",
         "산업재해": "산재",
@@ -334,6 +343,61 @@ def get_categories_for_issue(issue: str) -> List[str]:
     for keyword, primary in priority_keywords.items():
         if keyword in issue_norm and primary not in matched:
             matched.append(primary)
+    
+    # 성희롱 → 직장 내 괴롭힘 + 남녀고용평등 (남녀고용평등법 성희롱·불이익 금지도 해당)
+    if "성희롱" in issue_norm and "남녀고용평등" not in matched:
+        matched.append("남녀고용평등")
+    
+    # 육아휴직 급여/자격 → 고용보험 이슈도 포함 (급여 지급 자격은 고용보험)
+    if "육아휴직" in issue_norm and ("급여" in issue_norm or "자격" in issue_norm) and "고용보험" not in matched:
+        matched.append("고용보험")
+    
+    # 60시간·연장근로·추가 수당 → 근로시간 이슈 후보에 포함 (이슈 1순위는 pipeline에서 재정렬)
+    if any(kw in issue_norm for kw in ("60시간", "주당 60", "연장근로", "추가 수당", "야근 수당", "포괄임금제")) and "근로시간" not in matched:
+        matched.append("근로시간")
+    
+    # 실업급여·휴업급여·실업 인정·급여 잘림 → 고용보험
+    if any(kw in issue_norm for kw in ("실업급여", "휴업급여", "실업 인정", "급여가 잘렸", "급여를 거절", "휴업급여 서류", "이중 가입")) and "고용보험" not in matched:
+        matched.append("고용보험")
+    
+    # 재해보상금·임신 해고·산전후 휴가·육아기 근로시간 단축 → 근로자 보호
+    if any(kw in issue_norm for kw in ("재해보상금", "재해보상")) and "근로자 보호" not in matched:
+        matched.append("근로자 보호")
+    if "임신" in issue_norm and "해고" in issue_norm and "근로자 보호" not in matched:
+        matched.append("근로자 보호")
+    if "산전후" in issue_norm and ("휴가" in issue_norm or "휴가 신청" in issue_norm) and "근로자 보호" not in matched:
+        matched.append("근로자 보호")
+    if "육아기 근로시간 단축" in issue_norm and "근로자 보호" not in matched:
+        matched.append("근로자 보호")
+    
+    # 단체협약 위반·파업 징계 → 노조
+    if "단체협약" in issue_norm and "노조" not in matched:
+        matched.append("노조")
+    if "파업" in issue_norm and "노조" not in matched:
+        matched.append("노조")
+    
+    # 망신·단톡·SNS 모욕·따돌림 → 직장 내 괴롭힘 (괴롭힘 미언급 상황 감지)
+    if any(kw in issue_norm for kw in ("망신", "단톡", "모욕", "인격 모독", "따돌림", "무시하고", "집단으로 무시")) and "직장 내 괴롭힘" not in matched:
+        matched.append("직장 내 괴롭힘")
+    
+    # 계약 해지 통보(사전 통지 없음) → 근로계약 후보 (해고와 구분)
+    if "계약 해지" in issue_norm or "계약해지" in issue_norm:
+        if "근로계약" not in matched:
+            matched.append("근로계약")
+    
+    # 미사용 연차 퇴직 시 소멸 → 휴일/휴가 후보
+    if ("미사용 연차" in issue_norm or "연차" in issue_norm) and ("소멸" in issue_norm or "퇴직 시" in issue_norm):
+        if "휴일/휴가" not in matched:
+            matched.append("휴일/휴가")
+    
+    # 야간 근무 수당·휴일 근무 수당 없음 → 근로시간 후보
+    if any(kw in issue_norm for kw in ("야간 근무 수당", "야간 근무", "휴일 근무", "대체휴일도 수당")) and "근로시간" not in matched:
+        matched.append("근로시간")
+    
+    # 육아휴직 썼다고 평가/감점 → 남녀고용평등(성차별·평가 불이익) 후보
+    if "육아휴직" in issue_norm and ("평가" in issue_norm or "감점" in issue_norm):
+        if "남녀고용평등" not in matched:
+            matched.append("남녀고용평등")
     
     # 나머지 키워드 매칭
     phrase_map = _issue_phrase_to_primary_from_labor_keywords()
