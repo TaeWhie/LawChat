@@ -2,7 +2,7 @@
 #
 # [실제 구현 흐름]
 #
-# **Streamlit 앱(app.py) 기준 (현재 메인 흐름):**
+# **API/CLI 공통 메인 흐름:**
 #   1. step1_issue_classification: 상황 → [경로A] 이슈 후보(키워드 매칭) 또는 [경로B] 1차검색+LLM 분류 → 이슈별 검색으로 조문 수집 → (issues, articles_by_issue) 반환
 #   2. 앱은 step1 반환값 articles_by_issue 사용 (없는 이슈만 검색으로 보완)
 #   3. step2_checklist: 이슈 + remaining_articles(걸러진 조문) → "당신의 상황·사실" 확인용 질문 리스트 생성
@@ -1541,13 +1541,12 @@ def _add_precedents_and_explanations(
     law_results: List[Dict[str, Any]],
     situation: Optional[str] = None,
 ) -> Tuple[str, Dict[str, Any]]:
-    """판례, 노동위원회 결정례, 고용노동부 법령해석 등 추가. 상황·체크리스트가 있으면 판례는 상황 맞춤 검색 시도 후 캐시 폴백. (컨텍스트 문자열, 판례 검증용 메타) 반환."""
+    """노동위원회 결정례, 고용노동부 법령해석 등 추가. 판례는 제거됨(데이터/처리 비용 대비 기대 품질 미달). (컨텍스트 문자열, 메타) 반환."""
     additional_context = []
     precedents_meta: Dict[str, Any] = {}
 
     try:
         from rag.api_data_loader import (
-            get_precedents_for_conclusion,
             get_nlrc_decisions_from_cache,
             get_moel_explanations_from_cache,
             get_expc_from_cache,
@@ -1561,25 +1560,8 @@ def _add_precedents_and_explanations(
             get_ftc_from_cache,
         )
         from rag.api_cache import get_aiRltLs_cached
-        
-        # 판례 추가 (결론 조문(JO) 검색 우선 → 상황·쿼리 검색 → 실패 시 이슈 캐시 폴백)
-        precedents, precedents_meta = get_precedents_for_conclusion(
-            issue, situation=situation, qa_text=qa_text, law_results=law_results, max_results=3
-        )
-        if precedents:
-            _debug_print(
-                f"[결론 확장] 판례 {len(precedents)}개 발견 (출처: {precedents_meta.get('source', '')}, "
-                f"쿼리: {precedents_meta.get('query_used', precedents_meta.get('keyword_used', ''))!r})"
-            )
-            prec_texts = []
-            for prec in precedents:
-                title = prec.get("사건명") or prec.get("사건번호") or ""
-                summary = prec.get("판시사항") or prec.get("요지") or ""
-                if title or summary:
-                    prec_texts.append(f"판례: {title}\n{summary}")
-            if prec_texts:
-                additional_context.append("[판례]\n" + "\n\n".join(prec_texts))
-        
+
+        # 판례: 제거됨 (기대 품질 대비 데이터·처리 비용 과다)
         # 노동위원회 결정례 추가
         nlrc_decisions = get_nlrc_decisions_from_cache(issue, max_results=2)
         if nlrc_decisions:
@@ -2131,9 +2113,10 @@ def step3_conclusion_stream(
     컨텍스트 조합(RAG 검색, 시행령, 판례)까지는 동기로 수행한 뒤
     결론 생성만 chat_stream으로 청크(str) 단위로 yield.
 
-    Streamlit에서 st.write_stream()과 함께 사용:
+    API 스트리밍 응답 등에서 사용:
         stream = step3_conclusion_stream(issue, qa_list, col)
-        conclusion_text = st.write_stream(stream)
+        for chunk in stream:
+            ...
     """
     from rag.llm import chat_stream as _stream
     from rag.prompts import system_conclusion, user_conclusion
